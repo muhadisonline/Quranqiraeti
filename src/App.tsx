@@ -265,10 +265,12 @@ function AppContent() {
   const quranPageMatch = currentPath.match(/^\/quran\/sehife\/(\d+)$/);
   const quranPageNumber = quranPageMatch ? Number.parseInt(quranPageMatch[1], 10) : undefined;
   const muhaffizPageMatch = currentPath.match(/^\/(?:muhaffiz|ezber)(?:\/(\d+))?$/);
-  const isMuhaffizRoute = Boolean(muhaffizPageMatch);
   const muhaffizInitialPage = muhaffizPageMatch?.[1]
     ? Number.parseInt(muhaffizPageMatch[1], 10)
     : undefined;
+  const isMuhaffizRoute =
+    Boolean(muhaffizPageMatch) &&
+    (muhaffizInitialPage === undefined || (muhaffizInitialPage >= 1 && muhaffizInitialPage <= 604));
 
   const relatedForDetail = useMemo(() => {
     if (!detailVideo) return [];
@@ -368,7 +370,7 @@ function AppContent() {
               onSubmitted={(newReq) => setRequests((prev) => [newReq, ...prev])}
             />
           </>
-        ) : (
+        ) : currentPath === '/' ? (
           <>
             <SeoHead
               title="Quran Qiraeti — Uzun Tilavətlər və Azərbaycan Tərcüməsi"
@@ -416,6 +418,58 @@ function AppContent() {
               onResetFilters={handleResetFilters}
             />
           </>
+        ) : (
+          <section className="py-20 lg:py-24" data-testid="not-found-page">
+            <SeoHead
+              title="Səhifə tapılmadı (404) | Quran Qiraeti"
+              description="Axtardığınız səhifə tapılmadı. Qurani-Kərim və tilavət arxivinə qayıdın."
+              path="/"
+              robots="noindex, nofollow"
+            />
+            <div className="mx-auto max-w-2xl px-6 text-center">
+              <p className="font-mono-tabular text-xs font-semibold tracking-widest text-[#0F4C3A] dark:text-[#86C7AE]">
+                404 · SƏHİFƏ TAPILMADI
+              </p>
+              <h1 className="font-display mt-3 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl dark:text-stone-100">
+                Axtardığınız səhifə mövcud deyil
+              </h1>
+              <p className="mt-3 text-sm leading-relaxed text-stone-600 dark:text-stone-400">
+                Ünvan səhv yazılmış ola bilər və ya səhifə köçürülüb. Aşağıdakı bölmələrdən davam edə bilərsiniz.
+              </p>
+              <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+                <a
+                  href="/"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/');
+                  }}
+                  className="rounded-lg bg-[#0F4C3A] px-5 py-2.5 text-xs font-medium text-white hover:bg-[#0B3A2C] dark:bg-[#196B52]"
+                >
+                  Ana səhifəyə qayıt
+                </a>
+                <a
+                  href="/quran"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/quran');
+                  }}
+                  className="rounded-lg border border-stone-200 bg-white px-5 py-2.5 text-xs font-medium text-stone-700 hover:border-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
+                >
+                  Tam Qurani-Kərim
+                </a>
+                <a
+                  href="/muhaffiz"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/muhaffiz');
+                  }}
+                  className="rounded-lg border border-stone-200 bg-white px-5 py-2.5 text-xs font-medium text-stone-700 hover:border-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
+                >
+                  Mühafiz (Əzbər Mushafı)
+                </a>
+              </div>
+            </div>
+          </section>
         )}
       </main>
 

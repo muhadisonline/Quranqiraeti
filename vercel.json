@@ -13,6 +13,34 @@
       "destination": "/api/index.ts"
     },
     {
+      "source": "/sitemap-index.xml",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/sitemap-core.xml",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/sitemap-surahs.xml",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/sitemap-mushaf.xml",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/sitemap-muhaffiz.xml",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/sitemap-videos.xml",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/og/(.*)",
+      "destination": "/api/index.ts"
+    },
+    {
       "source": "/robots.txt",
       "destination": "/api/index.ts"
     },
@@ -33,7 +61,7 @@
       "destination": "/api/index.ts"
     },
     {
-      "source": "/((?!api/|assets/|sitemap\\.xml$|robots\\.txt$|llms\\.txt$|llms-full\\.txt$|\\.well-known/llms\\.txt$|ai-index\\.json$).*)",
+      "source": "/((?!api/|assets/|og/|sitemap.*\\.xml$|robots\\.txt$|llms\\.txt$|llms-full\\.txt$|\\.well-known/llms\\.txt$|ai-index\\.json$).*)",
       "destination": "/index.html"
     }
   ]

@@ -6,12 +6,14 @@ import {
 } from './quran';
 
 export type MuhaffizFontSize = 'sm' | 'md' | 'lg';
+export type MuhaffizRevealMode = 'word' | 'ayah';
 export type MuhaffizReciterId =
   | 'Alafasy_128kbps'
   | 'Husary_128kbps'
   | 'Minshawy_Murattal_128kbps';
 
 export interface MuhaffizPreferences {
+  revealMode: MuhaffizRevealMode;
   firstWordHint: boolean;
   showTranslation: boolean;
   autoRevealAllOnLoad: boolean;
@@ -21,11 +23,12 @@ export interface MuhaffizPreferences {
 }
 
 export const DEFAULT_MUHAFFIZ_PREFS: MuhaffizPreferences = {
+  revealMode: 'word',
   firstWordHint: false,
   showTranslation: false,
   autoRevealAllOnLoad: false,
   fontSize: 'md',
-  autoIntervalMs: 3500,
+  autoIntervalMs: 1200,
   reciter: 'Alafasy_128kbps',
 };
 
@@ -45,6 +48,9 @@ export interface MushafWordToken {
   textUthmani: string;
   stemText: string;
   waqfMark: string;
+  codeV2Full: string;
+  codeV2Stem: string;
+  codeV2Waqf: string;
   lineNumber: number;
   charType: 'word' | 'end';
 }
@@ -74,6 +80,8 @@ export interface MuhaffizPageData extends MushafPagePayload {
 }
 
 export interface QuranComRawWord {
+  code_v1?: string;
+  code_v2?: string;
   text_uthmani?: string;
   text?: string;
   line_number?: number;
@@ -128,9 +136,19 @@ export function formatArabicJuzLabel(juzNumber: number): string {
   return ARABIC_JUZ_ORDINALS[clamped] || `الجزء ${toArabicIndicDigits(clamped)}`;
 }
 
+export function getQcfFontUrl(pageNumber: number): string {
+  const clean = clampMuhaffizPage(pageNumber);
+  return `https://verses.quran.foundation/fonts/quran/hafs/v1/woff2/p${clean}.woff2`;
+}
+
+export const getQcfV2FontUrl = getQcfFontUrl;
+
+export const UTHMANIC_HAFS_FONT_URL =
+  'https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2';
+
 /**
  * Separates standalone trailing Quranic pause/waqf annotation marks (e.g. "رَيْبَ ۛ" -> stem "رَيْبَ", waqf "ۛ")
- * so the masked word keeps its exact consonant underline while the pause symbol stays visible above the line.
+ * so masked words keep consonant underlines while pause signs remain visible above the line.
  */
 export function splitWaqfMark(rawWord: string): { stemText: string; waqfMark: string } {
   const trimmed = rawWord.trim();
@@ -144,6 +162,32 @@ export function splitWaqfMark(rawWord: string): { stemText: string; waqfMark: st
   return {
     stemText: trimmed,
     waqfMark: '',
+  };
+}
+
+/**
+ * Splits a QCF v2 code string when a trailing standalone waqf mark glyph is attached
+ * (e.g. "ﱆﱇ" for "رَيْبَ ۛ" -> stem "ﱆ", waqf "ﱇ").
+ */
+export function splitCodeV2Waqf(
+  codeV2: string,
+  hasTextWaqf: boolean
+): { codeV2Stem: string; codeV2Waqf: string } {
+  const trimmed = (codeV2 ?? '').trim();
+  if (!trimmed) return { codeV2Stem: '', codeV2Waqf: '' };
+  if (hasTextWaqf) {
+    const chars = Array.from(trimmed);
+    if (chars.length >= 2) {
+      const waqf = chars.pop() ?? '';
+      return {
+        codeV2Stem: chars.join(''),
+        codeV2Waqf: waqf,
+      };
+    }
+  }
+  return {
+    codeV2Stem: trimmed,
+    codeV2Waqf: '',
   };
 }
 
@@ -175,6 +219,155 @@ export function estimateWordMaskWidthPx(word: string): number {
   const base = word.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '');
   const charCount = Math.max(2, Math.min(10, base.length));
   return charCount * 9 + 12;
+}
+
+export function orderedWordTokens(rows: MuhaffizRenderRow[]): MushafWordToken[] {
+  const words: MushafWordToken[] = [];
+  for (const row of rows) {
+    if (row.kind !== 'words') continue;
+    for (const token of row.tokens) {
+      if (token.charType === 'word') {
+        words.push(token);
+      }
+    }
+  }
+  return words;
+}
+
+export function revealNextWord(
+  wordTokens: MushafWordToken[],
+  revealedTokenIds: Set<string>
+): Set<string> {
+  for (const token of wordTokens) {
+    if (!revealedTokenIds.has(token.id)) {
+      const next = new Set(revealedTokenIds);
+      next.add(token.id);
+      return next;
+    }
+  }
+  return revealedTokenIds;
+}
+
+export function hideLastWord(
+  wordTokens: MushafWordToken[],
+  revealedTokenIds: Set<string>
+): Set<string> {
+  for (let i = wordTokens.length - 1; i >= 0; i--) {
+    if (revealedTokenIds.has(wordTokens[i].id)) {
+      const next = new Set(revealedTokenIds);
+      next.delete(wordTokens[i].id);
+      return next;
+    }
+  }
+  return revealedTokenIds;
+}
+
+export function revealNextAyahTokens(
+  ayahs: MushafPageAyah[],
+  wordTokens: MushafWordToken[],
+  revealedTokenIds: Set<string>
+): Set<string> {
+  for (const ayah of ayahs) {
+    const key = ayahKey(ayah);
+    const tokensForAyah = wordTokens.filter((t) => t.ayahKey === key);
+    if (tokensForAyah.some((t) => !revealedTokenIds.has(t.id))) {
+      const next = new Set(revealedTokenIds);
+      for (const t of tokensForAyah) next.add(t.id);
+      return next;
+    }
+  }
+  return revealedTokenIds;
+}
+
+export function hideLastAyahTokens(
+  ayahs: MushafPageAyah[],
+  wordTokens: MushafWordToken[],
+  revealedTokenIds: Set<string>
+): Set<string> {
+  for (let i = ayahs.length - 1; i >= 0; i--) {
+    const key = ayahKey(ayahs[i]);
+    const tokensForAyah = wordTokens.filter((t) => t.ayahKey === key);
+    if (tokensForAyah.some((t) => revealedTokenIds.has(t.id))) {
+      const next = new Set(revealedTokenIds);
+      for (const t of tokensForAyah) next.delete(t.id);
+      return next;
+    }
+  }
+  return revealedTokenIds;
+}
+
+export function revealNextStep(
+  mode: MuhaffizRevealMode,
+  ayahs: MushafPageAyah[],
+  wordTokens: MushafWordToken[],
+  revealedTokenIds: Set<string>
+): Set<string> {
+  return mode === 'word'
+    ? revealNextWord(wordTokens, revealedTokenIds)
+    : revealNextAyahTokens(ayahs, wordTokens, revealedTokenIds);
+}
+
+export function hideLastStep(
+  mode: MuhaffizRevealMode,
+  ayahs: MushafPageAyah[],
+  wordTokens: MushafWordToken[],
+  revealedTokenIds: Set<string>
+): Set<string> {
+  return mode === 'word'
+    ? hideLastWord(wordTokens, revealedTokenIds)
+    : hideLastAyahTokens(ayahs, wordTokens, revealedTokenIds);
+}
+
+export function toggleWordToken(revealedTokenIds: Set<string>, tokenId: string): Set<string> {
+  const next = new Set(revealedTokenIds);
+  if (next.has(tokenId)) {
+    next.delete(tokenId);
+  } else {
+    next.add(tokenId);
+  }
+  return next;
+}
+
+export function toggleEntireAyahTokens(
+  wordTokens: MushafWordToken[],
+  revealedTokenIds: Set<string>,
+  targetAyahKey: string
+): Set<string> {
+  const tokensForAyah = wordTokens.filter((t) => t.ayahKey === targetAyahKey);
+  if (tokensForAyah.length === 0) return revealedTokenIds;
+  const allRevealed = tokensForAyah.every((t) => revealedTokenIds.has(t.id));
+  const next = new Set(revealedTokenIds);
+  for (const t of tokensForAyah) {
+    if (allRevealed) {
+      next.delete(t.id);
+    } else {
+      next.add(t.id);
+    }
+  }
+  return next;
+}
+
+export function revealEntireAyahTokens(
+  wordTokens: MushafWordToken[],
+  revealedTokenIds: Set<string>,
+  targetAyahKey: string
+): Set<string> {
+  const tokensForAyah = wordTokens.filter((t) => t.ayahKey === targetAyahKey);
+  if (tokensForAyah.length === 0) return revealedTokenIds;
+  const next = new Set(revealedTokenIds);
+  for (const t of tokensForAyah) {
+    next.add(t.id);
+  }
+  return next;
+}
+
+export function isAyahRevealed(
+  targetAyahKey: string,
+  wordTokens: MushafWordToken[],
+  revealedTokenIds: Set<string>
+): boolean {
+  const tokensForAyah = wordTokens.filter((t) => t.ayahKey === targetAyahKey);
+  return tokensForAyah.length > 0 && tokensForAyah.every((t) => revealedTokenIds.has(t.id));
 }
 
 export function getNextHiddenKey(
@@ -255,7 +448,7 @@ export function groupPageAyahsBySurah(ayahs: MushafPageAyah[]): MushafPageSurahG
 
 export function groupTokensIntoMushafRows(tokens: MushafWordToken[]): MuhaffizRenderRow[] {
   const lineBuckets = new Map<number, MushafWordToken[]>();
-  const surahStarts = new Map<number, number>(); // surahNumber -> first lineNumber on page
+  const surahStarts = new Map<number, number>();
 
   for (const token of tokens) {
     const arr = lineBuckets.get(token.lineNumber) ?? [];
@@ -332,13 +525,19 @@ export function buildTokensFromQuranComVerses(
       const w = rawWords[i];
       const charType: 'word' | 'end' = w.char_type_name === 'end' ? 'end' : 'word';
       const rawText = String(w.text_uthmani ?? w.text ?? '').trim();
-      if (!rawText) continue;
+      const rawCodeV2 = String(w.code_v1 ?? w.code_v2 ?? '').trim();
+      if (!rawText && !rawCodeV2) continue;
 
       const lineNumber = Math.max(1, Math.min(15, Number(w.line_number) || 1));
       const { stemText, waqfMark } =
         charType === 'end'
           ? { stemText: rawText, waqfMark: '' }
           : splitWaqfMark(rawText);
+
+      const { codeV2Stem, codeV2Waqf } =
+        charType === 'end'
+          ? { codeV2Stem: rawCodeV2, codeV2Waqf: '' }
+          : splitCodeV2Waqf(rawCodeV2, waqfMark.length > 0);
 
       const isFirstWordOfAyah = charType === 'word' && wordIdx === 0;
       if (charType === 'word') wordIdx++;
@@ -353,6 +552,9 @@ export function buildTokensFromQuranComVerses(
         textUthmani: rawText,
         stemText,
         waqfMark,
+        codeV2Full: rawCodeV2,
+        codeV2Stem,
+        codeV2Waqf,
         lineNumber,
         charType,
       });
@@ -362,9 +564,6 @@ export function buildTokensFromQuranComVerses(
   return tokens;
 }
 
-/**
- * Fallback line synthesizer when word-level Madinah geometry is unavailable.
- */
 export function buildSyntheticMuhaffizRows(
   pageNumber: number,
   ayahs: MushafPageAyah[]
@@ -407,6 +606,9 @@ export function buildSyntheticMuhaffizRows(
           textUthmani: word,
           stemText,
           waqfMark,
+          codeV2Full: '',
+          codeV2Stem: '',
+          codeV2Waqf: '',
           lineNumber: currentLine,
           charType: 'word',
         });
@@ -427,6 +629,9 @@ export function buildSyntheticMuhaffizRows(
         textUthmani: toArabicIndicDigits(ayah.ayahNumber),
         stemText: toArabicIndicDigits(ayah.ayahNumber),
         waqfMark: '',
+        codeV2Full: '',
+        codeV2Stem: '',
+        codeV2Waqf: '',
         lineNumber: currentLine,
         charType: 'end',
       });
@@ -460,78 +665,78 @@ export const FATIHAT_PAGE_1_VERSES_SEED: QuranComRawVerseWithWords[] = [
     verse_key: '1:1',
     juz_number: 1,
     words: [
-      { text_uthmani: 'بِسْمِ', line_number: 2, char_type_name: 'word' },
-      { text_uthmani: 'ٱللَّهِ', line_number: 2, char_type_name: 'word' },
-      { text_uthmani: 'ٱلرَّحْمَـٰنِ', line_number: 2, char_type_name: 'word' },
-      { text_uthmani: 'ٱلرَّحِيمِ', line_number: 2, char_type_name: 'word' },
-      { text_uthmani: '١', line_number: 2, char_type_name: 'end' },
+      { code_v1: 'ﭑ', text_uthmani: 'بِسْمِ', line_number: 2, char_type_name: 'word' },
+      { code_v1: 'ﭒ', text_uthmani: 'ٱللَّهِ', line_number: 2, char_type_name: 'word' },
+      { code_v1: 'ﭓ', text_uthmani: 'ٱلرَّحْمَـٰنِ', line_number: 2, char_type_name: 'word' },
+      { code_v1: 'ﭔ', text_uthmani: 'ٱلرَّحِيمِ', line_number: 2, char_type_name: 'word' },
+      { code_v1: 'ﭕ', text_uthmani: '١', line_number: 2, char_type_name: 'end' },
     ],
   },
   {
     verse_key: '1:2',
     juz_number: 1,
     words: [
-      { text_uthmani: 'ٱلْحَمْدُ', line_number: 3, char_type_name: 'word' },
-      { text_uthmani: 'لِلَّهِ', line_number: 3, char_type_name: 'word' },
-      { text_uthmani: 'رَبِّ', line_number: 3, char_type_name: 'word' },
-      { text_uthmani: 'ٱلْعَـٰلَمِينَ', line_number: 3, char_type_name: 'word' },
-      { text_uthmani: '٢', line_number: 3, char_type_name: 'end' },
+      { code_v1: 'ﭖ', text_uthmani: 'ٱلْحَمْدُ', line_number: 3, char_type_name: 'word' },
+      { code_v1: 'ﭗ', text_uthmani: 'لِلَّهِ', line_number: 3, char_type_name: 'word' },
+      { code_v1: 'ﭘ', text_uthmani: 'رَبِّ', line_number: 3, char_type_name: 'word' },
+      { code_v1: 'ﭙ', text_uthmani: 'ٱلْعَـٰلَمِينَ', line_number: 3, char_type_name: 'word' },
+      { code_v1: 'ﭚ', text_uthmani: '٢', line_number: 3, char_type_name: 'end' },
     ],
   },
   {
     verse_key: '1:3',
     juz_number: 1,
     words: [
-      { text_uthmani: 'ٱلرَّحْمَـٰنِ', line_number: 4, char_type_name: 'word' },
-      { text_uthmani: 'ٱلرَّحِيمِ', line_number: 4, char_type_name: 'word' },
-      { text_uthmani: '٣', line_number: 4, char_type_name: 'end' },
+      { code_v1: 'ﭛ', text_uthmani: 'ٱلرَّحْمَـٰنِ', line_number: 4, char_type_name: 'word' },
+      { code_v1: 'ﭜ', text_uthmani: 'ٱلرَّحِيمِ', line_number: 4, char_type_name: 'word' },
+      { code_v1: 'ﭝ', text_uthmani: '٣', line_number: 4, char_type_name: 'end' },
     ],
   },
   {
     verse_key: '1:4',
     juz_number: 1,
     words: [
-      { text_uthmani: 'مَـٰلِكِ', line_number: 4, char_type_name: 'word' },
-      { text_uthmani: 'يَوْمِ', line_number: 4, char_type_name: 'word' },
-      { text_uthmani: 'ٱلدِّينِ', line_number: 4, char_type_name: 'word' },
-      { text_uthmani: '٤', line_number: 4, char_type_name: 'end' },
+      { code_v1: 'ﭞ', text_uthmani: 'مَـٰلِكِ', line_number: 4, char_type_name: 'word' },
+      { code_v1: 'ﭟ', text_uthmani: 'يَوْمِ', line_number: 4, char_type_name: 'word' },
+      { code_v1: 'ﭠ', text_uthmani: 'ٱلدِّينِ', line_number: 4, char_type_name: 'word' },
+      { code_v1: 'ﭡ', text_uthmani: '٤', line_number: 4, char_type_name: 'end' },
     ],
   },
   {
     verse_key: '1:5',
     juz_number: 1,
     words: [
-      { text_uthmani: 'إِيَّاكَ', line_number: 5, char_type_name: 'word' },
-      { text_uthmani: 'نَعْبُدُ', line_number: 5, char_type_name: 'word' },
-      { text_uthmani: 'وَإِيَّاكَ', line_number: 5, char_type_name: 'word' },
-      { text_uthmani: 'نَسْتَعِينُ', line_number: 5, char_type_name: 'word' },
-      { text_uthmani: '٥', line_number: 5, char_type_name: 'end' },
+      { code_v1: 'ﭢ', text_uthmani: 'إِيَّاكَ', line_number: 5, char_type_name: 'word' },
+      { code_v1: 'ﭣ', text_uthmani: 'نَعْبُدُ', line_number: 5, char_type_name: 'word' },
+      { code_v1: 'ﭤ', text_uthmani: 'وَإِيَّاكَ', line_number: 5, char_type_name: 'word' },
+      { code_v1: 'ﭥ', text_uthmani: 'نَسْتَعِينُ', line_number: 5, char_type_name: 'word' },
+      { code_v1: 'ﭦ', text_uthmani: '٥', line_number: 5, char_type_name: 'end' },
     ],
   },
   {
     verse_key: '1:6',
     juz_number: 1,
     words: [
-      { text_uthmani: 'ٱهْدِنَا', line_number: 6, char_type_name: 'word' },
-      { text_uthmani: 'ٱلصِّرَٰطَ', line_number: 6, char_type_name: 'word' },
-      { text_uthmani: 'ٱلْمُسْتَقِيمَ', line_number: 6, char_type_name: 'word' },
-      { text_uthmani: '٦', line_number: 6, char_type_name: 'end' },
+      { code_v1: 'ﭧ', text_uthmani: 'ٱهْدِنَا', line_number: 5, char_type_name: 'word' },
+      { code_v1: 'ﭨ', text_uthmani: 'ٱلصِّرَٰطَ', line_number: 6, char_type_name: 'word' },
+      { code_v1: 'ﭩ', text_uthmani: 'ٱلْمُسْتَقِيمَ', line_number: 6, char_type_name: 'word' },
+      { code_v1: 'ﭪ', text_uthmani: '٦', line_number: 6, char_type_name: 'end' },
     ],
   },
   {
     verse_key: '1:7',
     juz_number: 1,
     words: [
-      { text_uthmani: 'صِرَٰطَ', line_number: 7, char_type_name: 'word' },
-      { text_uthmani: 'ٱلَّذِينَ', line_number: 7, char_type_name: 'word' },
-      { text_uthmani: 'أَنْعَمْتَ', line_number: 7, char_type_name: 'word' },
-      { text_uthmani: 'عَلَيْهِمْ', line_number: 7, char_type_name: 'word' },
-      { text_uthmani: 'غَيْرِ', line_number: 7, char_type_name: 'word' },
-      { text_uthmani: 'ٱلْمَغْضُوبِ', line_number: 8, char_type_name: 'word' },
-      { text_uthmani: 'عَلَيْهِمْ', line_number: 8, char_type_name: 'word' },
-      { text_uthmani: 'وَلَا', line_number: 8, char_type_name: 'word' },
-      { text_uthmani: 'ٱلضَّآلِّينَ', line_number: 8, char_type_name: 'word' },
-      { text_uthmani: '٧', line_number: 8, char_type_name: 'end' },
+      { code_v1: 'ﭫ', text_uthmani: 'صِرَٰطَ', line_number: 6, char_type_name: 'word' },
+      { code_v1: 'ﭬ', text_uthmani: 'ٱلَّذِينَ', line_number: 6, char_type_name: 'word' },
+      { code_v1: 'ﭭ', text_uthmani: 'أَنْعَمْتَ', line_number: 6, char_type_name: 'word' },
+      { code_v1: 'ﭮ', text_uthmani: 'عَلَيْهِمْ', line_number: 7, char_type_name: 'word' },
+      { code_v1: 'ﭯ', text_uthmani: 'غَيْرِ', line_number: 7, char_type_name: 'word' },
+      { code_v1: 'ﭰ', text_uthmani: 'ٱلْمَغْضُوبِ', line_number: 7, char_type_name: 'word' },
+      { code_v1: 'ﭱ', text_uthmani: 'عَلَيْهِمْ', line_number: 7, char_type_name: 'word' },
+      { code_v1: 'ﭲ', text_uthmani: 'وَلَا', line_number: 8, char_type_name: 'word' },
+      { code_v1: 'ﭳ', text_uthmani: 'ٱلضَّآلِّينَ', line_number: 8, char_type_name: 'word' },
+      { code_v1: 'ﭴ', text_uthmani: '٧', line_number: 8, char_type_name: 'end' },
     ],
   },
 ];

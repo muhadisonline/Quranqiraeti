@@ -11,6 +11,7 @@ import {
   getJuzForPage,
   getPagesForJuz,
 } from '../lib/quran';
+import { POPULAR_QURAN_TOPICS, buildBreadcrumbJsonLd } from '../lib/seo';
 
 interface QuranDirectoryPageProps {
   isDark: boolean;
@@ -49,18 +50,24 @@ export function QuranDirectoryPage({
   }, []);
 
   const jsonLd = useMemo(
-    () => ({
-      '@context': 'https://schema.org',
-      '@type': 'Book',
-      name: 'Qurani-Kərim (Mədinə çapı, 604 səhifə) — Ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi',
-      inLanguage: ['ar', 'az'],
-      numberOfPages: TOTAL_QURAN_PAGES,
-      translator: {
-        '@type': 'Person',
-        name: 'Əlixan Musayev',
+    () => [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Book',
+        name: 'Qurani-Kərim (Mədinə çapı, 604 səhifə) — Ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi',
+        inLanguage: ['ar', 'az'],
+        numberOfPages: TOTAL_QURAN_PAGES,
+        translator: {
+          '@type': 'Person',
+          name: 'Əlixan Musayev',
+        },
+        url: `${window.location.origin}/quran`,
       },
-      url: `${window.location.origin}/quran`,
-    }),
+      buildBreadcrumbJsonLd(window.location.origin, [
+        { name: 'Ana səhifə', path: '/' },
+        { name: 'Qurani-Kərim', path: '/quran' },
+      ]),
+    ],
     []
   );
 
@@ -78,10 +85,26 @@ export function QuranDirectoryPage({
         title="Tam Qurani-Kərim — Mədinə Çapı (604 Səhifə) və 114 Surə | Quran Qiraeti"
         description="Mədinə çapı üzrə Qurani-Kərimin 604 səhifəsi və 114 surəsi: hər səhifədə Mədinə müshəfindəki dəqiq ayə sayı, ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi (v1.0.4)."
         path="/quran"
+        ogImage="/og/site.svg"
         jsonLd={jsonLd}
       />
 
       <div className="mx-auto max-w-6xl px-6">
+        <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate('/');
+            }}
+            className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]"
+          >
+            Ana səhifə
+          </a>
+          <span aria-hidden="true">›</span>
+          <span className="font-medium text-stone-900 dark:text-stone-200">Qurani-Kərim</span>
+        </nav>
+
         {/* Header */}
         <div className="flex flex-col gap-6 border-b border-stone-200 pb-8 sm:flex-row sm:items-end sm:justify-between dark:border-stone-800">
           <div>
@@ -133,6 +156,92 @@ export function QuranDirectoryPage({
             </button>
           </div>
         </div>
+
+        {/* Popular Verses & Surahs Quick Links (SEO Internal Linking) */}
+        <section
+          aria-labelledby="popular-quran-topics-heading"
+          data-testid="popular-quran-topics"
+          className="mt-8"
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2
+              id="popular-quran-topics-heading"
+              className="font-display text-xl font-semibold text-stone-900 dark:text-stone-100"
+            >
+              Ən Çox Axtarılan Surələr və Məşhur Ayələr
+            </h2>
+            <a
+              href="/muhaffiz"
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate('/muhaffiz');
+              }}
+              className="text-xs font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+            >
+              Mühafiz (Əzbər Mushafı) →
+            </a>
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {POPULAR_QURAN_TOPICS.map((topic) => (
+              <div
+                key={topic.id}
+                className="flex flex-col justify-between rounded-xl border border-stone-200 bg-[#F7F5F0] p-4 dark:border-stone-800 dark:bg-[#141916]"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <a
+                      href={`/quran/sehife/${topic.pageNumber}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        onNavigate(`/quran/sehife/${topic.pageNumber}`);
+                      }}
+                      className="font-display text-base font-semibold text-stone-900 hover:text-[#0F4C3A] dark:text-stone-100 dark:hover:text-[#86C7AE]"
+                    >
+                      {topic.title}
+                    </a>
+                    <span
+                      dir="rtl"
+                      lang="ar"
+                      className="font-arabic shrink-0 text-base text-[#0F4C3A] dark:text-[#86C7AE]"
+                    >
+                      {topic.arabicLabel}
+                    </span>
+                  </div>
+                  <p className="mt-1 font-mono-tabular text-[11px] font-medium text-stone-500 dark:text-stone-400">
+                    {topic.searchHint}
+                  </p>
+                  <p className="mt-1.5 text-xs leading-relaxed text-stone-600 dark:text-stone-300">
+                    {topic.summary}
+                  </p>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between border-t border-stone-200/80 pt-2.5 text-[11px] dark:border-stone-800">
+                  <a
+                    href={`/quran/sure/${topic.surahNumber}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onNavigate(`/quran/sure/${topic.surahNumber}`);
+                    }}
+                    className="font-medium text-stone-600 hover:text-[#0F4C3A] dark:text-stone-400 dark:hover:text-[#86C7AE]"
+                  >
+                    Surəni aç
+                  </a>
+                  <a
+                    href={`/muhaffiz/${topic.pageNumber}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onNavigate(`/muhaffiz/${topic.pageNumber}`);
+                    }}
+                    className="font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                  >
+                    Mühafizdə əzbərlə
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* Mode Switcher: Mədinə çapı səhifələri (604) vs Surələr (114) */}
         <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

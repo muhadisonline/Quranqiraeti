@@ -28,10 +28,18 @@ import {
 } from '../lib/muhaffiz';
 import {
   buildAiIndexJson,
+  buildCoreSitemapXml,
+  buildDynamicOgSvg,
   buildLlmsFullTxt,
   buildLlmsTxt,
+  buildMuhaffizSitemapXml,
+  buildMushafSitemapXml,
   buildRobotsTxt,
+  buildSitemapIndexXml,
   buildSitemapXml,
+  buildSurahsSitemapXml,
+  buildVideoSitemapXml,
+  submitIndexNowPing,
 } from '../lib/seo';
 import {
   CONNECTED_PAGES,
@@ -261,7 +269,7 @@ export async function fetchMuhaffizPage(pageNumber: number): Promise<MuhaffizPag
 
   try {
     const res = await fetch(
-      `https://api.quran.com/api/v4/verses/by_page/${pageNumber}?words=true&word_fields=text_uthmani,line_number,char_type_name&per_page=50`,
+      `https://api.quran.com/api/v4/verses/by_page/${pageNumber}?words=true&word_fields=code_v1,text_uthmani,line_number,char_type_name&per_page=50`,
       {
         signal: AbortSignal.timeout(7000),
         headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -669,7 +677,7 @@ export function getRequestOrigin(req: Request): string {
   return `${proto}://${host}`;
 }
 
-async function getChannelDataForSeo(): Promise<{
+export async function getChannelDataForSeo(): Promise<{
   stats: ChannelStats;
   longVideos: RecitationVideo[];
   shorts: RecitationVideo[];
@@ -715,6 +723,102 @@ export function createSeoRouter() {
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
     res.send(buildSitemapXml(origin, [...longVideos, ...shorts]));
+  });
+
+  router.get('/sitemap-index.xml', (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    res.send(buildSitemapIndexXml(origin));
+  });
+
+  router.get('/sitemap-core.xml', (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    res.send(buildCoreSitemapXml(origin));
+  });
+
+  router.get('/sitemap-surahs.xml', (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
+    res.send(buildSurahsSitemapXml(origin));
+  });
+
+  router.get('/sitemap-mushaf.xml', (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
+    res.send(buildMushafSitemapXml(origin));
+  });
+
+  router.get('/sitemap-muhaffiz.xml', (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
+    res.send(buildMuhaffizSitemapXml(origin));
+  });
+
+  router.get('/sitemap-videos.xml', async (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    const { longVideos, shorts } = await getChannelDataForSeo();
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    res.send(buildVideoSitemapXml(origin, [...longVideos, ...shorts]));
+  });
+
+  router.get('/og/site.svg', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
+    res.send(buildDynamicOgSvg('site'));
+  });
+
+  router.get('/og/:kind/:id.svg', (req: Request, res: Response) => {
+    const rawKind = String(req.params.kind ?? '');
+    const kind =
+      rawKind === 'sure' || rawKind === 'sehife' || rawKind === 'muhaffiz' ? rawKind : 'site';
+    const id = Number.parseInt(String(req.params.id ?? '1'), 10) || 1;
+    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
+    res.send(buildDynamicOgSvg(kind, id));
+  });
+
+  router.get('/api/seo/indexnow-ping', async (req: Request, res: Response) => {
+    const key = String(process.env.INDEXNOW_KEY ?? '').trim();
+    if (!key) {
+      res.status(200).json({
+        configured: false,
+        message: 'INDEXNOW_KEY əlavə edildikdə IndexNow bildirişi avtomatik göndərilir.',
+      });
+      return;
+    }
+    try {
+      const origin = getRequestOrigin(req);
+      const { longVideos, shorts } = await getChannelDataForSeo();
+      const urls = [
+        `${origin}/`,
+        `${origin}/shorts`,
+        `${origin}/quran`,
+        `${origin}/muhaffiz`,
+        ...longVideos.slice(0, 10).map((v) => `${origin}/video/${v.videoId}`),
+        ...shorts.slice(0, 10).map((v) => `${origin}/video/${v.videoId}`),
+      ];
+      const result = await submitIndexNowPing(origin, key, urls);
+      res.json({ configured: true, ...result, submittedUrls: urls.length });
+    } catch {
+      res.status(502).json({ configured: true, submitted: false });
+    }
+  });
+
+  router.get('/:keyFile.txt', (req: Request, res: Response, next) => {
+    const key = String(process.env.INDEXNOW_KEY ?? '').trim();
+    if (key && req.params.keyFile === key) {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.send(key);
+      return;
+    }
+    next();
   });
 
   router.get(['/llms.txt', '/.well-known/llms.txt'], async (req: Request, res: Response) => {

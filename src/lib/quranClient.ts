@@ -134,7 +134,7 @@ export async function fetchMuhaffizPageWithFallback(
   // 2. Direct CORS fallback: quran.com words endpoint + translation
   try {
     const quranComRes = await fetch(
-      `https://api.quran.com/api/v4/verses/by_page/${pageNumber}?words=true&word_fields=text_uthmani,line_number,char_type_name&per_page=50`,
+      `https://api.quran.com/api/v4/verses/by_page/${pageNumber}?words=true&word_fields=code_v1,text_uthmani,line_number,char_type_name&per_page=50`,
       { signal }
     );
     if (quranComRes.ok) {

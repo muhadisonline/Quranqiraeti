@@ -10,7 +10,9 @@ import {
   formatViewCount,
   getMentionedSurahs,
 } from '../lib/channel';
+import { getSurahByNumber } from '../lib/quran';
 import { fetchSurahWithFallback } from '../lib/quranClient';
+import { buildBreadcrumbJsonLd } from '../lib/seo';
 
 interface VideoDetailPageProps {
   video: RecitationVideo | undefined;
@@ -102,7 +104,15 @@ export function VideoDetailPage({
 
   const jsonLd = useMemo(() => {
     if (!video) return undefined;
-    return buildVideoJsonLd(video, window.location.origin);
+    const origin = window.location.origin;
+    return [
+      buildVideoJsonLd(video, origin),
+      buildBreadcrumbJsonLd(origin, [
+        { name: 'Ana səhifə', path: '/' },
+        ...(video.format === 'short' ? [{ name: 'Shorts', path: '/shorts' }] : []),
+        { name: video.title, path: `/video/${video.videoId}` },
+      ]),
+    ];
   }, [video]);
 
   const activeSurahMeta = useMemo(() => {
@@ -111,6 +121,11 @@ export function VideoDetailPage({
       mentionedSurahs[0]
     );
   }, [mentionedSurahs, selectedSurahNumber]);
+
+  const catalogSurah = useMemo(
+    () => getSurahByNumber(selectedSurahNumber),
+    [selectedSurahNumber]
+  );
 
   const filteredAyahs = useMemo(() => {
     const ayahs = translationData?.ayahs ?? [];
@@ -146,7 +161,13 @@ export function VideoDetailPage({
 
   if (!video) {
     return (
-      <section className="py-20">
+      <section className="py-20" data-testid="video-not-found">
+        <SeoHead
+          title="Video tapılmadı (404) | Quran Qiraeti"
+          description="Axtardığınız tilavət arxivi mövcud deyil və ya silinib."
+          path="/"
+          robots="noindex, nofollow"
+        />
         <div className="mx-auto max-w-3xl px-6 text-center">
           <h1 className="font-display text-3xl font-semibold text-stone-900 dark:text-stone-100">
             Video tapılmadı
@@ -190,21 +211,80 @@ export function VideoDetailPage({
         title={`${video.title} — ${video.reciter} | Quran Qiraeti`}
         description={video.seoDescription}
         path={`/video/${video.videoId}`}
+        ogImage={video.thumbnailUrl}
+        ogType="video.other"
         jsonLd={jsonLd}
       />
 
       <div className="mx-auto max-w-5xl px-6">
-        <a
-          href={backPath}
-          onClick={(e) => {
-            e.preventDefault();
-            onNavigate(backPath);
-          }}
-          className="inline-flex items-center gap-2 text-xs font-medium text-stone-600 hover:text-[#0F4C3A] dark:text-stone-400 dark:hover:text-[#86C7AE]"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          <span>{backLabel}</span>
-        </a>
+        <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate('/');
+            }}
+            className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]"
+          >
+            Ana səhifə
+          </a>
+          {video.format === 'short' && (
+            <>
+              <span aria-hidden="true">›</span>
+              <a
+                href="/shorts"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigate('/shorts');
+                }}
+                className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]"
+              >
+                Shorts
+              </a>
+            </>
+          )}
+          <span aria-hidden="true">›</span>
+          <span className="truncate font-medium text-stone-900 dark:text-stone-200">{video.title}</span>
+        </nav>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <a
+            href={backPath}
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate(backPath);
+            }}
+            className="inline-flex items-center gap-2 text-xs font-medium text-stone-600 hover:text-[#0F4C3A] dark:text-stone-400 dark:hover:text-[#86C7AE]"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <span>{backLabel}</span>
+          </a>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <a
+              href={`/quran/sure/${selectedSurahNumber}`}
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate(`/quran/sure/${selectedSurahNumber}`);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
+            >
+              <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Surəni tam oxu</span>
+            </a>
+
+            <a
+              href={`/muhaffiz/${catalogSurah?.startPage ?? 1}`}
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate(`/muhaffiz/${catalogSurah?.startPage ?? 1}`);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0F4C3A] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0B3A2C] dark:bg-[#196B52]"
+            >
+              <span>Mühafizdə əzbərlə</span>
+            </a>
+          </div>
+        </div>
 
         <header className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>

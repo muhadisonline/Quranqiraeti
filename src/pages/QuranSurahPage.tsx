@@ -22,6 +22,11 @@ import {
   groupAyahsByMushafPage,
 } from '../lib/quran';
 import { fetchSurahWithFallback } from '../lib/quranClient';
+import {
+  buildBreadcrumbJsonLd,
+  buildFaqPageJsonLd,
+  buildSurahFaqEntries,
+} from '../lib/seo';
 
 interface QuranSurahPageProps {
   surahNumber: number;
@@ -134,25 +139,45 @@ export function QuranSurahPage({
         : `Səhifə ${firstPage}–${lastPage}`
       : '';
 
+  const faqEntries = useMemo(
+    () => (surah ? buildSurahFaqEntries(surah, lastPage) : []),
+    [surah, lastPage]
+  );
+
   const jsonLd = useMemo(() => {
     if (!surah) return undefined;
-    return {
-      '@context': 'https://schema.org',
-      '@type': 'Chapter',
-      name: `${surah.number}. ${surah.name} surəsi`,
-      position: surah.number,
-      inLanguage: ['ar', 'az'],
-      url: `${window.location.origin}/quran/sure/${surah.number}`,
-      translator: {
-        '@type': 'Person',
-        name: 'Əlixan Musayev',
+    const origin = window.location.origin;
+    return [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Chapter',
+        name: `${surah.number}. ${surah.name} surəsi`,
+        position: surah.number,
+        inLanguage: ['ar', 'az'],
+        url: `${origin}/quran/sure/${surah.number}`,
+        translator: {
+          '@type': 'Person',
+          name: 'Əlixan Musayev',
+        },
       },
-    };
-  }, [surah]);
+      buildBreadcrumbJsonLd(origin, [
+        { name: 'Ana səhifə', path: '/' },
+        { name: 'Qurani-Kərim', path: '/quran' },
+        { name: `${surah.name} surəsi`, path: `/quran/sure/${surah.number}` },
+      ]),
+      buildFaqPageJsonLd(faqEntries),
+    ];
+  }, [surah, faqEntries]);
 
   if (!surah) {
     return (
-      <section className="py-20">
+      <section className="py-20" data-testid="surah-not-found">
+        <SeoHead
+          title="Surə tapılmadı (404) | Quran Qiraeti"
+          description="Qurani-Kərimdə surə nömrəsi 1 ilə 114 arasında olmalıdır."
+          path="/quran"
+          robots="noindex, nofollow"
+        />
         <div className="mx-auto max-w-3xl px-6 text-center">
           <h1 className="font-display text-3xl font-semibold text-stone-900 dark:text-stone-100">
             Surə tapılmadı
@@ -192,18 +217,48 @@ export function QuranSurahPage({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  const targetMushafPage = activeGroup?.pageNumber ?? surah.startPage;
+
   return (
     <article className="py-12 lg:py-16">
       <SeoHead
         title={`${surah.number}. ${surah.name} surəsi — Ərəbcə və Tərcümə | Quran Qiraeti`}
         description={`${surah.name} surəsi (${surah.ayahCount} ayə, ${surah.revelationPlace}, Mədinə çapı ${pageSpanLabel}). Hər səhifədə Mədinə çapındakı dəqiq ayə sayı, ərəbcə mətn və Əlixan Musayevin son nəşr Azərbaycan tərcüməsi (v1.0.4).`}
         path={`/quran/sure/${surah.number}`}
+        ogImage={`/og/sure/${surah.number}.svg`}
+        ogType="article"
         prevPath={prevSurah ? `/quran/sure/${prevSurah.number}` : undefined}
         nextPath={nextSurah ? `/quran/sure/${nextSurah.number}` : undefined}
         jsonLd={jsonLd}
       />
 
       <div className="mx-auto max-w-5xl px-6">
+        <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate('/');
+            }}
+            className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]"
+          >
+            Ana səhifə
+          </a>
+          <span aria-hidden="true">›</span>
+          <a
+            href="/quran"
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate('/quran');
+            }}
+            className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]"
+          >
+            Qurani-Kərim
+          </a>
+          <span aria-hidden="true">›</span>
+          <span className="font-medium text-stone-900 dark:text-stone-200">{surah.name} surəsi</span>
+        </nav>
+
         <div className="flex flex-wrap items-center justify-between gap-4">
           <a
             href="/quran"
@@ -217,17 +272,30 @@ export function QuranSurahPage({
             <span>Tam Quran siyahısına qayıt</span>
           </a>
 
-          <a
-            href={`/quran/sehife/${activeGroup?.pageNumber ?? surah.startPage}`}
-            onClick={(e) => {
-              e.preventDefault();
-              onNavigate(`/quran/sehife/${activeGroup?.pageNumber ?? surah.startPage}`);
-            }}
-            className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3.5 py-2 text-xs font-medium text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
-          >
-            <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Mədinə səhifəsi {activeGroup?.pageNumber ?? surah.startPage}</span>
-          </a>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <a
+              href={`/muhaffiz/${targetMushafPage}`}
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate(`/muhaffiz/${targetMushafPage}`);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#0F4C3A] px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-[#0B3A2C] dark:bg-[#196B52]"
+            >
+              <span>Mühafizdə əzbərlə</span>
+            </a>
+
+            <a
+              href={`/quran/sehife/${targetMushafPage}`}
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate(`/quran/sehife/${targetMushafPage}`);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3.5 py-2 text-xs font-medium text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
+            >
+              <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Mədinə səhifəsi {targetMushafPage}</span>
+            </a>
+          </div>
         </div>
 
         <header className="mt-6 flex flex-col gap-4 border-b border-stone-200 pb-8 sm:flex-row sm:items-end sm:justify-between dark:border-stone-800">
@@ -584,6 +652,36 @@ export function QuranSurahPage({
             </div>
           </div>
         )}
+
+        {/* Surah FAQ Section for Rich Search Results */}
+        <section
+          aria-labelledby="surah-faq-heading"
+          data-testid="surah-faq-section"
+          className="mt-12 border-t border-stone-200 pt-10 dark:border-stone-800"
+        >
+          <h2
+            id="surah-faq-heading"
+            className="font-display text-2xl font-semibold text-stone-900 dark:text-stone-100"
+          >
+            {surah.name} surəsi haqqında tez-tez verilən suallar
+          </h2>
+          <div className="mt-4 space-y-3">
+            {faqEntries.map((item) => (
+              <details
+                key={item.question}
+                open
+                className="rounded-xl border border-stone-200 bg-[#F7F5F0] px-5 py-4 dark:border-stone-800 dark:bg-[#141916]"
+              >
+                <summary className="cursor-pointer font-display text-base font-semibold text-stone-900 dark:text-stone-100">
+                  {item.question}
+                </summary>
+                <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-stone-300">
+                  {item.answer}
+                </p>
+              </details>
+            ))}
+          </div>
+        </section>
 
         {/* Previous / Next Surah Navigation */}
         <nav

@@ -393,6 +393,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
           title="Admin Statistika Paneli | Quran Qiraeti"
           description="Quran Qiraeti bütün səhifələrinin saatlıq, günlük və həftəlik statistika və status paneli."
           path="/admin"
+          robots="noindex, nofollow"
         />
         <div className="mx-auto max-w-md px-6 text-center">
           <div className="rounded-xl border border-stone-200 bg-white p-8 dark:border-stone-800 dark:bg-[#141916]">
@@ -412,6 +413,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
           title="Admin Girişi — Statistika Paneli | Quran Qiraeti"
           description="Quran Qiraeti bütün səhifələrinin saatlıq, günlük və həftəlik statistikasını izləmək üçün admin girişi."
           path="/admin"
+          robots="noindex, nofollow"
         />
         <div className="mx-auto max-w-lg px-6">
           <div className="rounded-xl border border-stone-200 bg-white p-8 dark:border-stone-800 dark:bg-[#141916]">
@@ -668,6 +670,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
         title="Admin Statistika Paneli | Quran Qiraeti"
         description="Bütün səhifələrin saatlıq, günlük və həftəlik statistika və sağlamlıq statusları."
         path="/admin"
+        robots="noindex, nofollow"
       />
 
       <div className="mx-auto max-w-7xl px-6">

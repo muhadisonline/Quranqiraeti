@@ -67,7 +67,13 @@ export function QuranMushafPage({ pageNumber, onNavigate }: QuranMushafPageProps
 
   if (!isValidPage) {
     return (
-      <section className="py-20">
+      <section className="py-20" data-testid="mushaf-not-found">
+        <SeoHead
+          title="Mushaf səhifəsi tapılmadı (404) | Quran Qiraeti"
+          description="Mədinə Mushafı səhifələri 1 ilə 604 arasında nömrələnmişdir."
+          path="/quran"
+          robots="noindex, nofollow"
+        />
         <div className="mx-auto max-w-3xl px-6 text-center">
           <h1 className="font-display text-3xl font-semibold text-stone-900 dark:text-stone-100">
             Səhifə tapılmadı
@@ -124,12 +130,40 @@ export function QuranMushafPage({ pageNumber, onNavigate }: QuranMushafPageProps
         title={seoData.title}
         description={seoData.description}
         path={`/quran/sehife/${pageNumber}`}
+        ogImage={`/og/sehife/${pageNumber}.svg`}
+        ogType="article"
         prevPath={seoData.prevPath}
         nextPath={seoData.nextPath}
         jsonLd={seoData.jsonLd}
       />
 
       <div className="mx-auto max-w-5xl px-6">
+        <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate('/');
+            }}
+            className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]"
+          >
+            Ana səhifə
+          </a>
+          <span aria-hidden="true">›</span>
+          <a
+            href="/quran"
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate('/quran');
+            }}
+            className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]"
+          >
+            Tam Qurani-Kərim
+          </a>
+          <span aria-hidden="true">›</span>
+          <span className="font-medium text-stone-900 dark:text-stone-200">{pageOrdinal} səhifə</span>
+        </nav>
+
         <div className="flex flex-wrap items-center justify-between gap-4">
           <a
             href="/quran"
@@ -143,26 +177,39 @@ export function QuranMushafPage({ pageNumber, onNavigate }: QuranMushafPageProps
             <span>Tam Quran siyahısına qayıt</span>
           </a>
 
-          <form onSubmit={handleJumpSubmit} className="flex items-center gap-2">
-            <label htmlFor="mushaf-jump-input" className="text-xs text-stone-500 dark:text-stone-400">
-              Səhifə:
-            </label>
-            <input
-              id="mushaf-jump-input"
-              type="number"
-              min={1}
-              max={TOTAL_QURAN_PAGES}
-              value={jumpInput}
-              onChange={(e) => setJumpInput(e.target.value)}
-              className="w-20 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-center font-mono-tabular text-xs text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#141916] dark:text-stone-100"
-            />
-            <button
-              type="submit"
-              className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
+          <div className="flex flex-wrap items-center gap-3">
+            <a
+              href={`/muhaffiz/${pageNumber}`}
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate(`/muhaffiz/${pageNumber}`);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0F4C3A] px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0B3A2C] dark:bg-[#196B52]"
             >
-              Keç
-            </button>
-          </form>
+              <span>Bu səhifəni Mühafizdə əzbərlə</span>
+            </a>
+
+            <form onSubmit={handleJumpSubmit} className="flex items-center gap-2">
+              <label htmlFor="mushaf-jump-input" className="text-xs text-stone-500 dark:text-stone-400">
+                Səhifə:
+              </label>
+              <input
+                id="mushaf-jump-input"
+                type="number"
+                min={1}
+                max={TOTAL_QURAN_PAGES}
+                value={jumpInput}
+                onChange={(e) => setJumpInput(e.target.value)}
+                className="w-20 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-center font-mono-tabular text-xs text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#141916] dark:text-stone-100"
+              />
+              <button
+                type="submit"
+                className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
+              >
+                Keç
+              </button>
+            </form>
+          </div>
         </div>
 
         {/* Page Header */}
