@@ -36,8 +36,10 @@ import {
   FIREBASE_PROJECT_ID,
   addAdminUser,
   listAdminUsers,
+  refreshCurrentAdminUser,
   removeAdminUser,
   runLivePageHealthChecks,
+  sendAdminVerificationEmail,
   signInAdminWithGoogle,
   signOutAdmin,
   subscribeAdminTelemetry,
@@ -97,6 +99,8 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
   const [authError, setAuthError] = useState<ParsedFirebaseAuthError | null>(null);
   const [domainCopied, setDomainCopied] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationBusy, setVerificationBusy] = useState(false);
 
   const [section, setSection] = useState<AdminSection>('overview');
   const [granularity, setGranularity] = useState<TimeWindowGranularity>('hourly');
@@ -134,7 +138,14 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
         if (!active) return;
         setIsAdminVerified(res.isAdmin);
         if (!res.isAdmin && res.reason) {
-          setAuthError({ code: 'auth/not-admin', message: res.reason });
+          setAuthError({
+            code: res.code ?? 'auth/not-admin',
+            message: res.reason,
+            consoleSettingsUrl:
+              res.code === 'auth/email-unverified'
+                ? `https://console.firebase.google.com/project/${FIREBASE_PROJECT_ID}/authentication/settings`
+                : undefined,
+          });
         }
       } catch (err) {
         if (!active) return;
@@ -232,6 +243,56 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
       window.setTimeout(() => setDomainCopied(false), 2000);
     } catch {
       // ignore clipboard error
+    }
+  }
+
+  async function handleSendVerificationEmail() {
+    setVerificationBusy(true);
+    try {
+      await sendAdminVerificationEmail();
+      setVerificationSent(true);
+    } catch (err) {
+      setAuthError(
+        parseFirebaseAuthError(
+          err,
+          typeof window !== 'undefined' ? window.location.hostname : '',
+          FIREBASE_PROJECT_ID
+        )
+      );
+    } finally {
+      setVerificationBusy(false);
+    }
+  }
+
+  async function handleRefreshVerification() {
+    setVerificationBusy(true);
+    try {
+      const refreshed = await refreshCurrentAdminUser();
+      const res = await verifyAndSyncAdminAccess(refreshed);
+      setIsAdminVerified(res.isAdmin);
+      if (res.isAdmin) {
+        setAuthError(null);
+        setVerificationSent(false);
+      } else if (res.reason) {
+        setAuthError({
+          code: res.code ?? 'auth/not-admin',
+          message: res.reason,
+          consoleSettingsUrl:
+            res.code === 'auth/email-unverified'
+              ? `https://console.firebase.google.com/project/${FIREBASE_PROJECT_ID}/authentication/settings`
+              : undefined,
+        });
+      }
+    } catch (err) {
+      setAuthError(
+        parseFirebaseAuthError(
+          err,
+          typeof window !== 'undefined' ? window.location.hostname : '',
+          FIREBASE_PROJECT_ID
+        )
+      );
+    } finally {
+      setVerificationBusy(false);
     }
   }
 
@@ -409,6 +470,45 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                       <span>Google giriş metodunu aktivləşdir</span>
                       <ExternalLink className="h-3 w-3" aria-hidden="true" />
                     </a>
+                  </div>
+                )}
+
+                {authError.code === 'auth/email-unverified' && (
+                  <div className="mt-3 space-y-2.5 border-t border-[#DC2626]/20 pt-3 text-stone-700 dark:border-[#F87171]/20 dark:text-stone-300">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSendVerificationEmail}
+                        disabled={verificationBusy}
+                        className="rounded-md bg-[#0F4C3A] px-3 py-1.5 text-[11px] font-medium text-white hover:bg-[#0B3A2C] disabled:opacity-60 dark:bg-[#196B52]"
+                      >
+                        {verificationBusy ? 'Göndərilir...' : 'Təsdiq linki göndər'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRefreshVerification}
+                        disabled={verificationBusy}
+                        className="rounded-md border border-stone-300 bg-white px-3 py-1.5 text-[11px] font-medium text-stone-800 hover:border-[#0F4C3A] disabled:opacity-60 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
+                      >
+                        Təsdiqlədim, yenilə
+                      </button>
+                    </div>
+                    {verificationSent && (
+                      <p className="text-[11px] font-medium text-[#16A34A] dark:text-[#4ADE80]">
+                        Təsdiq linki e-poçt qutunuza göndərildi. Linkə kliklədikdən sonra «Təsdiqlədim, yenilə» düyməsini basın.
+                      </p>
+                    )}
+                    {authError.consoleSettingsUrl && (
+                      <a
+                        href={authError.consoleSettingsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                      >
+                        <span>Və ya Firebase → Settings → Link accounts that use the same email açın</span>
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      </a>
+                    )}
                   </div>
                 )}
               </div>

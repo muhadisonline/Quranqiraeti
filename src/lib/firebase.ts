@@ -4,6 +4,7 @@ import {
   User,
   getAuth,
   onAuthStateChanged,
+  sendEmailVerification,
   signInWithPopup,
   signOut,
 } from 'firebase/auth';
@@ -221,9 +222,35 @@ export async function recordPageTelemetryEvent(params: {
 
 export async function signInAdminWithGoogle(): Promise<User> {
   const provider = new GoogleAuthProvider();
+  provider.addScope('email');
+  provider.addScope('profile');
   provider.setCustomParameters({ prompt: 'select_account' });
   const cred = await signInWithPopup(auth, provider);
-  return cred.user;
+  try {
+    await cred.user.reload();
+    await cred.user.getIdToken(true);
+  } catch {
+    // non-fatal refresh error
+  }
+  return auth.currentUser ?? cred.user;
+}
+
+export async function sendAdminVerificationEmail(): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Əvvəlcə Google hesabınızla daxil olun.');
+  }
+  await sendEmailVerification(user, {
+    url: typeof window !== 'undefined' ? `${window.location.origin}/admin` : 'https://localhost/admin',
+  });
+}
+
+export async function refreshCurrentAdminUser(): Promise<User | null> {
+  const user = auth.currentUser;
+  if (!user) return null;
+  await user.reload();
+  await user.getIdToken(true);
+  return auth.currentUser;
 }
 
 export async function signOutAdmin(): Promise<void> {
@@ -236,14 +263,36 @@ export function subscribeAuthState(callback: (user: User | null) => void): () =>
 
 export async function verifyAndSyncAdminAccess(user: User | null): Promise<{
   isAdmin: boolean;
+  code?: string;
   reason?: string;
 }> {
   if (!user) return { isAdmin: false };
-  if (!user.emailVerified) {
-    return { isAdmin: false, reason: 'E-poçt ünvanınız Google tərəfindən təsdiqlənməyib.' };
+
+  let effectiveVerified = Boolean(user.emailVerified);
+  try {
+    await user.reload();
+    const tokenRes = await user.getIdTokenResult(true);
+    effectiveVerified = Boolean(
+      (auth.currentUser ?? user).emailVerified || tokenRes.claims?.email_verified === true
+    );
+  } catch {
+    // fallback to existing claim state if network hiccup
   }
 
-  const email = (user.email ?? '').trim().toLowerCase();
+  if (!effectiveVerified) {
+    return {
+      isAdmin: false,
+      code: 'auth/email-unverified',
+      reason:
+        'Firebase hesabınızda e-poçt təsdiqi (email_verified) hələ aktiv deyil. Təsdiq linki göndərərək bir kliklə aktivləşdirə bilərsiniz.',
+    };
+  }
+
+  const rawEmail =
+    user.email ||
+    user.providerData?.find((p) => Boolean(p?.email))?.email ||
+    '';
+  const email = rawEmail.trim().toLowerCase();
   const emailHash = email ? await sha256Hex(email) : '';
   const isBootstrapped = emailHash === BOOTSTRAPPED_ADMIN_EMAIL_SHA256;
   const adminDocPath = `admins/${user.uid}`;
@@ -258,7 +307,7 @@ export async function verifyAndSyncAdminAccess(user: User | null): Promise<{
       try {
         await setDoc(doc(db, 'admins', user.uid), {
           uid: user.uid,
-          email: (user.email ?? '').slice(0, 160),
+          email: rawEmail.slice(0, 160),
           displayName: (user.displayName || 'Əsas Admin').slice(0, 120),
           role: 'admin',
           createdAt: serverTimestamp(),
@@ -271,6 +320,7 @@ export async function verifyAndSyncAdminAccess(user: User | null): Promise<{
 
     return {
       isAdmin: false,
+      code: 'auth/not-admin',
       reason: 'Bu Google hesabı admin siyahısında qeydiyyatda deyil.',
     };
   } catch (error) {
