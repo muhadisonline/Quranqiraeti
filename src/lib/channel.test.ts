@@ -12,6 +12,7 @@ import {
   normalizeAzerbaijaniText,
   parseDurationToSeconds,
   parseQuranEncSurah,
+  parseYouTubeShortsContinuation,
   validateSurahRequest,
 } from './channel';
 import { SEED_LONG_VIDEOS, SEED_SHORTS } from '../data/recitations';
@@ -166,4 +167,42 @@ test('validateSurahRequest enforces required surahName and valid optional email'
     note: 'Tam tərcümə ilə paylaşsanız sevinərik.',
   });
   assert.equal(ok.valid, true);
+});
+
+test('parseYouTubeShortsContinuation parses continuation Shorts and next token', () => {
+  const result = parseYouTubeShortsContinuation({
+    onResponseReceivedActions: [
+      {
+        appendContinuationItemsAction: {
+          continuationItems: [
+            {
+              richItemRenderer: {
+                content: {
+                  shortsLockupViewModel: {
+                    onTap: { innertubeCommand: { reelWatchEndpoint: { videoId: 'abc123xyz00' } } },
+                    overlayMetadata: {
+                      primaryText: { content: 'İxlas surəsi 1-4' },
+                      secondaryText: { content: '1.2K views' },
+                    },
+                  },
+                },
+              },
+            },
+            {
+              continuationItemRenderer: {
+                continuationEndpoint: {
+                  continuationCommand: { token: 'NEXT_PAGE_TOKEN' },
+                },
+              },
+            },
+          ],
+        },
+      },
+    ],
+  });
+  assert.equal(result.shorts.length, 1);
+  assert.equal(result.shorts[0].videoId, 'abc123xyz00');
+  assert.equal(result.shorts[0].surahNumber, 112);
+  assert.equal(result.shorts[0].views, 1200);
+  assert.equal(result.continuationToken, 'NEXT_PAGE_TOKEN');
 });

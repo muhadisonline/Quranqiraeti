@@ -40,6 +40,9 @@ export function Footer({ stats, onNavigate }: FooterProps) {
           <a href="/shorts" onClick={(e) => handleNav(e, '/shorts')} className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]">
             Shorts
           </a>
+          <a href="/quran" onClick={(e) => handleNav(e, '/quran')} className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]">
+            Tam Quran
+          </a>
           <a href="/gunun-ayesi" onClick={(e) => handleNav(e, '/gunun-ayesi')} className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]">
             Günün Ayəsi
           </a>

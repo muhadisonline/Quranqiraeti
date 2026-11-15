@@ -988,40 +988,108 @@ export function parseYouTubeVideosPage(html: string): RecitationVideo[] {
   }
 }
 
-export function parseYouTubeShortsPage(html: string): RecitationVideo[] {
+interface YouTubeGridItem {
+  richItemRenderer?: {
+    content?: {
+      shortsLockupViewModel?: {
+        onTap?: { innertubeCommand?: { reelWatchEndpoint?: { videoId?: string } } };
+        overlayMetadata?: {
+          primaryText?: { content?: string };
+          secondaryText?: { content?: string };
+        };
+      };
+    };
+  };
+  continuationItemRenderer?: {
+    continuationEndpoint?: {
+      continuationCommand?: {
+        token?: string;
+      };
+    };
+  };
+}
+
+function extractShortsFromItems(contents: YouTubeGridItem[]): {
+  shorts: RecitationVideo[];
+  continuationToken?: string;
+} {
+  const shorts: RecitationVideo[] = [];
+  let continuationToken: string | undefined;
+
+  for (const item of contents) {
+    const token = item?.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token;
+    if (token) {
+      continuationToken = token;
+      continue;
+    }
+
+    const s = item?.richItemRenderer?.content?.shortsLockupViewModel;
+    if (!s) continue;
+    const videoId: string | undefined = s.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId;
+    const rawTitle: string = s.overlayMetadata?.primaryText?.content ?? '';
+    const viewsText: string = s.overlayMetadata?.secondaryText?.content ?? '0';
+    if (!videoId || !rawTitle) continue;
+
+    shorts.push(
+      buildRecitationVideo({
+        videoId,
+        rawTitle,
+        format: 'short',
+        duration: '0:55',
+        published: new Date().toISOString(),
+        publishedLabel: 'Shorts',
+        views: parseCompactViewCount(viewsText),
+      })
+    );
+  }
+
+  return { shorts, continuationToken };
+}
+
+export function extractYouTubeShortsInitial(html: string): {
+  shorts: RecitationVideo[];
+  continuationToken?: string;
+  apiKey?: string;
+  clientVersion?: string;
+} {
   const dataStr = html.match(/var ytInitialData = (\{.*?\});<\/script>/s)?.[1];
-  if (!dataStr) return [];
+  if (!dataStr) return { shorts: [] };
+  const apiKey = html.match(/"INNERTUBE_API_KEY":"([^"]+)"/)?.[1];
+  const clientVersion = html.match(/"INNERTUBE_CLIENT_VERSION":"([^"]+)"/)?.[1];
+
   try {
     const data = JSON.parse(dataStr);
     const tabs = data?.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
-    const activeTab = tabs.find((t: { tabRenderer?: { selected?: boolean } }) => t.tabRenderer?.selected)?.tabRenderer;
-    const contents = activeTab?.content?.richGridRenderer?.contents || [];
-    const shorts: RecitationVideo[] = [];
-
-    for (const item of contents) {
-      const s = item?.richItemRenderer?.content?.shortsLockupViewModel;
-      if (!s) continue;
-      const videoId: string | undefined = s.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId;
-      const rawTitle: string = s.overlayMetadata?.primaryText?.content ?? '';
-      const viewsText: string = s.overlayMetadata?.secondaryText?.content ?? '0';
-      if (!videoId || !rawTitle) continue;
-
-      shorts.push(
-        buildRecitationVideo({
-          videoId,
-          rawTitle,
-          format: 'short',
-          duration: '0:55',
-          published: new Date().toISOString(),
-          publishedLabel: 'Shorts',
-          views: parseCompactViewCount(viewsText),
-        })
-      );
-    }
-    return shorts;
+    const activeTab = tabs.find(
+      (t: { tabRenderer?: { selected?: boolean } }) => t.tabRenderer?.selected
+    )?.tabRenderer;
+    const contents: YouTubeGridItem[] = activeTab?.content?.richGridRenderer?.contents || [];
+    const { shorts, continuationToken } = extractShortsFromItems(contents);
+    return { shorts, continuationToken, apiKey, clientVersion };
   } catch {
-    return [];
+    return { shorts: [] };
   }
+}
+
+export function parseYouTubeShortsContinuation(payload: {
+  onResponseReceivedActions?: Array<{
+    appendContinuationItemsAction?: {
+      continuationItems?: YouTubeGridItem[];
+    };
+  }>;
+}): {
+  shorts: RecitationVideo[];
+  continuationToken?: string;
+} {
+  const actions = payload?.onResponseReceivedActions || [];
+  const items: YouTubeGridItem[] = actions.flatMap(
+    (action) => action.appendContinuationItemsAction?.continuationItems || []
+  );
+  return extractShortsFromItems(items);
+}
+
+export function parseYouTubeShortsPage(html: string): RecitationVideo[] {
+  return extractYouTubeShortsInitial(html).shorts;
 }
 
 export function filterRecitations(

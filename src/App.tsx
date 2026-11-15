@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Component, ErrorInfo, ReactNode, useEffect, useMemo, useState } from 'react';
 import { AboutChannelSection, VerseOfTheDaySection } from './components/ChannelStorySection';
 import { Footer } from './components/Footer';
 import { HeroSection } from './components/HeroSection';
@@ -19,15 +19,74 @@ import {
   SurahRequestRecord,
   filterRecitations,
 } from './lib/channel';
+import { parseJsonSafely } from './lib/quranClient';
+import { QuranDirectoryPage } from './pages/QuranDirectoryPage';
+import { QuranMushafPage } from './pages/QuranMushafPage';
+import { QuranSurahPage } from './pages/QuranSurahPage';
 import { ShortsPage } from './pages/ShortsPage';
 import { VideoDetailPage } from './pages/VideoDetailPage';
+
+function normalizeRoutePath(pathname: string): string {
+  if (!pathname || pathname === '/') return '/';
+  const clean = pathname.replace(/\/+$/, '');
+  return clean || '/';
+}
+
+class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('UI render error:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-[#FAF9F6] px-6 text-center text-[#17191C] dark:bg-[#0E1210] dark:text-[#F3F1EC]">
+          <div className="max-w-md rounded-xl border border-stone-200 bg-white p-8 dark:border-stone-800 dark:bg-[#141916]">
+            <h1 className="font-display text-2xl font-semibold">Səhifə yüklənərkən xəta baş verdi</h1>
+            <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">
+              Zəhmət olmasa səhifəni yeniləyin və ya ana səhifəyə qayıdın.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                this.setState({ hasError: false });
+                window.location.href = '/';
+              }}
+              className="mt-5 rounded-lg bg-[#0F4C3A] px-5 py-2.5 text-xs font-medium text-white"
+            >
+              Ana səhifəyə qayıt
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const SAVED_STORAGE_KEY = 'quranqiraeti_saved_ids_v1';
 const THEME_STORAGE_KEY = 'quranqiraeti_theme_v1';
 
 export default function App() {
+  return (
+    <AppErrorBoundary>
+      <AppContent />
+    </AppErrorBoundary>
+  );
+}
+
+function AppContent() {
   const [currentPath, setCurrentPath] = useState<string>(() => {
-    return window.location.pathname || '/';
+    return normalizeRoutePath(window.location.pathname || '/');
   });
 
   const [stats, setStats] = useState<ChannelStats>(DEFAULT_CHANNEL_STATS);
@@ -61,19 +120,20 @@ export default function App() {
 
   useEffect(() => {
     function handlePopState() {
-      setCurrentPath(window.location.pathname || '/');
+      setCurrentPath(normalizeRoutePath(window.location.pathname || '/'));
     }
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   function navigate(path: string) {
-    if (path === currentPath) {
+    const normalized = normalizeRoutePath(path);
+    if (normalized === currentPath) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    window.history.pushState({}, '', path);
-    setCurrentPath(path);
+    window.history.pushState({}, '', normalized);
+    setCurrentPath(normalized);
     window.scrollTo({ top: 0 });
   }
 
@@ -104,8 +164,13 @@ export default function App() {
           fetch('/api/requests'),
         ]);
 
-        if (!cancelled && channelRes.ok) {
-          const data = await channelRes.json();
+        const data = await parseJsonSafely<{
+          stats?: ChannelStats;
+          longVideos?: RecitationVideo[];
+          shorts?: RecitationVideo[];
+        }>(channelRes);
+
+        if (!cancelled && data) {
           if (data.stats) setStats(data.stats);
           if (Array.isArray(data.longVideos) && data.longVideos.length > 0) {
             setLongVideos(data.longVideos);
@@ -115,11 +180,9 @@ export default function App() {
           }
         }
 
-        if (!cancelled && reqRes.ok) {
-          const reqData = await reqRes.json();
-          if (Array.isArray(reqData.requests)) {
-            setRequests(reqData.requests);
-          }
+        const reqData = await parseJsonSafely<{ requests?: SurahRequestRecord[] }>(reqRes);
+        if (!cancelled && reqData && Array.isArray(reqData.requests)) {
+          setRequests(reqData.requests);
         }
       } catch {
         // Keep deterministic seed fallback cleanly
@@ -181,6 +244,11 @@ export default function App() {
     ? allVideos.find((v) => v.videoId === detailVideoId)
     : undefined;
 
+  const quranSurahMatch = currentPath.match(/^\/quran\/(?:sure\/)?(\d+)$/);
+  const quranSurahNumber = quranSurahMatch ? Number.parseInt(quranSurahMatch[1], 10) : undefined;
+  const quranPageMatch = currentPath.match(/^\/quran\/sehife\/(\d+)$/);
+  const quranPageNumber = quranPageMatch ? Number.parseInt(quranPageMatch[1], 10) : undefined;
+
   const relatedForDetail = useMemo(() => {
     if (!detailVideo) return [];
     const pool = detailVideo.format === 'short' ? shorts : longVideos;
@@ -204,6 +272,24 @@ export default function App() {
             isChannelLoading={isLoading}
             onNavigate={navigate}
             onToggleSave={handleToggleSave}
+          />
+        ) : quranSurahNumber !== undefined ? (
+          <QuranSurahPage
+            surahNumber={quranSurahNumber}
+            channelVideos={allVideos}
+            onNavigate={navigate}
+            onPlayVideo={setActiveVideo}
+          />
+        ) : quranPageNumber !== undefined ? (
+          <QuranMushafPage
+            pageNumber={quranPageNumber}
+            onNavigate={navigate}
+          />
+        ) : currentPath === '/quran' ? (
+          <QuranDirectoryPage
+            isDark={isDark}
+            onNavigate={navigate}
+            onToggleTheme={() => setIsDark((prev) => !prev)}
           />
         ) : currentPath === '/shorts' ? (
           <ShortsPage

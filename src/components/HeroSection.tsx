@@ -1,5 +1,6 @@
 import { ArrowRight, Play } from 'lucide-react';
 import { useState } from 'react';
+import heroManuscriptImage from '../assets/images/hero_quran_manuscript_1794730601154.jpg';
 import { ChannelStats, RecitationVideo } from '../lib/channel';
 
 interface HeroSectionProps {
@@ -11,7 +12,7 @@ interface HeroSectionProps {
   onNavigate: (path: string) => void;
 }
 
-const HERO_IMAGE_PATH = '/src/assets/images/hero_quran_manuscript_1794730601154.jpg';
+const HERO_IMAGE_PATH = heroManuscriptImage;
 
 export function HeroSection({
   stats,

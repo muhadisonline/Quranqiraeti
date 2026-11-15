@@ -10,9 +10,9 @@ interface TopBarProps {
 const NAV_LINKS = [
   { path: '/', label: 'Uzun Videolar' },
   { path: '/shorts', label: 'Shorts' },
+  { path: '/quran', label: 'Tam Quran' },
   { path: '/gunun-ayesi', label: 'Günün Ayəsi' },
   { path: '/haqqinda', label: 'Haqqında' },
-  { path: '/istek', label: 'İstək göndər' },
 ];
 
 export function TopBar({ currentPath, subscribeUrl, onNavigate }: TopBarProps) {
@@ -92,7 +92,10 @@ export function TopBar({ currentPath, subscribeUrl, onNavigate }: TopBarProps) {
         <div className="md:hidden border-t border-stone-200 bg-[#FAF9F6] px-6 py-4 dark:border-stone-800 dark:bg-[#0E1210]">
           <nav aria-label="Mobil naviqasiya" className="flex flex-col gap-3">
             {NAV_LINKS.map((link) => {
-              const isActive = currentPath === link.path;
+              const isActive =
+                link.path === '/'
+                  ? currentPath === '/'
+                  : currentPath === link.path || currentPath.startsWith(`${link.path}/`);
               return (
                 <a
                   key={link.path}

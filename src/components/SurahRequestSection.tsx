@@ -6,6 +6,7 @@ import {
   formatAzerbaijaniDate,
   validateSurahRequest,
 } from '../lib/channel';
+import { parseJsonSafely } from '../lib/quranClient';
 
 interface SurahRequestSectionProps {
   requests: SurahRequestRecord[];
@@ -48,10 +49,15 @@ export function SurahRequestSection({
         body: JSON.stringify(form),
       });
 
-      const payload = await response.json();
-      if (!response.ok) {
-        if (payload.errors) setErrors(payload.errors);
-        setSubmitError(payload.error || 'Sorğu göndərilərkən xəta baş verdi.');
+      const payload = await parseJsonSafely<{
+        request?: SurahRequestRecord;
+        error?: string;
+        errors?: Partial<Record<keyof SurahRequestInput, string>>;
+      }>(response);
+
+      if (!response.ok || !payload?.request) {
+        if (payload?.errors) setErrors(payload.errors);
+        setSubmitError(payload?.error || 'Sorğu göndərilərkən xəta baş verdi.');
         return;
       }
 

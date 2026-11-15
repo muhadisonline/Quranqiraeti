@@ -1,0 +1,426 @@
+import express, { Request, Response } from 'express';
+import {
+  ChannelStats,
+  RecitationVideo,
+  SurahRequestRecord,
+  SurahTranslationPayload,
+  extractYouTubeShortsInitial,
+  parseQuranEncSurah,
+  parseYouTubeShortsContinuation,
+  parseYouTubeVideosPage,
+  validateSurahRequest,
+} from '../lib/channel';
+import {
+  MushafPagePayload,
+  TOTAL_QURAN_PAGES,
+  UthmaniPageAyahInput,
+  mergePageAyahsWithMusayev,
+  parseQuranComPageVerses,
+} from '../lib/quran';
+import {
+  DEFAULT_CHANNEL_STATS,
+  SEED_LONG_VIDEOS,
+  SEED_SHORTS,
+} from '../data/recitations';
+
+const CACHE_TTL_MS = 10 * 60 * 1000;
+
+let cachedChannel: {
+  fetchedAt: number;
+  complete: boolean;
+  stats: ChannelStats;
+  longVideos: RecitationVideo[];
+  shorts: RecitationVideo[];
+} | null = null;
+
+let inflightChannelPromise: Promise<{
+  stats: ChannelStats;
+  longVideos: RecitationVideo[];
+  shorts: RecitationVideo[];
+}> | null = null;
+
+const surahTranslationCache = new Map<number, SurahTranslationPayload>();
+const mushafPageCache = new Map<number, MushafPagePayload>();
+
+const surahRequests: SurahRequestRecord[] = [
+  {
+    id: 'req-1',
+    surahName: 'Mülk surəsi (1–30)',
+    reciter: 'Maher Al-Muaiqly',
+    email: '',
+    note: 'Tam surə şəkildə Azərbaycan dilində tərcümə ilə paylaşılmasını rica edirik.',
+    createdAt: '2026-11-12T18:30:00Z',
+  },
+  {
+    id: 'req-2',
+    surahName: 'Vaqiə surəsi',
+    reciter: 'Yasser Al-Dosari',
+    email: '',
+    note: 'Axşam tilavətləri üçün səlis səs və aydın altyazı ilə.',
+    createdAt: '2026-11-14T09:15:00Z',
+  },
+];
+
+export async function fetchSurahTranslation(surahNumber: number): Promise<SurahTranslationPayload> {
+  const cached = surahTranslationCache.get(surahNumber);
+  if (cached && cached.ayahs.length > 0) return cached;
+
+  try {
+    const res = await fetch(`https://quranenc.com/api/v1/translation/sura/azeri_musayev/${surahNumber}`, {
+      signal: AbortSignal.timeout(7000),
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (res.ok) {
+      const json = await res.json();
+      const parsed = parseQuranEncSurah(surahNumber, json);
+      if (parsed.ayahs.length > 0) {
+        surahTranslationCache.set(surahNumber, parsed);
+        return parsed;
+      }
+    }
+  } catch {
+    // fallback below
+  }
+
+  const fallbackRes = await fetch(
+    `https://api.alquran.cloud/v1/surah/${surahNumber}/editions/quran-uthmani,az.musayev`,
+    { signal: AbortSignal.timeout(7000) }
+  );
+  if (!fallbackRes.ok) {
+    throw new Error(`Surah ${surahNumber} translation unavailable`);
+  }
+  const fallbackJson = await fallbackRes.json();
+  const arAyahs = fallbackJson?.data?.[0]?.ayahs ?? [];
+  const azAyahs = fallbackJson?.data?.[1]?.ayahs ?? [];
+  const payload: SurahTranslationPayload = {
+    surahNumber,
+    translatorName: 'Əlixan Musayev',
+    editionVersion: '1.0.4',
+    ayahs: arAyahs.map((ar: { numberInSurah?: number; text?: string }, idx: number) => ({
+      surahNumber,
+      ayahNumber: ar.numberInSurah ?? idx + 1,
+      arabicText: String(ar.text ?? '').trim(),
+      translation: String(azAyahs[idx]?.text ?? '').trim(),
+      footnotes: '',
+    })),
+  };
+  if (payload.ayahs.length > 0) {
+    surahTranslationCache.set(surahNumber, payload);
+  }
+  return payload;
+}
+
+export async function fetchMushafPage(pageNumber: number): Promise<MushafPagePayload> {
+  const cached = mushafPageCache.get(pageNumber);
+  if (cached && cached.ayahs.length > 0) return cached;
+
+  let uthmaniAyahs: UthmaniPageAyahInput[] = [];
+
+  try {
+    const quranComRes = await fetch(
+      `https://api.quran.com/api/v4/verses/by_page/${pageNumber}?fields=text_uthmani&per_page=50`,
+      {
+        signal: AbortSignal.timeout(7000),
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      }
+    );
+    if (quranComRes.ok) {
+      const quranComJson = await quranComRes.json();
+      uthmaniAyahs = parseQuranComPageVerses(quranComJson);
+    }
+  } catch {
+    // fallback below
+  }
+
+  if (uthmaniAyahs.length === 0) {
+    const res = await fetch(`https://api.alquran.cloud/v1/page/${pageNumber}/quran-uthmani`, {
+      signal: AbortSignal.timeout(7000),
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (!res.ok) {
+      throw new Error(`Quran page ${pageNumber} unavailable`);
+    }
+    const json = await res.json();
+    const rawAyahs = Array.isArray(json?.data?.ayahs) ? json.data.ayahs : [];
+    uthmaniAyahs = rawAyahs.map(
+      (item: {
+        surah?: { number?: number };
+        numberInSurah?: number;
+        juz?: number;
+        text?: string;
+      }) => ({
+        surahNumber: item.surah?.number ?? 1,
+        ayahNumber: item.numberInSurah ?? 1,
+        juzNumber: item.juz ?? 1,
+        arabicText: String(item.text ?? '').trim(),
+      })
+    );
+  }
+
+  if (uthmaniAyahs.length === 0) {
+    throw new Error(`Quran page ${pageNumber} returned empty ayahs`);
+  }
+
+  const uniqueSurahNumbers = Array.from(new Set(uthmaniAyahs.map((a) => a.surahNumber)));
+  const surahPayloads = await Promise.all(
+    uniqueSurahNumbers.map(async (surahNum) => [surahNum, await fetchSurahTranslation(surahNum)] as const)
+  );
+  const surahMap = new Map<number, SurahTranslationPayload>(surahPayloads);
+
+  const merged = mergePageAyahsWithMusayev(pageNumber, uthmaniAyahs, surahMap);
+  if (merged.ayahs.length > 0) {
+    mushafPageCache.set(pageNumber, merged);
+  }
+  return merged;
+}
+
+async function fetchAllYouTubeShorts(html: string, startedAt: number): Promise<RecitationVideo[]> {
+  const initial = extractYouTubeShortsInitial(html);
+  const byId = new Map<string, RecitationVideo>();
+  for (const s of initial.shorts) {
+    byId.set(s.videoId, s);
+  }
+
+  // Keep total execution bounded safely under Vercel Hobby 10s serverless limit
+  const totalBudgetMs = process.env.VERCEL ? 5500 : 12000;
+  let continuation = initial.continuationToken;
+  let pages = 1;
+
+  while (
+    continuation &&
+    initial.apiKey &&
+    initial.clientVersion &&
+    pages < 20 &&
+    Date.now() - startedAt < totalBudgetMs
+  ) {
+    const remainingMs = Math.max(1200, totalBudgetMs - (Date.now() - startedAt));
+    const pageController = new AbortController();
+    const pageTimer = setTimeout(() => pageController.abort(), Math.min(4000, remainingMs));
+    try {
+      const res = await fetch(
+        `https://www.youtube.com/youtubei/v1/browse?key=${initial.apiKey}`,
+        {
+          method: 'POST',
+          signal: pageController.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+          },
+          body: JSON.stringify({
+            context: {
+              client: {
+                clientName: 'WEB',
+                clientVersion: initial.clientVersion,
+              },
+            },
+            continuation,
+          }),
+        }
+      );
+      if (!res.ok) break;
+      const json = await res.json();
+      const parsed = parseYouTubeShortsContinuation(json);
+      for (const s of parsed.shorts) {
+        if (!byId.has(s.videoId)) {
+          byId.set(s.videoId, s);
+        }
+      }
+      if (!parsed.continuationToken || parsed.shorts.length === 0) break;
+      continuation = parsed.continuationToken;
+      pages++;
+    } catch {
+      break;
+    } finally {
+      clearTimeout(pageTimer);
+    }
+  }
+
+  return Array.from(byId.values());
+}
+
+export async function fetchLiveChannelData(): Promise<{
+  stats: ChannelStats;
+  longVideos: RecitationVideo[];
+  shorts: RecitationVideo[];
+}> {
+  const now = Date.now();
+  if (cachedChannel) {
+    const ttl = cachedChannel.complete ? CACHE_TTL_MS : 20_000;
+    if (now - cachedChannel.fetchedAt < ttl) {
+      return {
+        stats: cachedChannel.stats,
+        longVideos: cachedChannel.longVideos,
+        shorts: cachedChannel.shorts,
+      };
+    }
+  }
+
+  if (inflightChannelPromise) {
+    return inflightChannelPromise;
+  }
+
+  inflightChannelPromise = (async () => {
+    const startedAt = Date.now();
+    try {
+      const initialTimeoutMs = process.env.VERCEL ? 4500 : 10_000;
+      const initialController = new AbortController();
+      const initialTimer = setTimeout(() => initialController.abort(), initialTimeoutMs);
+
+      const [videosRes, shortsRes] = await Promise.allSettled([
+        fetch('https://www.youtube.com/@quranqiraeti/videos', {
+          signal: initialController.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+        }),
+        fetch('https://www.youtube.com/@quranqiraeti/shorts', {
+          signal: initialController.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+        }),
+      ]);
+
+      let videosHtml = '';
+      let shortsHtml = '';
+      if (videosRes.status === 'fulfilled' && videosRes.value.ok) {
+        videosHtml = await videosRes.value.text();
+      }
+      if (shortsRes.status === 'fulfilled' && shortsRes.value.ok) {
+        shortsHtml = await shortsRes.value.text();
+      }
+      clearTimeout(initialTimer);
+
+      let longVideos = SEED_LONG_VIDEOS;
+      let shorts = SEED_SHORTS;
+      let hasLiveLong = false;
+      let hasLiveShorts = false;
+      let subscribersLabel = DEFAULT_CHANNEL_STATS.subscribersLabel;
+      let videoCountLabel = DEFAULT_CHANNEL_STATS.videoCountLabel;
+
+      if (videosHtml) {
+        const parsedLong = parseYouTubeVideosPage(videosHtml);
+        if (parsedLong.length > 0) {
+          longVideos = parsedLong;
+          hasLiveLong = true;
+        }
+        const subMatch = videosHtml.match(/(\d+(?:\.\d+)?[KM]?)\s+subscribers/i)?.[1];
+        const vidMatch = videosHtml.match(/(\d+(?:,\d+)?)\s+videos/i)?.[1];
+        if (subMatch) subscribersLabel = subMatch;
+        if (vidMatch) videoCountLabel = `${vidMatch}+`;
+      }
+
+      if (shortsHtml) {
+        const parsedShorts = await fetchAllYouTubeShorts(shortsHtml, startedAt);
+        if (parsedShorts.length > 0) {
+          shorts = parsedShorts;
+          hasLiveShorts = parsedShorts.length >= 40;
+        }
+      }
+
+      const source: 'live' | 'archive' = hasLiveLong || hasLiveShorts ? 'live' : 'archive';
+      const stats: ChannelStats = {
+        ...DEFAULT_CHANNEL_STATS,
+        subscribersLabel,
+        videoCountLabel,
+        source,
+      };
+
+      cachedChannel = {
+        fetchedAt: Date.now(),
+        complete: hasLiveLong && hasLiveShorts,
+        stats,
+        longVideos,
+        shorts,
+      };
+
+      return { stats, longVideos, shorts };
+    } catch {
+      return {
+        stats: DEFAULT_CHANNEL_STATS,
+        longVideos: SEED_LONG_VIDEOS,
+        shorts: SEED_SHORTS,
+      };
+    } finally {
+      inflightChannelPromise = null;
+    }
+  })();
+
+  return inflightChannelPromise;
+}
+
+export function createApiRouter() {
+  const router = express.Router();
+
+  router.get('/channel', async (_req: Request, res: Response) => {
+    const data = await fetchLiveChannelData();
+    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
+    res.json(data);
+  });
+
+  router.get('/quran/surah/:surahNumber', async (req: Request, res: Response) => {
+    const surahNumber = Number.parseInt(String(req.params.surahNumber ?? ''), 10);
+    if (Number.isNaN(surahNumber) || surahNumber < 1 || surahNumber > 114) {
+      res.status(400).json({ error: 'Surə nömrəsi 1 ilə 114 arasında olmalıdır.' });
+      return;
+    }
+    try {
+      const payload = await fetchSurahTranslation(surahNumber);
+      res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
+      res.json(payload);
+    } catch {
+      res.status(502).json({ error: 'Ayələrin tərcüməsi yüklənərkən xəta baş verdi.' });
+    }
+  });
+
+  router.get('/quran/page/:pageNumber', async (req: Request, res: Response) => {
+    const pageNumber = Number.parseInt(String(req.params.pageNumber ?? ''), 10);
+    if (Number.isNaN(pageNumber) || pageNumber < 1 || pageNumber > TOTAL_QURAN_PAGES) {
+      res.status(400).json({ error: 'Quran səhifəsi 1 ilə 604 arasında olmalıdır.' });
+      return;
+    }
+    try {
+      const payload = await fetchMushafPage(pageNumber);
+      res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
+      res.json(payload);
+    } catch {
+      res.status(502).json({ error: 'Quran səhifəsi yüklənərkən xəta baş verdi.' });
+    }
+  });
+
+  router.get('/requests', (_req: Request, res: Response) => {
+    res.json({ requests: surahRequests.slice(0, 8) });
+  });
+
+  router.post('/requests', (req: Request, res: Response) => {
+    const body = req.body ?? {};
+    const input = {
+      surahName: String(body.surahName ?? '').trim(),
+      reciter: String(body.reciter ?? '').trim(),
+      email: String(body.email ?? '').trim(),
+      note: String(body.note ?? '').trim(),
+    };
+
+    const validation = validateSurahRequest(input);
+    if (!validation.valid) {
+      res.status(400).json({
+        error: 'Zəhmət olmasa tələb olunan sahələri yoxlayın.',
+        errors: validation.errors,
+      });
+      return;
+    }
+
+    const record: SurahRequestRecord = {
+      ...input,
+      id: `req-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    surahRequests.unshift(record);
+    res.status(201).json({ request: record });
+  });
+
+  return router;
+}

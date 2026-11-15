@@ -10,6 +10,7 @@ import {
   formatViewCount,
   getMentionedSurahs,
 } from '../lib/channel';
+import { fetchSurahWithFallback } from '../lib/quranClient';
 
 interface VideoDetailPageProps {
   video: RecitationVideo | undefined;
@@ -74,13 +75,7 @@ export function VideoDetailPage({
       setIsTranslationLoading(true);
       setTranslationError('');
       try {
-        const res = await fetch(`/api/quran/surah/${selectedSurahNumber}`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) {
-          throw new Error('Surə tərcüməsi yüklənmədi');
-        }
-        const payload = (await res.json()) as SurahTranslationPayload;
+        const payload = await fetchSurahWithFallback(selectedSurahNumber, controller.signal);
         if (!cancelled) {
           setTranslationData(payload);
         }

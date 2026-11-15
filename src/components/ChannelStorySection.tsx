@@ -1,12 +1,13 @@
 import { Play } from 'lucide-react';
 import { useState } from 'react';
+import studioEditorialImage from '../assets/images/recitation_studio_editorial_1794730602469.jpg';
 import { CURATED_VERSES } from '../data/recitations';
 
 interface VerseSectionProps {
   onPlayVideoById: (videoId: string) => void;
 }
 
-const STUDIO_IMAGE_PATH = '/src/assets/images/recitation_studio_editorial_1794730602469.jpg';
+const STUDIO_IMAGE_PATH = studioEditorialImage;
 
 const PRINCIPLES = [
   {
