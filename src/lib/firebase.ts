@@ -2,9 +2,11 @@ import { initializeApp } from 'firebase/app';
 import {
   GoogleAuthProvider,
   User,
+  deleteUser,
   getAuth,
   onAuthStateChanged,
   sendEmailVerification,
+  signInWithCredential,
   signInWithPopup,
   signOut,
 } from 'firebase/auth';
@@ -227,13 +229,47 @@ export async function signInAdminWithGoogle(): Promise<User> {
   provider.addScope('profile');
   provider.setCustomParameters({ prompt: 'select_account' });
   const cred = await signInWithPopup(auth, provider);
+  const oauthCred = GoogleAuthProvider.credentialFromResult(cred);
+
   try {
     await cred.user.reload();
     await cred.user.getIdToken(true);
   } catch {
     // non-fatal refresh error
   }
-  return auth.currentUser ?? cred.user;
+
+  let activeUser = auth.currentUser ?? cred.user;
+
+  // Automatically repair stale Auth accounts created earlier without top-level email
+  if (!(activeUser.email ?? '').trim()) {
+    try {
+      await deleteUser(activeUser);
+    } catch {
+      // If deletion cannot proceed cleanly, continue with existing user check
+      return activeUser;
+    }
+
+    if (oauthCred) {
+      try {
+        const freshCred = await signInWithCredential(auth, oauthCred);
+        await freshCred.user.reload();
+        await freshCred.user.getIdToken(true);
+        activeUser = auth.currentUser ?? freshCred.user;
+        return activeUser;
+      } catch {
+        // OAuth idToken may be single-use; session is now clean for an immediate fresh tap
+      }
+    }
+
+    await signOut(auth).catch(() => {});
+    const repairedErr = Object.assign(
+      new Error('Köhnə boş sessiya avtomatik təmizləndi. İndi son dəfə Google ilə daxil olun.'),
+      { code: 'auth/session-repaired-retry' }
+    );
+    throw repairedErr;
+  }
+
+  return activeUser;
 }
 
 export async function sendAdminVerificationEmail(): Promise<void> {

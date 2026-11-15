@@ -55,6 +55,12 @@ export function parseFirebaseAuthError(
         consoleSettingsUrl: settingsUrl,
         message: `Bu domen (${cleanHost}) hələ Firebase Authentication icazəli domenlər siyahısına əlavə edilməyib.`,
       };
+    case 'auth/session-repaired-retry':
+      return {
+        code,
+        message:
+          'Köhnə e-poçtsuz hesab sessiyası avtomatik təmizləndi. İndi «Google ilə Admin Girişi» düyməsinə toxunaraq birbaşa daxil olun.',
+      };
     case 'auth/missing-email':
       return {
         code,
@@ -63,7 +69,7 @@ export function parseFirebaseAuthError(
         consoleUsersUrl: usersUrl,
         firestoreUrl,
         message:
-          'Firebase Authentication bu layihədə e-poçtsuz hesab (Multi-account) rejimində yaradıldığı üçün e-poçt ünvanı oxuna bilmədi.',
+          'Köhnə sessiyada e-poçt ünvanı yadda saxlanmayıb. Aşağıdakı «Hesabı Yenilə və Daxil Ol» düyməsinə toxunun — köhnə sessiya avtomatik silinib təmiz hesabla giriş açılacaq.',
       };
     case 'auth/popup-blocked':
       return {

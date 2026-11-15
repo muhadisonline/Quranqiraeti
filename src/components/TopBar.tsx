@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { path: '/', label: 'Uzun Videolar' },
   { path: '/shorts', label: 'Shorts' },
   { path: '/quran', label: 'Tam Quran' },
+  { path: '/muhaffiz', label: 'Mühafiz' },
   { path: '/gunun-ayesi', label: 'Günün Ayəsi' },
   { path: '/haqqinda', label: 'Haqqında' },
 ];

@@ -8,13 +8,15 @@ import {
   resolvePageTelemetryMeta,
 } from './analytics';
 
-test('CONNECTED_PAGES covers all 9 public application routes and resolvePageTelemetryMeta maps paths cleanly', () => {
-  assert.equal(CONNECTED_PAGES.length, 9);
+test('CONNECTED_PAGES covers all 10 public application routes and resolvePageTelemetryMeta maps paths cleanly', () => {
+  assert.equal(CONNECTED_PAGES.length, 10);
   assert.equal(resolvePageTelemetryMeta('/')?.pageKey, 'home');
   assert.equal(resolvePageTelemetryMeta('/shorts')?.pageKey, 'shorts');
   assert.equal(resolvePageTelemetryMeta('/quran')?.pageKey, 'quran');
   assert.equal(resolvePageTelemetryMeta('/quran/sure/36')?.pageKey, 'surah');
   assert.equal(resolvePageTelemetryMeta('/quran/sehife/604')?.pageKey, 'mushaf_page');
+  assert.equal(resolvePageTelemetryMeta('/muhaffiz')?.pageKey, 'muhaffiz');
+  assert.equal(resolvePageTelemetryMeta('/muhaffiz/2')?.pageKey, 'muhaffiz');
   assert.equal(resolvePageTelemetryMeta('/video/h4f9p5h_X6Y')?.pageKey, 'video');
   assert.equal(resolvePageTelemetryMeta('/gunun-ayesi')?.pageKey, 'verse_of_day');
   assert.equal(resolvePageTelemetryMeta('/haqqinda')?.pageKey, 'about');

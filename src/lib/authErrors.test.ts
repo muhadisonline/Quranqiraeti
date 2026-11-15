@@ -78,4 +78,12 @@ test('parseFirebaseAuthError handles popup-blocked and popup-closed cleanly', ()
   );
   assert.equal(closed.code, 'auth/popup-closed-by-user');
   assert.ok(closed.message.includes('bağlandı'));
+
+  const repaired = parseFirebaseAuthError(
+    { code: 'auth/session-repaired-retry' },
+    'quranqiraeti.vercel.app',
+    'mindful-operator-5v0ns'
+  );
+  assert.equal(repaired.code, 'auth/session-repaired-retry');
+  assert.ok(repaired.message.includes('avtomatik təmizləndi'));
 });

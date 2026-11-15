@@ -10,6 +10,13 @@ import {
   parseQuranComChapterVersesPages,
   parseQuranComPageVerses,
 } from './quran';
+import {
+  MuhaffizPageData,
+  QuranComRawVerseWithWords,
+  buildSyntheticMuhaffizRows,
+  buildTokensFromQuranComVerses,
+  groupTokensIntoMushafRows,
+} from './muhaffiz';
 
 export async function parseJsonSafely<T>(response: Response): Promise<T | null> {
   const contentType = response.headers.get('content-type') ?? '';
@@ -108,3 +115,86 @@ export async function fetchMushafPageWithFallback(
 
   return mergePageAyahsWithMusayev(pageNumber, uthmaniAyahs, surahMap);
 }
+
+export async function fetchMuhaffizPageWithFallback(
+  pageNumber: number,
+  signal?: AbortSignal
+): Promise<MuhaffizPageData> {
+  // 1. Primary: backend /api/quran/muhaffiz/:pageNumber
+  try {
+    const apiRes = await fetch(`/api/quran/muhaffiz/${pageNumber}`, { signal });
+    const apiJson = await parseJsonSafely<MuhaffizPageData>(apiRes);
+    if (apiJson && Array.isArray(apiJson.rows) && apiJson.rows.length > 0) {
+      return apiJson;
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+  }
+
+  // 2. Direct CORS fallback: quran.com words endpoint + translation
+  try {
+    const quranComRes = await fetch(
+      `https://api.quran.com/api/v4/verses/by_page/${pageNumber}?words=true&word_fields=text_uthmani,line_number,char_type_name&per_page=50`,
+      { signal }
+    );
+    if (quranComRes.ok) {
+      const quranComJson = (await quranComRes.json()) as { verses?: QuranComRawVerseWithWords[] };
+      const rawVerses = Array.isArray(quranComJson?.verses) ? quranComJson.verses : [];
+      if (rawVerses.length > 0) {
+        const uthmaniAyahs: UthmaniPageAyahInput[] = rawVerses.map((v) => {
+          const [rawSurah, rawAyah] = String(v.verse_key ?? '1:1').split(':');
+          const surahNumber = Number.parseInt(rawSurah, 10) || 1;
+          const ayahNumber = Number.parseInt(rawAyah, 10) || 1;
+          const wordsOnly = (v.words ?? [])
+            .filter((w) => w.char_type_name !== 'end')
+            .map((w) => String(w.text_uthmani ?? w.text ?? '').trim())
+            .filter(Boolean);
+          return {
+            surahNumber,
+            ayahNumber,
+            juzNumber: Number(v.juz_number) || 1,
+            arabicText: wordsOnly.join(' '),
+          };
+        });
+
+        const uniqueSurahNumbers = Array.from(new Set(uthmaniAyahs.map((a) => a.surahNumber)));
+        const surahPayloads = await Promise.all(
+          uniqueSurahNumbers.map(async (sNum) => {
+            try {
+              return [sNum, await fetchSurahWithFallback(sNum, signal)] as const;
+            } catch {
+              return [
+                sNum,
+                {
+                  surahNumber: sNum,
+                  translatorName: 'Əlixan Musayev',
+                  editionVersion: '1.0.4',
+                  ayahs: [],
+                } satisfies SurahTranslationPayload,
+              ] as const;
+            }
+          })
+        );
+        const surahMap = new Map<number, SurahTranslationPayload>(surahPayloads);
+        const merged = mergePageAyahsWithMusayev(pageNumber, uthmaniAyahs, surahMap);
+        const tokens = buildTokensFromQuranComVerses(rawVerses);
+        return {
+          ...merged,
+          rows: groupTokensIntoMushafRows(tokens),
+          centeredPage: pageNumber === 1 || pageNumber === 2,
+        };
+      }
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+  }
+
+  // 3. Final fallback: plain Mushaf page synthesis
+  const plain = await fetchMushafPageWithFallback(pageNumber, signal);
+  return {
+    ...plain,
+    rows: buildSyntheticMuhaffizRows(pageNumber, plain.ayahs),
+    centeredPage: pageNumber === 1 || pageNumber === 2,
+  };
+}
+

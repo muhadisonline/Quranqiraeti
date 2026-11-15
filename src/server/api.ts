@@ -20,6 +20,13 @@ import {
   parseQuranComPageVerses,
 } from '../lib/quran';
 import {
+  MuhaffizPageData,
+  QuranComRawVerseWithWords,
+  buildSyntheticMuhaffizRows,
+  buildTokensFromQuranComVerses,
+  groupTokensIntoMushafRows,
+} from '../lib/muhaffiz';
+import {
   buildAiIndexJson,
   buildLlmsFullTxt,
   buildLlmsTxt,
@@ -59,6 +66,7 @@ let inflightChannelPromise: Promise<{
 
 const surahTranslationCache = new Map<number, SurahTranslationPayload>();
 const mushafPageCache = new Map<number, MushafPagePayload>();
+const muhaffizPageCache = new Map<number, MuhaffizPageData>();
 
 const surahRequests: SurahRequestRecord[] = [
   {
@@ -245,6 +253,86 @@ export async function fetchMushafPage(pageNumber: number): Promise<MushafPagePay
     mushafPageCache.set(pageNumber, merged);
   }
   return merged;
+}
+
+export async function fetchMuhaffizPage(pageNumber: number): Promise<MuhaffizPageData> {
+  const cached = muhaffizPageCache.get(pageNumber);
+  if (cached && cached.rows.length > 0) return cached;
+
+  try {
+    const res = await fetch(
+      `https://api.quran.com/api/v4/verses/by_page/${pageNumber}?words=true&word_fields=text_uthmani,line_number,char_type_name&per_page=50`,
+      {
+        signal: AbortSignal.timeout(7000),
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      }
+    );
+
+    if (res.ok) {
+      const json = (await res.json()) as { verses?: QuranComRawVerseWithWords[] };
+      const rawVerses = Array.isArray(json?.verses) ? json.verses : [];
+      if (rawVerses.length > 0) {
+        const uthmaniAyahs: UthmaniPageAyahInput[] = rawVerses.map((v) => {
+          const [rawSurah, rawAyah] = String(v.verse_key ?? '1:1').split(':');
+          const surahNumber = Number.parseInt(rawSurah, 10) || 1;
+          const ayahNumber = Number.parseInt(rawAyah, 10) || 1;
+          const wordsOnly = (v.words ?? [])
+            .filter((w) => w.char_type_name !== 'end')
+            .map((w) => String(w.text_uthmani ?? w.text ?? '').trim())
+            .filter(Boolean);
+          return {
+            surahNumber,
+            ayahNumber,
+            juzNumber: Number(v.juz_number) || 1,
+            arabicText: wordsOnly.join(' '),
+          };
+        });
+
+        const uniqueSurahNumbers = Array.from(new Set(uthmaniAyahs.map((a) => a.surahNumber)));
+        const surahPayloads = await Promise.all(
+          uniqueSurahNumbers.map(async (sNum) => {
+            try {
+              return [sNum, await fetchSurahTranslation(sNum)] as const;
+            } catch {
+              return [
+                sNum,
+                {
+                  surahNumber: sNum,
+                  translatorName: 'Əlixan Musayev',
+                  editionVersion: '1.0.4',
+                  ayahs: [],
+                } satisfies SurahTranslationPayload,
+              ] as const;
+            }
+          })
+        );
+
+        const surahMap = new Map<number, SurahTranslationPayload>(surahPayloads);
+        const merged = mergePageAyahsWithMusayev(pageNumber, uthmaniAyahs, surahMap);
+        const tokens = buildTokensFromQuranComVerses(rawVerses);
+        const rows = groupTokensIntoMushafRows(tokens);
+
+        const data: MuhaffizPageData = {
+          ...merged,
+          rows,
+          centeredPage: pageNumber === 1 || pageNumber === 2,
+        };
+        muhaffizPageCache.set(pageNumber, data);
+        return data;
+      }
+    }
+  } catch {
+    // Fallback cleanly to plain Mushaf page synthesis below
+  }
+
+  const plainPage = await fetchMushafPage(pageNumber);
+  const fallbackData: MuhaffizPageData = {
+    ...plainPage,
+    rows: buildSyntheticMuhaffizRows(pageNumber, plainPage.ayahs),
+    centeredPage: pageNumber === 1 || pageNumber === 2,
+  };
+  muhaffizPageCache.set(pageNumber, fallbackData);
+  return fallbackData;
 }
 
 async function fetchAllYouTubeShorts(html: string, startedAt: number): Promise<RecitationVideo[]> {
@@ -460,6 +548,21 @@ export function createApiRouter() {
       res.json(payload);
     } catch {
       res.status(502).json({ error: 'Quran səhifəsi yüklənərkən xəta baş verdi.' });
+    }
+  });
+
+  router.get('/quran/muhaffiz/:pageNumber', async (req: Request, res: Response) => {
+    const pageNumber = Number.parseInt(String(req.params.pageNumber ?? ''), 10);
+    if (Number.isNaN(pageNumber) || pageNumber < 1 || pageNumber > TOTAL_QURAN_PAGES) {
+      res.status(400).json({ error: 'Quran səhifəsi 1 ilə 604 arasında olmalıdır.' });
+      return;
+    }
+    try {
+      const payload = await fetchMuhaffizPage(pageNumber);
+      res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
+      res.json(payload);
+    } catch {
+      res.status(502).json({ error: 'Mühafiz səhifəsi yüklənərkən xəta baş verdi.' });
     }
   });
 

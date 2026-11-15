@@ -25,6 +25,7 @@ test('buildSitemapXml includes core routes, 114 surahs, 604 Mushaf pages, and ch
   assert.ok(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/shorts</loc>'));
+  assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/muhaffiz</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/quran/sure/1</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/quran/sure/114</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/quran/sehife/1</loc>'));

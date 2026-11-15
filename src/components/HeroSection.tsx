@@ -17,7 +17,7 @@ const HERO_IMAGE_PATH = heroManuscriptImage;
 export function HeroSection({
   stats,
   featuredVideo,
-  longVideoCount,
+  longVideoCount: _longVideoCount,
   shortsCount,
   onPlayFeatured,
   onNavigate,
@@ -94,34 +94,6 @@ export function HeroSection({
             </div>
           </div>
         </div>
-
-        {/* Full-Width 4-Column Operational Channel Strip */}
-        <dl className="mt-12 grid grid-cols-2 gap-6 border-t border-stone-200 pt-8 sm:grid-cols-4 dark:border-stone-800">
-          <div>
-            <dt className="text-xs font-medium text-stone-500 dark:text-stone-400">Abunəçi icması</dt>
-            <dd className="font-mono-tabular mt-1.5 text-2xl font-medium text-stone-900 dark:text-stone-100">
-              {stats.subscribersLabel}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-stone-500 dark:text-stone-400">Kanalda cəmi video</dt>
-            <dd className="font-mono-tabular mt-1.5 text-2xl font-medium text-stone-900 dark:text-stone-100">
-              {stats.videoCountLabel}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-stone-500 dark:text-stone-400">Uzun tilavətlər</dt>
-            <dd className="font-mono-tabular mt-1.5 text-2xl font-medium text-stone-900 dark:text-stone-100">
-              {longVideoCount} surə
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-stone-500 dark:text-stone-400">Təqdimat formatı</dt>
-            <dd className="mt-1.5 text-lg font-medium text-stone-900 dark:text-stone-100">
-              Ərəbcə + AZ mətn
-            </dd>
-          </div>
-        </dl>
       </div>
     </section>
   );

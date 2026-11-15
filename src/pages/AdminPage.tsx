@@ -122,7 +122,10 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
     return {
       code,
       uid: res.uid,
-      message: res.reason ?? 'Bu Google hesabı admin siyahısında qeydiyyatda deyil.',
+      message:
+        code === 'auth/missing-email'
+          ? 'Köhnə sessiyada e-poçt ünvanı yadda saxlanmayıb. Aşağıdakı «Hesabı Yenilə və Daxil Ol» düyməsinə toxunun — köhnə sessiya avtomatik təmizlənib giriş açılacaq.'
+          : res.reason ?? 'Bu Google hesabı admin siyahısında qeydiyyatda deyil.',
       consoleSettingsUrl:
         code === 'auth/email-unverified' || code === 'auth/missing-email' ? settingsUrl : undefined,
       consoleUsersUrl: code === 'auth/missing-email' ? usersUrl : undefined,
@@ -152,7 +155,6 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
     const unsub = subscribeAuthState(async (user) => {
       if (!active) return;
       setCurrentUser(user);
-      setAuthError(null);
 
       if (!user) {
         setIsAdminVerified(false);
@@ -160,6 +162,8 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
         setIsLoadingTelemetry(false);
         return;
       }
+
+      setAuthError(null);
 
       try {
         const res = await verifyAndSyncAdminAccess(user);
@@ -326,6 +330,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
   }
 
   async function handleSignOut() {
+    setAuthError(null);
     await signOutAdmin();
     setEvents([]);
     setHealthRecords([]);
@@ -428,7 +433,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
               Admin Statistika Paneli
             </h1>
             <p className="mt-3 text-sm leading-relaxed text-stone-600 dark:text-stone-300">
-              Saytın bütün <span className="font-mono-tabular">9</span> bölməsi üzrə saatlıq, günlük
+              Saytın bütün <span className="font-mono-tabular">{CONNECTED_PAGES.length}</span> bölməsi üzrə saatlıq, günlük
               və həftəlik ziyarət statistikasını, yüklənmə gecikmələrini və canlı səhifə statuslarını
               görmək üçün səlahiyyətli Google hesabınızla daxil olun.
             </p>
@@ -439,9 +444,13 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
 
             {authError && (
               <div
-                role="alert"
+                role={authError.code === 'auth/session-repaired-retry' ? 'status' : 'alert'}
                 data-testid="admin-auth-error"
-                className="mt-5 rounded-lg border border-[#DC2626]/30 bg-[#DC2626]/5 px-4 py-3.5 text-xs text-[#DC2626] dark:border-[#F87171]/30 dark:bg-[#F87171]/10 dark:text-[#F87171]"
+                className={`mt-5 rounded-lg border px-4 py-3.5 text-xs ${
+                  authError.code === 'auth/session-repaired-retry'
+                    ? 'border-[#0F4C3A]/30 bg-[#0F4C3A]/5 text-[#0F4C3A] dark:border-[#86C7AE]/30 dark:bg-[#196B52]/15 dark:text-[#86C7AE]'
+                    : 'border-[#DC2626]/30 bg-[#DC2626]/5 text-[#DC2626] dark:border-[#F87171]/30 dark:bg-[#F87171]/10 dark:text-[#F87171]'
+                }`}
               >
                 <p className="font-medium leading-relaxed">{authError.message}</p>
 
@@ -541,38 +550,35 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                   </div>
                 )}
 
-                {authError.code === 'auth/missing-email' && (
-                  <div className="mt-3 space-y-3 border-t border-[#DC2626]/20 pt-3 text-stone-700 dark:border-[#F87171]/20 dark:text-stone-300">
-                    <div>
-                      <p className="text-[11px] font-semibold text-stone-900 dark:text-stone-100">
-                        1-ci üsul (Tövsiyə olunur — Google girişində e-poçtu aktivləşdirmə):
-                      </p>
-                      <ol className="mt-1 list-decimal space-y-1 pl-4 text-[11px] leading-relaxed">
-                        <li>
-                          Firebase Authentication → Settings → User account linking bölməsində{' '}
-                          <strong>«Link accounts that use the same email»</strong> seçimini aktiv edib
-                          yadda saxlayın.
-                        </li>
-                        <li>
-                          Authentication → Users siyahısında e-poçt sahəsi boş olan köhnə sətri silin.
-                        </li>
-                        <li>
-                          Aşağıda <strong>«Hesabdan çıx»</strong> edib yenidən{' '}
-                          <strong>«Google ilə Admin Girişi»</strong> edin.
-                        </li>
-                      </ol>
-                      <div className="mt-2 flex flex-wrap gap-3">
-                        {authError.consoleSettingsUrl && (
-                          <a
-                            href={authError.consoleSettingsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
-                          >
-                            <span>Authentication Settings aç</span>
-                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                          </a>
-                        )}
+                {authError.code === 'auth/missing-email' && authError.uid && (
+                  <details className="mt-3 border-t border-[#DC2626]/20 pt-2.5 text-stone-700 dark:border-[#F87171]/20 dark:text-stone-300">
+                    <summary className="cursor-pointer text-[11px] font-medium text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200">
+                      Alternativ: Manual UID / Firebase Konsolu
+                    </summary>
+                    <div className="mt-2 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-1.5 dark:border-stone-700 dark:bg-[#111513]">
+                        <code className="truncate font-mono text-[11px] text-stone-900 dark:text-stone-100">
+                          {authError.uid}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyUid(authError.uid!)}
+                          className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                        >
+                          {uidCopied ? (
+                            <>
+                              <Check className="h-3 w-3" aria-hidden="true" />
+                              <span>Köçürüldü</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3 w-3" aria-hidden="true" />
+                              <span>UID Kopyala</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
                         {authError.consoleUsersUrl && (
                           <a
                             href={authError.consoleUsersUrl}
@@ -580,64 +586,32 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
                           >
-                            <span>Users siyahısını aç</span>
+                            <span>Users siyahısı</span>
                             <ExternalLink className="h-3 w-3" aria-hidden="true" />
                           </a>
                         )}
+                        {authError.firestoreUrl && (
+                          <a
+                            href={authError.firestoreUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                          >
+                            <span>Firestore `/admins`</span>
+                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleRefreshVerification}
+                          disabled={verificationBusy}
+                          className="rounded-md border border-stone-300 bg-white px-2.5 py-1 text-[11px] font-medium text-stone-800 hover:border-[#0F4C3A] disabled:opacity-60 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
+                        >
+                          {verificationBusy ? 'Yoxlanılır...' : 'Yenilə'}
+                        </button>
                       </div>
                     </div>
-
-                    {authError.uid && (
-                      <div className="border-t border-stone-200 pt-2.5 dark:border-stone-800">
-                        <p className="text-[11px] font-semibold text-stone-900 dark:text-stone-100">
-                          2-ci üsul (Birbaşa UID ilə Firestore `/admins` qeydi):
-                        </p>
-                        <div className="mt-1.5 flex items-center justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-1.5 dark:border-stone-700 dark:bg-[#111513]">
-                          <code className="truncate font-mono text-[11px] text-stone-900 dark:text-stone-100">
-                            {authError.uid}
-                          </code>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyUid(authError.uid!)}
-                            className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
-                          >
-                            {uidCopied ? (
-                              <>
-                                <Check className="h-3 w-3" aria-hidden="true" />
-                                <span>Köçürüldü</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="h-3 w-3" aria-hidden="true" />
-                                <span>UID Kopyala</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-3">
-                          {authError.firestoreUrl && (
-                            <a
-                              href={authError.firestoreUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
-                            >
-                              <span>Firestore `/admins` kolleksiyasını aç</span>
-                              <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            onClick={handleRefreshVerification}
-                            disabled={verificationBusy}
-                            className="rounded-md border border-stone-300 bg-white px-2.5 py-1 text-[11px] font-medium text-stone-800 hover:border-[#0F4C3A] disabled:opacity-60 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
-                          >
-                            {verificationBusy ? 'Yoxlanılır...' : 'Əlavə etdim, yenilə'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  </details>
                 )}
               </div>
             )}
@@ -650,7 +624,13 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                 className="inline-flex items-center gap-2 rounded-lg bg-[#0F4C3A] px-5 py-2.5 text-sm font-medium text-white whitespace-nowrap transition-colors hover:bg-[#0B3A2C] disabled:opacity-60 dark:bg-[#196B52] dark:hover:bg-[#1E7F61]"
               >
                 <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                <span>{isSigningIn ? 'Giriş edilir...' : 'Google ilə Admin Girişi'}</span>
+                <span>
+                  {isSigningIn
+                    ? 'Giriş edilir...'
+                    : authError?.code === 'auth/missing-email'
+                      ? 'Hesabı Yenilə və Daxil Ol'
+                      : 'Google ilə Admin Girişi'}
+                </span>
               </button>
 
               {currentUser && (
@@ -859,7 +839,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                   }
                   className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#141916] dark:text-stone-100"
                 >
-                  <option value="all">Bütün bağlı səhifələr (9)</option>
+                  <option value="all">Bütün bağlı səhifələr ({CONNECTED_PAGES.length})</option>
                   {CONNECTED_PAGES.map((p) => (
                     <option key={p.pageKey} value={p.pageKey}>
                       {p.label} ({p.routePattern})
@@ -1010,7 +990,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                     Bağlı Səhifələrin Statusu və Ziyarət Sayı
                   </h2>
                   <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-                    Bütün 9 marşrut üzrə saatlıq, günlük, həftəlik statistikalar və canlı sağlamlıq statusu
+                    Bütün {CONNECTED_PAGES.length} marşrut üzrə saatlıq, günlük, həftəlik statistikalar və canlı sağlamlıq statusu
                   </p>
                 </div>
 

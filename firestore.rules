@@ -44,6 +44,7 @@ service cloud.firestore {
         'quran',
         'surah',
         'mushaf_page',
+        'muhaffiz',
         'video',
         'verse_of_day',
         'about',

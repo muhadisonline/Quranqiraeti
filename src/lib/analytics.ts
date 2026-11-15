@@ -4,6 +4,7 @@ export type ConnectedPageKey =
   | 'quran'
   | 'surah'
   | 'mushaf_page'
+  | 'muhaffiz'
   | 'video'
   | 'verse_of_day'
   | 'about'
@@ -57,6 +58,13 @@ export const CONNECTED_PAGES: ConnectedPageDefinition[] = [
     routePattern: '/quran/sehife/:pageNumber',
     probeUrl: '/api/quran/page/1',
     description: '604 Mushaf səhifəsi üzrə ayə-ayə oxu görünüşü',
+  },
+  {
+    pageKey: 'muhaffiz',
+    label: 'Mühafiz (Əzbər Mushafı)',
+    routePattern: '/muhaffiz',
+    probeUrl: '/muhaffiz',
+    description: 'Ayələri gizlədib-açaraq Quran əzbərləmə və təkrar səhifəsi',
   },
   {
     pageKey: 'video',
@@ -187,6 +195,9 @@ export function resolvePageTelemetryMeta(pathname: string): {
   }
   if (/^\/quran\/sehife\/\d+$/.test(clean)) {
     return { pageKey: 'mushaf_page', pageLabel: 'Mushaf Səhifəsi (1–604)', cleanPath: clean };
+  }
+  if (clean === '/muhaffiz' || clean === '/ezber' || /^\/(?:muhaffiz|ezber)\/\d+$/.test(clean)) {
+    return { pageKey: 'muhaffiz', pageLabel: 'Mühafiz (Əzbər Mushafı)', cleanPath: clean };
   }
   if (/^\/video\/[a-zA-Z0-9_-]+$/.test(clean)) {
     return { pageKey: 'video', pageLabel: 'Video Ətraflı & Tərcümə', cleanPath: clean };

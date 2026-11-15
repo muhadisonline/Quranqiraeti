@@ -22,6 +22,7 @@ import {
 import { parseJsonSafely } from './lib/quranClient';
 import { recordPageTelemetryEvent } from './lib/firebase';
 import { AdminPage } from './pages/AdminPage';
+import { MuhaffizPage } from './pages/MuhaffizPage';
 import { QuranDirectoryPage } from './pages/QuranDirectoryPage';
 import { QuranMushafPage } from './pages/QuranMushafPage';
 import { QuranSurahPage } from './pages/QuranSurahPage';
@@ -263,6 +264,11 @@ function AppContent() {
   const quranSurahNumber = quranSurahMatch ? Number.parseInt(quranSurahMatch[1], 10) : undefined;
   const quranPageMatch = currentPath.match(/^\/quran\/sehife\/(\d+)$/);
   const quranPageNumber = quranPageMatch ? Number.parseInt(quranPageMatch[1], 10) : undefined;
+  const muhaffizPageMatch = currentPath.match(/^\/(?:muhaffiz|ezber)(?:\/(\d+))?$/);
+  const isMuhaffizRoute = Boolean(muhaffizPageMatch);
+  const muhaffizInitialPage = muhaffizPageMatch?.[1]
+    ? Number.parseInt(muhaffizPageMatch[1], 10)
+    : undefined;
 
   const relatedForDetail = useMemo(() => {
     if (!detailVideo) return [];
@@ -272,11 +278,13 @@ function AppContent() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <TopBar
-        currentPath={currentPath}
-        subscribeUrl={stats.subscribeUrl}
-        onNavigate={navigate}
-      />
+      {!isMuhaffizRoute && (
+        <TopBar
+          currentPath={currentPath}
+          subscribeUrl={stats.subscribeUrl}
+          onNavigate={navigate}
+        />
+      )}
 
       <main className="flex-1">
         {currentPath === '/admin' ? (
@@ -308,6 +316,13 @@ function AppContent() {
           />
         ) : currentPath === '/quran' ? (
           <QuranDirectoryPage
+            isDark={isDark}
+            onNavigate={navigate}
+            onToggleTheme={() => setIsDark((prev) => !prev)}
+          />
+        ) : isMuhaffizRoute ? (
+          <MuhaffizPage
+            initialPageNumber={muhaffizInitialPage}
             isDark={isDark}
             onNavigate={navigate}
             onToggleTheme={() => setIsDark((prev) => !prev)}
@@ -404,7 +419,9 @@ function AppContent() {
         )}
       </main>
 
-      <Footer stats={stats} onNavigate={navigate} />
+      {!isMuhaffizRoute && (
+        <Footer stats={stats} longVideoCount={longVideos.length} onNavigate={navigate} />
+      )}
 
       <TheaterModal
         video={activeVideo}
