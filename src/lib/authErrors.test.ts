@@ -12,6 +12,10 @@ test('extractFirebaseErrorCode extracts error code from Error objects and Fireba
     'auth/unauthorized-domain'
   );
   assert.equal(
+    extractFirebaseErrorCode(new Error('Firebase: Error (auth/missing-email).')),
+    'auth/missing-email'
+  );
+  assert.equal(
     extractFirebaseErrorCode(new Error('Firebase: Error (auth/popup-blocked).')),
     'auth/popup-blocked'
   );
@@ -32,6 +36,30 @@ test('parseFirebaseAuthError translates auth/unauthorized-domain into actionable
   );
   assert.ok(parsed.message.includes('quranqiraeti.vercel.app'));
   assert.ok(!parsed.message.includes('gmail'));
+});
+
+test('parseFirebaseAuthError handles auth/missing-email with Firebase console links and no PII', () => {
+  const parsed = parseFirebaseAuthError(
+    { code: 'auth/missing-email' },
+    'quranqiraeti.vercel.app',
+    'mindful-operator-5v0ns',
+    {
+      uid: 'uid_12345',
+      databaseId: 'ai-studio-quranqiraeti-c7acecf7-1549-4be0-8e2a-500eab44da5f',
+    }
+  );
+  assert.equal(parsed.code, 'auth/missing-email');
+  assert.equal(parsed.uid, 'uid_12345');
+  assert.equal(
+    parsed.consoleSettingsUrl,
+    'https://console.firebase.google.com/project/mindful-operator-5v0ns/authentication/settings'
+  );
+  assert.equal(
+    parsed.consoleUsersUrl,
+    'https://console.firebase.google.com/project/mindful-operator-5v0ns/authentication/users'
+  );
+  assert.ok(parsed.firestoreUrl?.includes('ai-studio-quranqiraeti-c7acecf7-1549-4be0-8e2a-500eab44da5f'));
+  assert.ok(!parsed.message.toLowerCase().includes('gmail'));
 });
 
 test('parseFirebaseAuthError handles popup-blocked and popup-closed cleanly', () => {

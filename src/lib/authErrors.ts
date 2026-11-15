@@ -2,7 +2,10 @@ export interface ParsedFirebaseAuthError {
   code: string;
   message: string;
   domain?: string;
+  uid?: string;
   consoleSettingsUrl?: string;
+  consoleUsersUrl?: string;
+  firestoreUrl?: string;
 }
 
 export function extractFirebaseErrorCode(error: unknown): string {
@@ -20,15 +23,29 @@ export function extractFirebaseErrorCode(error: unknown): string {
   return 'auth/unknown';
 }
 
+export function buildFirebaseConsoleUrls(projectId: string, databaseId?: string) {
+  const settingsUrl = `https://console.firebase.google.com/project/${projectId}/authentication/settings`;
+  const providersUrl = `https://console.firebase.google.com/project/${projectId}/authentication/providers`;
+  const usersUrl = `https://console.firebase.google.com/project/${projectId}/authentication/users`;
+  const firestoreUrl = databaseId
+    ? `https://console.firebase.google.com/project/${projectId}/firestore/databases/${databaseId}/data`
+    : `https://console.firebase.google.com/project/${projectId}/firestore`;
+
+  return { settingsUrl, providersUrl, usersUrl, firestoreUrl };
+}
+
 export function parseFirebaseAuthError(
   error: unknown,
   currentHostname: string,
-  projectId: string
+  projectId: string,
+  options?: { uid?: string; databaseId?: string }
 ): ParsedFirebaseAuthError {
   const code = extractFirebaseErrorCode(error);
   const cleanHost = currentHostname.trim() || 'localhost';
-  const settingsUrl = `https://console.firebase.google.com/project/${projectId}/authentication/settings`;
-  const providersUrl = `https://console.firebase.google.com/project/${projectId}/authentication/providers`;
+  const { settingsUrl, providersUrl, usersUrl, firestoreUrl } = buildFirebaseConsoleUrls(
+    projectId,
+    options?.databaseId
+  );
 
   switch (code) {
     case 'auth/unauthorized-domain':
@@ -37,6 +54,16 @@ export function parseFirebaseAuthError(
         domain: cleanHost,
         consoleSettingsUrl: settingsUrl,
         message: `Bu domen (${cleanHost}) hələ Firebase Authentication icazəli domenlər siyahısına əlavə edilməyib.`,
+      };
+    case 'auth/missing-email':
+      return {
+        code,
+        uid: options?.uid,
+        consoleSettingsUrl: settingsUrl,
+        consoleUsersUrl: usersUrl,
+        firestoreUrl,
+        message:
+          'Firebase Authentication bu layihədə e-poçtsuz hesab (Multi-account) rejimində yaradıldığı üçün e-poçt ünvanı oxuna bilmədi.',
       };
     case 'auth/popup-blocked':
       return {

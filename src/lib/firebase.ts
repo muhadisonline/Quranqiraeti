@@ -38,6 +38,7 @@ import {
 } from './analytics';
 
 export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
+export const FIREBASE_DATABASE_ID = firebaseConfig.firestoreDatabaseId;
 const BOOTSTRAPPED_ADMIN_EMAIL_SHA256 =
   'c00a9c2c72ba2c120b8edf90ac1584dd117552bdfca10d4c69808fa25f01534d';
 
@@ -264,71 +265,84 @@ export function subscribeAuthState(callback: (user: User | null) => void): () =>
 export async function verifyAndSyncAdminAccess(user: User | null): Promise<{
   isAdmin: boolean;
   code?: string;
+  uid?: string;
   reason?: string;
 }> {
   if (!user) return { isAdmin: false };
 
+  const adminDocPath = `admins/${user.uid}`;
+
+  // 1. First verify whether this exact authenticated UID is already registered in /admins/{uid}.
+  // This grants access immediately even if Identity Platform is in multi-account mode (email == null).
+  try {
+    const existingAdminSnap = await getDoc(doc(db, 'admins', user.uid));
+    if (existingAdminSnap.exists()) {
+      return { isAdmin: true, uid: user.uid };
+    }
+  } catch {
+    // Non-fatal: continue to email/token verification path below
+  }
+
+  // 2. Refresh auth user & JWT claims for bootstrapped email verification
+  let refreshedUser = user;
   let effectiveVerified = Boolean(user.emailVerified);
   try {
     await user.reload();
-    const tokenRes = await user.getIdTokenResult(true);
+    refreshedUser = auth.currentUser ?? user;
+    const tokenRes = await refreshedUser.getIdTokenResult(true);
     effectiveVerified = Boolean(
-      (auth.currentUser ?? user).emailVerified || tokenRes.claims?.email_verified === true
+      refreshedUser.emailVerified || tokenRes.claims?.email_verified === true
     );
   } catch {
     // fallback to existing claim state if network hiccup
+  }
+
+  const authLevelEmail = (refreshedUser.email ?? '').trim();
+  if (!authLevelEmail) {
+    return {
+      isAdmin: false,
+      code: 'auth/missing-email',
+      uid: user.uid,
+      reason:
+        'Firebase Authentication bu layihədə e-poçtsuz hesab (Multi-account) rejimində yaradıldığı üçün e-poçt ünvanı oxuna bilmədi.',
+    };
   }
 
   if (!effectiveVerified) {
     return {
       isAdmin: false,
       code: 'auth/email-unverified',
+      uid: user.uid,
       reason:
         'Firebase hesabınızda e-poçt təsdiqi (email_verified) hələ aktiv deyil. Təsdiq linki göndərərək bir kliklə aktivləşdirə bilərsiniz.',
     };
   }
 
-  const rawEmail =
-    user.email ||
-    user.providerData?.find((p) => Boolean(p?.email))?.email ||
-    '';
-  const email = rawEmail.trim().toLowerCase();
-  const emailHash = email ? await sha256Hex(email) : '';
+  const email = authLevelEmail.toLowerCase();
+  const emailHash = await sha256Hex(email);
   const isBootstrapped = emailHash === BOOTSTRAPPED_ADMIN_EMAIL_SHA256;
-  const adminDocPath = `admins/${user.uid}`;
 
-  try {
-    const snap = await getDoc(doc(db, 'admins', user.uid));
-    if (snap.exists()) {
-      return { isAdmin: true };
+  if (isBootstrapped) {
+    try {
+      await setDoc(doc(db, 'admins', user.uid), {
+        uid: user.uid,
+        email: authLevelEmail.slice(0, 160),
+        displayName: (refreshedUser.displayName || 'Əsas Admin').slice(0, 120),
+        role: 'admin',
+        createdAt: serverTimestamp(),
+      });
+    } catch (writeErr) {
+      handleFirestoreError(writeErr, OperationType.WRITE, adminDocPath);
     }
-
-    if (isBootstrapped) {
-      try {
-        await setDoc(doc(db, 'admins', user.uid), {
-          uid: user.uid,
-          email: rawEmail.slice(0, 160),
-          displayName: (user.displayName || 'Əsas Admin').slice(0, 120),
-          role: 'admin',
-          createdAt: serverTimestamp(),
-        });
-      } catch (writeErr) {
-        handleFirestoreError(writeErr, OperationType.WRITE, adminDocPath);
-      }
-      return { isAdmin: true };
-    }
-
-    return {
-      isAdmin: false,
-      code: 'auth/not-admin',
-      reason: 'Bu Google hesabı admin siyahısında qeydiyyatda deyil.',
-    };
-  } catch (error) {
-    if (isBootstrapped) {
-      return { isAdmin: true };
-    }
-    handleFirestoreError(error, OperationType.GET, adminDocPath);
+    return { isAdmin: true, uid: user.uid };
   }
+
+  return {
+    isAdmin: false,
+    code: 'auth/not-admin',
+    uid: user.uid,
+    reason: 'Bu Google hesabı admin siyahısında qeydiyyatda deyil.',
+  };
 }
 
 function timestampToMs(value: unknown): number {

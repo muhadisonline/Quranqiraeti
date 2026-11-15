@@ -30,11 +30,17 @@ import {
   formatMsDuration,
   formatShortTimestampAz,
 } from '../lib/analytics';
-import { ParsedFirebaseAuthError, parseFirebaseAuthError } from '../lib/authErrors';
+import {
+  ParsedFirebaseAuthError,
+  buildFirebaseConsoleUrls,
+  parseFirebaseAuthError,
+} from '../lib/authErrors';
 import {
   AdminUserRecord,
+  FIREBASE_DATABASE_ID,
   FIREBASE_PROJECT_ID,
   addAdminUser,
+  auth,
   listAdminUsers,
   refreshCurrentAdminUser,
   removeAdminUser,
@@ -98,9 +104,31 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
   const [isAdminVerified, setIsAdminVerified] = useState(false);
   const [authError, setAuthError] = useState<ParsedFirebaseAuthError | null>(null);
   const [domainCopied, setDomainCopied] = useState(false);
+  const [uidCopied, setUidCopied] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
   const [verificationBusy, setVerificationBusy] = useState(false);
+
+  function toDeniedAuthError(res: {
+    code?: string;
+    uid?: string;
+    reason?: string;
+  }): ParsedFirebaseAuthError {
+    const code = res.code ?? 'auth/not-admin';
+    const { settingsUrl, usersUrl, firestoreUrl } = buildFirebaseConsoleUrls(
+      FIREBASE_PROJECT_ID,
+      FIREBASE_DATABASE_ID
+    );
+    return {
+      code,
+      uid: res.uid,
+      message: res.reason ?? 'Bu Google hesabı admin siyahısında qeydiyyatda deyil.',
+      consoleSettingsUrl:
+        code === 'auth/email-unverified' || code === 'auth/missing-email' ? settingsUrl : undefined,
+      consoleUsersUrl: code === 'auth/missing-email' ? usersUrl : undefined,
+      firestoreUrl: code === 'auth/missing-email' || code === 'auth/not-admin' ? firestoreUrl : undefined,
+    };
+  }
 
   const [section, setSection] = useState<AdminSection>('overview');
   const [granularity, setGranularity] = useState<TimeWindowGranularity>('hourly');
@@ -138,14 +166,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
         if (!active) return;
         setIsAdminVerified(res.isAdmin);
         if (!res.isAdmin && res.reason) {
-          setAuthError({
-            code: res.code ?? 'auth/not-admin',
-            message: res.reason,
-            consoleSettingsUrl:
-              res.code === 'auth/email-unverified'
-                ? `https://console.firebase.google.com/project/${FIREBASE_PROJECT_ID}/authentication/settings`
-                : undefined,
-          });
+          setAuthError(toDeniedAuthError(res));
         }
       } catch (err) {
         if (!active) return;
@@ -154,7 +175,8 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
           parseFirebaseAuthError(
             err,
             typeof window !== 'undefined' ? window.location.hostname : '',
-            FIREBASE_PROJECT_ID
+            FIREBASE_PROJECT_ID,
+            { uid: user.uid, databaseId: FIREBASE_DATABASE_ID }
           )
         );
       } finally {
@@ -221,6 +243,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
     setIsSigningIn(true);
     setAuthError(null);
     setDomainCopied(false);
+    setUidCopied(false);
     try {
       await signInAdminWithGoogle();
     } catch (err) {
@@ -228,7 +251,8 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
         parseFirebaseAuthError(
           err,
           typeof window !== 'undefined' ? window.location.hostname : '',
-          FIREBASE_PROJECT_ID
+          FIREBASE_PROJECT_ID,
+          { uid: auth.currentUser?.uid, databaseId: FIREBASE_DATABASE_ID }
         )
       );
     } finally {
@@ -246,6 +270,16 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
     }
   }
 
+  async function handleCopyUid(uid: string) {
+    try {
+      await navigator.clipboard.writeText(uid);
+      setUidCopied(true);
+      window.setTimeout(() => setUidCopied(false), 2000);
+    } catch {
+      // ignore clipboard error
+    }
+  }
+
   async function handleSendVerificationEmail() {
     setVerificationBusy(true);
     try {
@@ -256,7 +290,8 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
         parseFirebaseAuthError(
           err,
           typeof window !== 'undefined' ? window.location.hostname : '',
-          FIREBASE_PROJECT_ID
+          FIREBASE_PROJECT_ID,
+          { uid: auth.currentUser?.uid ?? currentUser?.uid, databaseId: FIREBASE_DATABASE_ID }
         )
       );
     } finally {
@@ -274,21 +309,15 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
         setAuthError(null);
         setVerificationSent(false);
       } else if (res.reason) {
-        setAuthError({
-          code: res.code ?? 'auth/not-admin',
-          message: res.reason,
-          consoleSettingsUrl:
-            res.code === 'auth/email-unverified'
-              ? `https://console.firebase.google.com/project/${FIREBASE_PROJECT_ID}/authentication/settings`
-              : undefined,
-        });
+        setAuthError(toDeniedAuthError(res));
       }
     } catch (err) {
       setAuthError(
         parseFirebaseAuthError(
           err,
           typeof window !== 'undefined' ? window.location.hostname : '',
-          FIREBASE_PROJECT_ID
+          FIREBASE_PROJECT_ID,
+          { uid: auth.currentUser?.uid ?? currentUser?.uid, databaseId: FIREBASE_DATABASE_ID }
         )
       );
     } finally {
@@ -511,6 +540,105 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                     )}
                   </div>
                 )}
+
+                {authError.code === 'auth/missing-email' && (
+                  <div className="mt-3 space-y-3 border-t border-[#DC2626]/20 pt-3 text-stone-700 dark:border-[#F87171]/20 dark:text-stone-300">
+                    <div>
+                      <p className="text-[11px] font-semibold text-stone-900 dark:text-stone-100">
+                        1-ci üsul (Tövsiyə olunur — Google girişində e-poçtu aktivləşdirmə):
+                      </p>
+                      <ol className="mt-1 list-decimal space-y-1 pl-4 text-[11px] leading-relaxed">
+                        <li>
+                          Firebase Authentication → Settings → User account linking bölməsində{' '}
+                          <strong>«Link accounts that use the same email»</strong> seçimini aktiv edib
+                          yadda saxlayın.
+                        </li>
+                        <li>
+                          Authentication → Users siyahısında e-poçt sahəsi boş olan köhnə sətri silin.
+                        </li>
+                        <li>
+                          Aşağıda <strong>«Hesabdan çıx»</strong> edib yenidən{' '}
+                          <strong>«Google ilə Admin Girişi»</strong> edin.
+                        </li>
+                      </ol>
+                      <div className="mt-2 flex flex-wrap gap-3">
+                        {authError.consoleSettingsUrl && (
+                          <a
+                            href={authError.consoleSettingsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                          >
+                            <span>Authentication Settings aç</span>
+                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </a>
+                        )}
+                        {authError.consoleUsersUrl && (
+                          <a
+                            href={authError.consoleUsersUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                          >
+                            <span>Users siyahısını aç</span>
+                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {authError.uid && (
+                      <div className="border-t border-stone-200 pt-2.5 dark:border-stone-800">
+                        <p className="text-[11px] font-semibold text-stone-900 dark:text-stone-100">
+                          2-ci üsul (Birbaşa UID ilə Firestore `/admins` qeydi):
+                        </p>
+                        <div className="mt-1.5 flex items-center justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-1.5 dark:border-stone-700 dark:bg-[#111513]">
+                          <code className="truncate font-mono text-[11px] text-stone-900 dark:text-stone-100">
+                            {authError.uid}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyUid(authError.uid!)}
+                            className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                          >
+                            {uidCopied ? (
+                              <>
+                                <Check className="h-3 w-3" aria-hidden="true" />
+                                <span>Köçürüldü</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3 w-3" aria-hidden="true" />
+                                <span>UID Kopyala</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          {authError.firestoreUrl && (
+                            <a
+                              href={authError.firestoreUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                            >
+                              <span>Firestore `/admins` kolleksiyasını aç</span>
+                              <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleRefreshVerification}
+                            disabled={verificationBusy}
+                            className="rounded-md border border-stone-300 bg-white px-2.5 py-1 text-[11px] font-medium text-stone-800 hover:border-[#0F4C3A] disabled:opacity-60 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
+                          >
+                            {verificationBusy ? 'Yoxlanılır...' : 'Əlavə etdim, yenilə'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -611,7 +739,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                   {currentUser.displayName || 'Admin'}
                 </p>
                 <p className="mt-0.5 truncate font-mono text-[11px] text-stone-500 dark:text-stone-400">
-                  {currentUser.email}
+                  {currentUser.email || `UID: ${currentUser.uid}`}
                 </p>
 
                 <div className="mt-4 flex items-center gap-2">
