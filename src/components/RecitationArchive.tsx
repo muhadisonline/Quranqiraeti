@@ -41,8 +41,6 @@ export function RecitationArchive({
 }: RecitationArchiveProps) {
   const tabs: Array<{ id: FilterTab; label: string }> = [
     { id: 'all', label: 'Hamısı' },
-    { id: 'mekke', label: 'Məkkə Surələri' },
-    { id: 'medeni', label: 'Mədinə Surələri' },
     { id: 'secilmis', label: 'Seçilmiş Qiraətlər' },
     { id: 'saved', label: `Saxlanılanlar (${savedIds.length})` },
   ];

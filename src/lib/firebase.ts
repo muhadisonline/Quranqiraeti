@@ -1,0 +1,474 @@
+import { initializeApp } from 'firebase/app';
+import {
+  GoogleAuthProvider,
+  User,
+  getAuth,
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut,
+} from 'firebase/auth';
+import {
+  Timestamp,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocFromServer,
+  getDocs,
+  getFirestore,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
+import {
+  CONNECTED_PAGES,
+  ConnectedPageKey,
+  HealthStatus,
+  PageHealthSnapshot,
+  PageTelemetryEventRecord,
+  ReferrerType,
+  TelemetryStatus,
+  normalizeReferrerType,
+  resolvePageTelemetryMeta,
+} from './analytics';
+
+export const BOOTSTRAPPED_ADMIN_EMAIL = 'mahir1999a@gmail.com';
+
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const auth = getAuth(app);
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration.');
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  void testConnection();
+}
+
+export interface AdminUserRecord {
+  uid: string;
+  email: string;
+  displayName: string;
+  role: 'admin';
+  createdAtMs: number;
+}
+
+const SESSION_STORAGE_KEY = 'quranqiraeti_telemetry_session_v1';
+
+export function getOrCreateSessionId(): string {
+  try {
+    const existing = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (existing && /^[a-zA-Z0-9_-]{4,80}$/.test(existing)) {
+      return existing;
+    }
+    const generated = `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    sessionStorage.setItem(SESSION_STORAGE_KEY, generated);
+    return generated;
+  } catch {
+    return `sess-${Date.now().toString(36)}`;
+  }
+}
+
+function buildSafeEventId(): string {
+  return `ev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function sanitizePathForRule(rawPath: string): string {
+  const cleaned = (rawPath || '/').split('?')[0].replace(/[^a-zA-Z0-9_/-]/g, '');
+  const prefixed = cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
+  return prefixed.slice(0, 180) || '/';
+}
+
+export async function recordPageTelemetryEvent(params: {
+  pathname: string;
+  loadTimeMs: number;
+  httpStatus?: number;
+  statusOverride?: TelemetryStatus;
+  referrer?: string;
+}): Promise<void> {
+  const meta = resolvePageTelemetryMeta(params.pathname);
+  if (!meta) return;
+
+  const eventId = buildSafeEventId();
+  const safePath = sanitizePathForRule(meta.cleanPath);
+  const clampedLatency = Math.min(
+    120_000,
+    Math.max(0, Math.round(Number.isFinite(params.loadTimeMs) ? params.loadTimeMs : 0))
+  );
+  const httpStatus = Math.min(599, Math.max(100, Math.round(params.httpStatus ?? 200)));
+  const status: TelemetryStatus =
+    params.statusOverride ??
+    (httpStatus >= 400 ? 'error' : clampedLatency >= 2500 ? 'slow' : 'ok');
+  const sessionId = getOrCreateSessionId();
+  const referrerType: ReferrerType = normalizeReferrerType(
+    params.referrer ?? (typeof document !== 'undefined' ? document.referrer : ''),
+    typeof window !== 'undefined' ? window.location.origin : ''
+  );
+
+  // 1. Send to backend fallback tracker (non-blocking)
+  void fetch('/api/analytics/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      eventId,
+      pageKey: meta.pageKey,
+      pageLabel: meta.pageLabel,
+      path: safePath,
+      status,
+      httpStatus,
+      loadTimeMs: clampedLatency,
+      sessionId,
+      referrerType,
+    }),
+  }).catch(() => {
+    // non-fatal telemetry fallback
+  });
+
+  // 2. Persist to Firestore /page_events/{eventId}
+  const docPath = `page_events/${eventId}`;
+  try {
+    await setDoc(doc(db, 'page_events', eventId), {
+      eventId,
+      pageKey: meta.pageKey,
+      pageLabel: meta.pageLabel.slice(0, 100),
+      path: safePath,
+      status,
+      httpStatus,
+      loadTimeMs: clampedLatency,
+      sessionId,
+      referrerType,
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    // Log structured context if rejected by rules without disrupting reader UX
+    console.warn('Firestore telemetry write warning:', docPath, error);
+  }
+}
+
+export async function signInAdminWithGoogle(): Promise<User> {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  const cred = await signInWithPopup(auth, provider);
+  return cred.user;
+}
+
+export async function signOutAdmin(): Promise<void> {
+  await signOut(auth);
+}
+
+export function subscribeAuthState(callback: (user: User | null) => void): () => void {
+  return onAuthStateChanged(auth, callback);
+}
+
+export async function verifyAndSyncAdminAccess(user: User | null): Promise<{
+  isAdmin: boolean;
+  reason?: string;
+}> {
+  if (!user) return { isAdmin: false };
+  if (!user.emailVerified) {
+    return { isAdmin: false, reason: 'E-poçt ünvanınız Google tərəfindən təsdiqlənməyib.' };
+  }
+
+  const email = (user.email ?? '').toLowerCase();
+  const isBootstrapped = email === BOOTSTRAPPED_ADMIN_EMAIL.toLowerCase();
+  const adminDocPath = `admins/${user.uid}`;
+
+  try {
+    const snap = await getDoc(doc(db, 'admins', user.uid));
+    if (snap.exists()) {
+      return { isAdmin: true };
+    }
+
+    if (isBootstrapped) {
+      try {
+        await setDoc(doc(db, 'admins', user.uid), {
+          uid: user.uid,
+          email: (user.email ?? BOOTSTRAPPED_ADMIN_EMAIL).slice(0, 160),
+          displayName: (user.displayName || 'Əsas Admin').slice(0, 120),
+          role: 'admin',
+          createdAt: serverTimestamp(),
+        });
+      } catch (writeErr) {
+        handleFirestoreError(writeErr, OperationType.WRITE, adminDocPath);
+      }
+      return { isAdmin: true };
+    }
+
+    return {
+      isAdmin: false,
+      reason: `${user.email ?? 'Bu hesab'} admin siyahısında qeydiyyatda deyil.`,
+    };
+  } catch (error) {
+    if (isBootstrapped) {
+      return { isAdmin: true };
+    }
+    handleFirestoreError(error, OperationType.GET, adminDocPath);
+  }
+}
+
+function timestampToMs(value: unknown): number {
+  if (value instanceof Timestamp) return value.toMillis();
+  if (typeof value === 'number') return value;
+  if (value && typeof value === 'object' && 'seconds' in value) {
+    const sec = Number((value as { seconds?: number }).seconds ?? 0);
+    return sec * 1000;
+  }
+  return Date.now();
+}
+
+export function subscribeAdminTelemetry(
+  onEvents: (events: PageTelemetryEventRecord[]) => void,
+  onHealth: (records: PageHealthSnapshot[]) => void,
+  onError: (err: Error) => void
+): () => void {
+  const eventsPath = 'page_events';
+  const healthPath = 'page_health';
+
+  const eventsQuery = query(
+    collection(db, eventsPath),
+    orderBy('createdAt', 'desc'),
+    limit(600)
+  );
+
+  const unsubEvents = onSnapshot(
+    eventsQuery,
+    (snapshot) => {
+      const parsed: PageTelemetryEventRecord[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          eventId: String(data.eventId ?? d.id),
+          pageKey: data.pageKey as ConnectedPageKey,
+          pageLabel: String(data.pageLabel ?? ''),
+          path: String(data.path ?? '/'),
+          status: (data.status as TelemetryStatus) ?? 'ok',
+          httpStatus: Number(data.httpStatus ?? 200),
+          loadTimeMs: Number(data.loadTimeMs ?? 0),
+          sessionId: String(data.sessionId ?? 'anon'),
+          referrerType: (data.referrerType as ReferrerType) ?? 'direct',
+          createdAtMs: timestampToMs(data.createdAt),
+        };
+      });
+      onEvents(parsed);
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, eventsPath);
+      } catch (wrapped) {
+        onError(wrapped as Error);
+      }
+    }
+  );
+
+  const unsubHealth = onSnapshot(
+    collection(db, healthPath),
+    (snapshot) => {
+      const records: PageHealthSnapshot[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          pageKey: (data.pageKey ?? d.id) as ConnectedPageKey,
+          label: String(data.label ?? ''),
+          routePattern: String(data.routePattern ?? '/'),
+          status: (data.status as HealthStatus) ?? 'ok',
+          statusNote: String(data.statusNote ?? ''),
+          lastLatencyMs: Number(data.lastLatencyMs ?? 0),
+          lastCheckedAtMs: timestampToMs(data.lastCheckedAt),
+          checkedByUid: String(data.checkedByUid ?? ''),
+        };
+      });
+      onHealth(records);
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, healthPath);
+      } catch (wrapped) {
+        onError(wrapped as Error);
+      }
+    }
+  );
+
+  return () => {
+    unsubEvents();
+    unsubHealth();
+  };
+}
+
+export async function runLivePageHealthChecks(
+  adminUid: string,
+  onProgress?: (completed: number, total: number) => void
+): Promise<PageHealthSnapshot[]> {
+  const results: PageHealthSnapshot[] = [];
+
+  for (let i = 0; i < CONNECTED_PAGES.length; i++) {
+    const pageDef = CONNECTED_PAGES[i];
+    const started = performance.now();
+    let status: HealthStatus = 'ok';
+    let statusNote = 'HTTP 200 · Normal işləyir';
+    let latencyMs = 0;
+
+    try {
+      const res = await fetch(pageDef.probeUrl, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
+      });
+      latencyMs = Math.min(120_000, Math.max(1, Math.round(performance.now() - started)));
+      if (!res.ok) {
+        status = 'down';
+        statusNote = `HTTP ${res.status} xətası aşkarlandı`;
+      } else if (latencyMs > 2500) {
+        status = 'degraded';
+        statusNote = `Yavaş cavab (${latencyMs} ms)`;
+      } else {
+        status = 'ok';
+        statusNote = `HTTP ${res.status} · Səhifə sağlamdır (${latencyMs} ms)`;
+      }
+    } catch {
+      latencyMs = Math.min(120_000, Math.max(1, Math.round(performance.now() - started)));
+      status = 'down';
+      statusNote = 'Şəbəkə və ya vaxt limiti xətası';
+    }
+
+    const docPath = `page_health/${pageDef.pageKey}`;
+    try {
+      await setDoc(doc(db, 'page_health', pageDef.pageKey), {
+        pageKey: pageDef.pageKey,
+        label: pageDef.label.slice(0, 100),
+        routePattern: pageDef.routePattern.slice(0, 120),
+        status,
+        statusNote: statusNote.slice(0, 240),
+        lastLatencyMs: latencyMs,
+        lastCheckedAt: serverTimestamp(),
+        checkedByUid: adminUid,
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, docPath);
+    }
+
+    results.push({
+      pageKey: pageDef.pageKey,
+      label: pageDef.label,
+      routePattern: pageDef.routePattern,
+      status,
+      statusNote,
+      lastLatencyMs: latencyMs,
+      lastCheckedAtMs: Date.now(),
+      checkedByUid: adminUid,
+    });
+
+    onProgress?.(i + 1, CONNECTED_PAGES.length);
+  }
+
+  return results;
+}
+
+export async function listAdminUsers(): Promise<AdminUserRecord[]> {
+  const path = 'admins';
+  try {
+    const snap = await getDocs(collection(db, path));
+    return snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        uid: String(data.uid ?? d.id),
+        email: String(data.email ?? ''),
+        displayName: String(data.displayName ?? ''),
+        role: 'admin',
+        createdAtMs: timestampToMs(data.createdAt),
+      };
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export async function addAdminUser(input: {
+  uid: string;
+  email: string;
+  displayName: string;
+}): Promise<void> {
+  const cleanUid = input.uid.trim();
+  const cleanEmail = input.email.trim();
+  const cleanName = input.displayName.trim();
+  const path = `admins/${cleanUid}`;
+  try {
+    await setDoc(doc(db, 'admins', cleanUid), {
+      uid: cleanUid,
+      email: cleanEmail.slice(0, 160),
+      displayName: cleanName.slice(0, 120),
+      role: 'admin',
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export async function removeAdminUser(uid: string): Promise<void> {
+  const path = `admins/${uid}`;
+  try {
+    await deleteDoc(doc(db, 'admins', uid));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}

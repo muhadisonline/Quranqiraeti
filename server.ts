@@ -1,13 +1,14 @@
 import express from 'express';
 import path from 'node:path';
 import { createServer as createViteServer } from 'vite';
-import { createApiRouter, fetchLiveChannelData } from './src/server/api';
+import { createApiRouter, createSeoRouter, fetchLiveChannelData } from './src/server/api';
 
 const PORT = Number(process.env.PORT || 3000);
 
 async function startServer() {
   const app = express();
   app.use(express.json());
+  app.use('/', createSeoRouter());
   app.use('/api', createApiRouter());
 
   if (process.env.NODE_ENV !== 'production') {

@@ -32,7 +32,7 @@ export function Footer({ stats, onNavigate }: FooterProps) {
 
         <nav
           aria-label="Alt naviqasiya"
-          className="flex flex-wrap items-center gap-6 text-xs font-medium text-stone-600 dark:text-stone-400"
+          className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-stone-600 dark:text-stone-400"
         >
           <a href="/" onClick={(e) => handleNav(e, '/')} className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]">
             Uzun Videolar
@@ -51,6 +51,9 @@ export function Footer({ stats, onNavigate }: FooterProps) {
           </a>
           <a href="/istek" onClick={(e) => handleNav(e, '/istek')} className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]">
             İstək göndər
+          </a>
+          <a href="/admin" onClick={(e) => handleNav(e, '/admin')} className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]">
+            Admin Panel
           </a>
           <a
             href={stats.youtubeUrl}

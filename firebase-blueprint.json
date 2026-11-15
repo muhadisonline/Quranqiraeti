@@ -1,0 +1,210 @@
+{
+  "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized administrator account permitted to inspect analytics, page statuses, and system health.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the administrator."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 160,
+          "description": "Verified administrator email address."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Display name of the administrator."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"],
+          "description": "Fixed RBAC role label."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": ["uid", "email", "displayName", "role", "createdAt"]
+    },
+    "PageTelemetryEvent": {
+      "title": "PageTelemetryEvent",
+      "description": "Individual route visit and status telemetry event recorded from connected site pages for hourly, daily, and weekly aggregation.",
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique event identifier."
+        },
+        "pageKey": {
+          "type": "string",
+          "enum": [
+            "home",
+            "shorts",
+            "quran",
+            "surah",
+            "mushaf_page",
+            "video",
+            "verse_of_day",
+            "about",
+            "request"
+          ],
+          "description": "Canonical route key identifying which connected page recorded the event."
+        },
+        "pageLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Human-readable Azerbaijani page title."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "pattern": "^/[a-zA-Z0-9_\\-/]*$",
+          "description": "Visited URL pathname."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "slow", "error"],
+          "description": "Operational page status observed during navigation."
+        },
+        "httpStatus": {
+          "type": "integer",
+          "description": "Observed response code (200, 404, 502, etc.)."
+        },
+        "loadTimeMs": {
+          "type": "integer",
+          "description": "Measured client render/API latency in milliseconds."
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Anonymous browser session identifier."
+        },
+        "referrerType": {
+          "type": "string",
+          "enum": ["direct", "internal", "search", "youtube", "other"],
+          "description": "Normalized traffic source category."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the page event."
+        }
+      },
+      "required": [
+        "eventId",
+        "pageKey",
+        "pageLabel",
+        "path",
+        "status",
+        "httpStatus",
+        "loadTimeMs",
+        "sessionId",
+        "referrerType",
+        "createdAt"
+      ]
+    },
+    "PageHealthRecord": {
+      "title": "PageHealthRecord",
+      "description": "Latest health check snapshot and operational status per connected page managed from the admin panel.",
+      "type": "object",
+      "properties": {
+        "pageKey": {
+          "type": "string",
+          "enum": [
+            "home",
+            "shorts",
+            "quran",
+            "surah",
+            "mushaf_page",
+            "video",
+            "verse_of_day",
+            "about",
+            "request"
+          ],
+          "description": "Canonical route key."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Human-readable Azerbaijani label for the page."
+        },
+        "routePattern": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Route pattern shown in the status monitor."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "degraded", "down"],
+          "description": "Current operational status."
+        },
+        "statusNote": {
+          "type": "string",
+          "maxLength": 240,
+          "description": "Short operational summary."
+        },
+        "lastLatencyMs": {
+          "type": "integer",
+          "description": "Measured latency in milliseconds."
+        },
+        "lastCheckedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last status probe."
+        },
+        "checkedByUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Admin UID that recorded the status check."
+        }
+      },
+      "required": [
+        "pageKey",
+        "label",
+        "routePattern",
+        "status",
+        "statusNote",
+        "lastLatencyMs",
+        "lastCheckedAt",
+        "checkedByUid"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Admin registry controlling read/manage access to the analytics dashboard."
+    },
+    "/page_events/{eventId}": {
+      "schema": { "$ref": "#/entities/PageTelemetryEvent" },
+      "description": "Page view and latency telemetry events across all site pages, aggregated by hour, day, and week."
+    },
+    "/page_health/{pageKey}": {
+      "schema": { "$ref": "#/entities/PageHealthRecord" },
+      "description": "Per-page health check status snapshots saved by the admin monitor."
+    }
+  }
+}

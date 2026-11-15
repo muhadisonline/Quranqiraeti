@@ -9,7 +9,31 @@
       "destination": "/api/index.ts"
     },
     {
-      "source": "/((?!api/|assets/).*)",
+      "source": "/sitemap.xml",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/llms.txt",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/llms-full.txt",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/.well-known/llms.txt",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/ai-index.json",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/((?!api/|assets/|sitemap\\.xml$|robots\\.txt$|llms\\.txt$|llms-full\\.txt$|\\.well-known/llms\\.txt$|ai-index\\.json$).*)",
       "destination": "/index.html"
     }
   ]

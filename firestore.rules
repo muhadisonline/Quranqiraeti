@@ -1,0 +1,188 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar: Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Pillar: Primitive Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'mahir1999a@gmail.com';
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        isBootstrappedAdmin() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidPageKey(key) {
+      return key in [
+        'home',
+        'shorts',
+        'quran',
+        'surah',
+        'mushaf_page',
+        'video',
+        'verse_of_day',
+        'about',
+        'request'
+      ];
+    }
+
+    function isValidAdminUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+        data.role == 'admin' &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidPageTelemetryEvent(data) {
+      return data.keys().hasAll([
+          'eventId',
+          'pageKey',
+          'pageLabel',
+          'path',
+          'status',
+          'httpStatus',
+          'loadTimeMs',
+          'sessionId',
+          'referrerType',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'eventId',
+          'pageKey',
+          'pageLabel',
+          'path',
+          'status',
+          'httpStatus',
+          'loadTimeMs',
+          'sessionId',
+          'referrerType',
+          'createdAt'
+        ]) &&
+        isValidId(data.eventId) &&
+        isValidPageKey(data.pageKey) &&
+        data.pageLabel is string && data.pageLabel.size() >= 1 && data.pageLabel.size() <= 100 &&
+        data.path is string && data.path.size() >= 1 && data.path.size() <= 180 && data.path.matches('^/[a-zA-Z0-9_\\-/]*$') &&
+        data.status in ['ok', 'slow', 'error'] &&
+        data.httpStatus is int && data.httpStatus >= 100 && data.httpStatus <= 599 &&
+        data.loadTimeMs is int && data.loadTimeMs >= 0 && data.loadTimeMs <= 120000 &&
+        data.sessionId is string && data.sessionId.size() >= 4 && data.sessionId.size() <= 80 && data.sessionId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.referrerType in ['direct', 'internal', 'search', 'youtube', 'other'] &&
+        data.createdAt == request.time;
+    }
+
+    function isValidPageHealthRecord(data) {
+      return data.keys().hasAll([
+          'pageKey',
+          'label',
+          'routePattern',
+          'status',
+          'statusNote',
+          'lastLatencyMs',
+          'lastCheckedAt',
+          'checkedByUid'
+        ]) &&
+        data.keys().hasOnly([
+          'pageKey',
+          'label',
+          'routePattern',
+          'status',
+          'statusNote',
+          'lastLatencyMs',
+          'lastCheckedAt',
+          'checkedByUid'
+        ]) &&
+        isValidPageKey(data.pageKey) &&
+        data.label is string && data.label.size() >= 1 && data.label.size() <= 100 &&
+        data.routePattern is string && data.routePattern.size() >= 1 && data.routePattern.size() <= 120 &&
+        data.status in ['ok', 'degraded', 'down'] &&
+        data.statusNote is string && data.statusNote.size() <= 240 &&
+        data.lastLatencyMs is int && data.lastLatencyMs >= 0 && data.lastLatencyMs <= 120000 &&
+        data.lastCheckedAt == request.time &&
+        data.checkedByUid == request.auth.uid;
+    }
+
+    // Admins Registry: Only verified admins can read/manage
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && (isAdmin() || (isVerifiedUser() && request.auth.uid == adminUid));
+      allow list: if isAdmin();
+      allow create: if isValidId(adminUid) &&
+        isAdmin() &&
+        isValidAdminUser(incoming()) &&
+        incoming().uid == adminUid &&
+        incoming().createdAt == request.time;
+      allow update: if isValidId(adminUid) &&
+        isAdmin() &&
+        isValidAdminUser(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().role == existing().role &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email']);
+      allow delete: if isValidId(adminUid) && isAdmin() && adminUid != request.auth.uid;
+    }
+
+    // Connected Page Telemetry Events: Append-only strictly validated creates; admin-only reads/deletes
+    match /page_events/{eventId} {
+      allow get: if isValidId(eventId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(eventId) &&
+        isValidPageTelemetryEvent(incoming()) &&
+        incoming().eventId == eventId;
+      allow update: if false;
+      allow delete: if isValidId(eventId) && isAdmin();
+    }
+
+    // Per-Page Health Status Snapshots: Admin-only read/write
+    match /page_health/{pageKey} {
+      allow get: if isValidPageKey(pageKey) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidPageKey(pageKey) &&
+        isAdmin() &&
+        isValidPageHealthRecord(incoming()) &&
+        incoming().pageKey == pageKey;
+      allow update: if isValidPageKey(pageKey) &&
+        isAdmin() &&
+        isValidPageHealthRecord(incoming()) &&
+        incoming().pageKey == existing().pageKey &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'label',
+          'routePattern',
+          'status',
+          'statusNote',
+          'lastLatencyMs',
+          'lastCheckedAt',
+          'checkedByUid'
+        ]);
+      allow delete: if isValidPageKey(pageKey) && isAdmin();
+    }
+  }
+}

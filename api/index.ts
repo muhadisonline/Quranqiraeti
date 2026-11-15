@@ -1,10 +1,13 @@
 import express, { NextFunction, Request, Response } from 'express';
-import { createApiRouter } from '../src/server/api';
+import { createApiRouter, createSeoRouter } from '../src/server/api';
 
 const app = express();
 app.use(express.json());
 
+const seoRouter = createSeoRouter();
 const apiRouter = createApiRouter();
+app.use('/', seoRouter);
+app.use('/api', seoRouter);
 app.use('/api', apiRouter);
 app.use('/', apiRouter);
 

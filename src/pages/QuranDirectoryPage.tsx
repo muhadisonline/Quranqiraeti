@@ -3,7 +3,6 @@ import { FormEvent, useMemo, useState } from 'react';
 import { SeoHead } from '../components/SeoHead';
 import {
   JUZ_PAGE_RANGES,
-  RevelationPlace,
   SURAH_CATALOG,
   TOTAL_QURAN_PAGES,
   TOTAL_QURAN_SURAHS,
@@ -25,7 +24,6 @@ export function QuranDirectoryPage({
   onToggleTheme,
 }: QuranDirectoryPageProps) {
   const [browseMode, setBrowseMode] = useState<'surahs' | 'pages'>('surahs');
-  const [placeFilter, setPlaceFilter] = useState<'all' | RevelationPlace>('all');
   const [surahQuery, setSurahQuery] = useState('');
   const [selectedJuz, setSelectedJuz] = useState<number | 'all'>('all');
   const [jumpPageInput, setJumpPageInput] = useState('');
@@ -34,9 +32,9 @@ export function QuranDirectoryPage({
     () =>
       filterSurahCatalog(SURAH_CATALOG, {
         query: surahQuery,
-        place: placeFilter,
+        place: 'all',
       }),
-    [surahQuery, placeFilter]
+    [surahQuery]
   );
 
   const visiblePages = useMemo(() => getPagesForJuz(selectedJuz), [selectedJuz]);
@@ -197,31 +195,12 @@ export function QuranDirectoryPage({
 
         {browseMode === 'surahs' ? (
           <>
-            {/* Surah Filter & Search */}
+            {/* Unified Surah Search */}
             <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                {(
-                  [
-                    { id: 'all', label: 'Hamısı (114)' },
-                    { id: 'Məkkə', label: 'Məkkə (86)' },
-                    { id: 'Mədinə', label: 'Mədinə (28)' },
-                  ] as const
-                ).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setPlaceFilter(item.id)}
-                    aria-pressed={placeFilter === item.id}
-                    className={`rounded-lg border px-3.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
-                      placeFilter === item.id
-                        ? 'border-[#0F4C3A] bg-[#0F4C3A] text-white dark:border-[#196B52] dark:bg-[#196B52]'
-                        : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 dark:border-stone-700 dark:bg-[#141916] dark:text-stone-300'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                <span className="font-mono-tabular">{filteredSurahs.length}</span> surə göstərilir ·
+                Hər surənin üzərinə klikləyərək ayrıca oxu səhifəsini açın
+              </p>
 
               <div className="relative w-full sm:w-80">
                 <label htmlFor="surah-directory-search" className="sr-only">
@@ -251,11 +230,6 @@ export function QuranDirectoryPage({
                 )}
               </div>
             </div>
-
-            <p className="mt-4 text-xs text-stone-500 dark:text-stone-400">
-              <span className="font-mono-tabular">{filteredSurahs.length}</span> surə göstərilir ·
-              Hər surənin üzərinə klikləyərək ayrıca oxu səhifəsini açın
-            </p>
 
             {filteredSurahs.length > 0 ? (
               <div
@@ -333,7 +307,6 @@ export function QuranDirectoryPage({
                   type="button"
                   onClick={() => {
                     setSurahQuery('');
-                    setPlaceFilter('all');
                   }}
                   className="mt-4 rounded-lg bg-[#0F4C3A] px-5 py-2.5 text-xs font-medium text-white"
                 >

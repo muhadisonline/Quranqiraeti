@@ -18,6 +18,22 @@ import {
   parseQuranComPageVerses,
 } from '../lib/quran';
 import {
+  buildAiIndexJson,
+  buildLlmsFullTxt,
+  buildLlmsTxt,
+  buildRobotsTxt,
+  buildSitemapXml,
+} from '../lib/seo';
+import {
+  CONNECTED_PAGES,
+  ConnectedPageKey,
+  PageTelemetryEventRecord,
+  ReferrerType,
+  TelemetryStatus,
+  TimeWindowGranularity,
+  aggregateTelemetry,
+} from '../lib/analytics';
+import {
   DEFAULT_CHANNEL_STATS,
   SEED_LONG_VIDEOS,
   SEED_SHORTS,
@@ -60,6 +76,10 @@ const surahRequests: SurahRequestRecord[] = [
     createdAt: '2026-11-14T09:15:00Z',
   },
 ];
+
+const serverTelemetryEvents: PageTelemetryEventRecord[] = [];
+const MAX_SERVER_TELEMETRY_EVENTS = 1500;
+const VALID_PAGE_KEYS = new Set<ConnectedPageKey>(CONNECTED_PAGES.map((p) => p.pageKey));
 
 export async function fetchSurahTranslation(surahNumber: number): Promise<SurahTranslationPayload> {
   const cached = surahTranslationCache.get(surahNumber);
@@ -422,5 +442,149 @@ export function createApiRouter() {
     res.status(201).json({ request: record });
   });
 
+  router.post('/analytics/track', (req: Request, res: Response) => {
+    const body = req.body ?? {};
+    const pageKey = String(body.pageKey ?? '') as ConnectedPageKey;
+    if (!VALID_PAGE_KEYS.has(pageKey)) {
+      res.status(400).json({ error: 'Keçərsiz səhifə açarı (pageKey).' });
+      return;
+    }
+
+    const rawStatus = String(body.status ?? 'ok');
+    const status: TelemetryStatus =
+      rawStatus === 'slow' || rawStatus === 'error' ? rawStatus : 'ok';
+    const rawRef = String(body.referrerType ?? 'direct');
+    const referrerType: ReferrerType =
+      rawRef === 'internal' ||
+      rawRef === 'search' ||
+      rawRef === 'youtube' ||
+      rawRef === 'other'
+        ? rawRef
+        : 'direct';
+
+    const record: PageTelemetryEventRecord = {
+      eventId: String(body.eventId ?? `srv-${Date.now().toString(36)}`).slice(0, 128),
+      pageKey,
+      pageLabel: String(body.pageLabel ?? pageKey).slice(0, 100),
+      path: String(body.path ?? '/').slice(0, 180),
+      status,
+      httpStatus: Math.min(599, Math.max(100, Number.parseInt(String(body.httpStatus ?? 200), 10) || 200)),
+      loadTimeMs: Math.min(120_000, Math.max(0, Number.parseInt(String(body.loadTimeMs ?? 0), 10) || 0)),
+      sessionId: String(body.sessionId ?? 'anon').slice(0, 80),
+      referrerType,
+      createdAtMs: Date.now(),
+    };
+
+    serverTelemetryEvents.unshift(record);
+    if (serverTelemetryEvents.length > MAX_SERVER_TELEMETRY_EVENTS) {
+      serverTelemetryEvents.length = MAX_SERVER_TELEMETRY_EVENTS;
+    }
+
+    res.status(201).json({ tracked: true, eventId: record.eventId });
+  });
+
+  router.get('/analytics/summary', (req: Request, res: Response) => {
+    const rawGranularity = String(req.query.granularity ?? 'daily');
+    const granularity: TimeWindowGranularity =
+      rawGranularity === 'hourly' || rawGranularity === 'weekly' ? rawGranularity : 'daily';
+    const rawPage = String(req.query.pageKey ?? 'all');
+    const pageKey: ConnectedPageKey | 'all' =
+      rawPage !== 'all' && VALID_PAGE_KEYS.has(rawPage as ConnectedPageKey)
+        ? (rawPage as ConnectedPageKey)
+        : 'all';
+
+    res.json(aggregateTelemetry(serverTelemetryEvents, granularity, Date.now(), pageKey));
+  });
+
   return router;
 }
+
+export function getRequestOrigin(req: Request): string {
+  const forwardedProto = String(req.headers['x-forwarded-proto'] ?? '')
+    .split(',')[0]
+    .trim();
+  const forwardedHost = String(req.headers['x-forwarded-host'] ?? '')
+    .split(',')[0]
+    .trim();
+  const host = forwardedHost || req.get('host') || 'quranqiraeti.vercel.app';
+  const proto =
+    forwardedProto ||
+    (host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https');
+  return `${proto}://${host}`;
+}
+
+async function getChannelDataForSeo(): Promise<{
+  stats: ChannelStats;
+  longVideos: RecitationVideo[];
+  shorts: RecitationVideo[];
+}> {
+  if (cachedChannel) {
+    return {
+      stats: cachedChannel.stats,
+      longVideos: cachedChannel.longVideos,
+      shorts: cachedChannel.shorts,
+    };
+  }
+
+  const fallback = {
+    stats: DEFAULT_CHANNEL_STATS,
+    longVideos: SEED_LONG_VIDEOS,
+    shorts: SEED_SHORTS,
+  };
+
+  try {
+    const timeoutMs = process.env.VERCEL ? 3500 : 6000;
+    return await Promise.race([
+      fetchLiveChannelData(),
+      new Promise<typeof fallback>((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
+    ]);
+  } catch {
+    return fallback;
+  }
+}
+
+export function createSeoRouter() {
+  const router = express.Router();
+
+  router.get('/robots.txt', (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    res.send(buildRobotsTxt(origin));
+  });
+
+  router.get('/sitemap.xml', async (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    const { longVideos, shorts } = await getChannelDataForSeo();
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    res.send(buildSitemapXml(origin, [...longVideos, ...shorts]));
+  });
+
+  router.get(['/llms.txt', '/.well-known/llms.txt'], async (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    const { stats, longVideos, shorts } = await getChannelDataForSeo();
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    res.send(buildLlmsTxt(origin, stats, longVideos, shorts));
+  });
+
+  router.get('/llms-full.txt', async (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    const { stats, longVideos, shorts } = await getChannelDataForSeo();
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    res.send(buildLlmsFullTxt(origin, stats, longVideos, shorts));
+  });
+
+  router.get('/ai-index.json', async (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    const { stats, longVideos, shorts } = await getChannelDataForSeo();
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    res.json(buildAiIndexJson(origin, stats, longVideos, shorts));
+  });
+
+  return router;
+}
+

@@ -604,8 +604,8 @@ const SURAH_METADATA_MAP: Array<{ keys: string[]; meta: SurahMeta; defaultAyah?:
 ];
 
 const CATEGORY_LABELS: Record<RecitationCategory, string> = {
-  mekke: 'Məkkə Surələri',
-  medeni: 'Mədinə Surələri',
+  mekke: 'Uzun Tilavət',
+  medeni: 'Uzun Tilavət',
   secilmis: 'Seçilmiş Qiraətlər',
   qisa: 'Qısa Surələr',
 };

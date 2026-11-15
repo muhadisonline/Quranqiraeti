@@ -20,6 +20,8 @@ import {
   filterRecitations,
 } from './lib/channel';
 import { parseJsonSafely } from './lib/quranClient';
+import { recordPageTelemetryEvent } from './lib/firebase';
+import { AdminPage } from './pages/AdminPage';
 import { QuranDirectoryPage } from './pages/QuranDirectoryPage';
 import { QuranMushafPage } from './pages/QuranMushafPage';
 import { QuranSurahPage } from './pages/QuranSurahPage';
@@ -197,6 +199,19 @@ function AppContent() {
     };
   }, []);
 
+  useEffect(() => {
+    const startMs = performance.now();
+    const timer = setTimeout(() => {
+      const elapsed = Math.max(12, Math.round(performance.now() - startMs));
+      void recordPageTelemetryEvent({
+        pathname: currentPath,
+        loadTimeMs: elapsed,
+        httpStatus: 200,
+      });
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [currentPath]);
+
   const allVideos = useMemo(() => [...longVideos, ...shorts], [longVideos, shorts]);
 
   const filteredLongVideos = useMemo(
@@ -264,7 +279,13 @@ function AppContent() {
       />
 
       <main className="flex-1">
-        {detailVideoId ? (
+        {currentPath === '/admin' ? (
+          <AdminPage
+            isDark={isDark}
+            onNavigate={navigate}
+            onToggleTheme={() => setIsDark((prev) => !prev)}
+          />
+        ) : detailVideoId ? (
           <VideoDetailPage
             video={detailVideo}
             relatedVideos={relatedForDetail}
