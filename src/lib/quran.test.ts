@@ -5,13 +5,18 @@ import {
   SURAH_CATALOG,
   TOTAL_QURAN_PAGES,
   TOTAL_QURAN_SURAHS,
+  attachMushafPagesToSurah,
+  buildMushafPageSeoData,
   filterSurahCatalog,
   formatAzerbaijaniOrdinal,
   getJuzForPage,
   getPagesForJuz,
   getSurahByNumber,
+  groupAyahsByMushafPage,
   mergePageAyahsWithMusayev,
+  parseQuranComChapterVersesPages,
   parseQuranComPageVerses,
+  summarizeMushafPageContents,
 } from './quran';
 import { SurahTranslationPayload } from './channel';
 
@@ -111,4 +116,93 @@ test('parseQuranComPageVerses parses quran.com v4 verses payload cleanly', () =>
   assert.equal(parsed[1].ayahNumber, 6);
 });
 
+test('parseQuranComChapterVersesPages and groupAyahsByMushafPage group ayahs by exact Madinah Mushaf page', () => {
+  const pageMap = parseQuranComChapterVersesPages({
+    verses: [
+      { verse_key: '2:1', verse_number: 1, page_number: 2, juz_number: 1 },
+      { verse_key: '2:5', verse_number: 5, page_number: 2, juz_number: 1 },
+      { verse_key: '2:6', verse_number: 6, page_number: 3, juz_number: 1 },
+      { verse_key: '2:7', verse_number: 7, page_number: 3, juz_number: 1 },
+    ],
+  });
 
+  const basePayload: SurahTranslationPayload = {
+    surahNumber: 2,
+    translatorName: 'Əlixan Musayev',
+    editionVersion: '1.0.4',
+    ayahs: [
+      { surahNumber: 2, ayahNumber: 1, arabicText: 'الم', translation: 'Əlif. Lam. Mim.', footnotes: '' },
+      { surahNumber: 2, ayahNumber: 5, arabicText: '...', translation: 'Onlar hidayət üzrədirlər.', footnotes: '' },
+      { surahNumber: 2, ayahNumber: 6, arabicText: '...', translation: 'Həqiqətən, kafirlər...', footnotes: '' },
+      { surahNumber: 2, ayahNumber: 7, arabicText: '...', translation: 'Allah onların qəlbini...', footnotes: '' },
+    ],
+  };
+
+  const enriched = attachMushafPagesToSurah(basePayload, pageMap);
+  assert.equal(enriched.ayahs[0].pageNumber, 2);
+  assert.equal(enriched.ayahs[2].pageNumber, 3);
+
+  const groups = groupAyahsByMushafPage(enriched.ayahs, 2);
+  assert.equal(groups.length, 2);
+  assert.equal(groups[0].pageNumber, 2);
+  assert.equal(groups[0].ayahCount, 2);
+  assert.equal(groups[0].ayahRangeLabel, '1–5');
+  assert.equal(groups[1].pageNumber, 3);
+  assert.equal(groups[1].ayahCount, 2);
+  assert.equal(groups[1].ayahRangeLabel, '6–7');
+});
+
+test('summarizeMushafPageContents and buildMushafPageSeoData produce SEO metadata with prev/next links', () => {
+  const payload = {
+    pageNumber: 604,
+    juzNumber: 30,
+    surahsOnPage: [
+      { surahNumber: 112, surahName: 'İxlas surəsi', arabicName: 'سُورَةُ الإِخۡلَاصِ' },
+      { surahNumber: 113, surahName: 'Fələq surəsi', arabicName: 'سُورَةُ الفَلَقِ' },
+    ],
+    translatorName: 'Əlixan Musayev',
+    editionVersion: '1.0.4',
+    ayahs: [
+      {
+        surahNumber: 112,
+        surahName: 'İxlas surəsi',
+        arabicSurahName: '',
+        ayahNumber: 1,
+        juzNumber: 30,
+        arabicText: '...',
+        translation: '...',
+        footnotes: '',
+      },
+      {
+        surahNumber: 112,
+        surahName: 'İxlas surəsi',
+        arabicSurahName: '',
+        ayahNumber: 4,
+        juzNumber: 30,
+        arabicText: '...',
+        translation: '...',
+        footnotes: '',
+      },
+      {
+        surahNumber: 113,
+        surahName: 'Fələq surəsi',
+        arabicSurahName: '',
+        ayahNumber: 1,
+        juzNumber: 30,
+        arabicText: '...',
+        translation: '...',
+        footnotes: '',
+      },
+    ],
+  };
+
+  assert.equal(summarizeMushafPageContents(payload), 'İxlas surəsi (1–4), Fələq surəsi (1)');
+
+  const seo = buildMushafPageSeoData(604, 'https://quranqiraeti.vercel.app', payload);
+  assert.ok(seo.title.includes('604-cü səhifə'));
+  assert.ok(seo.title.includes('İxlas surəsi (1–4)'));
+  assert.ok(seo.description.includes('3 ayə'));
+  assert.equal(seo.prevPath, '/quran/sehife/603');
+  assert.equal(seo.nextPath, undefined);
+  assert.equal(seo.jsonLd.length, 2);
+});

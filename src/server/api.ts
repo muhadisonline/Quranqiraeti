@@ -14,7 +14,9 @@ import {
   MushafPagePayload,
   TOTAL_QURAN_PAGES,
   UthmaniPageAyahInput,
+  attachMushafPagesToSurah,
   mergePageAyahsWithMusayev,
+  parseQuranComChapterVersesPages,
   parseQuranComPageVerses,
 } from '../lib/quran';
 import {
@@ -83,17 +85,64 @@ const VALID_PAGE_KEYS = new Set<ConnectedPageKey>(CONNECTED_PAGES.map((p) => p.p
 
 export async function fetchSurahTranslation(surahNumber: number): Promise<SurahTranslationPayload> {
   const cached = surahTranslationCache.get(surahNumber);
-  if (cached && cached.ayahs.length > 0) return cached;
+  if (cached && cached.ayahs.length > 0 && cached.ayahs[0]?.pageNumber) return cached;
 
   try {
-    const res = await fetch(`https://quranenc.com/api/v1/translation/sura/azeri_musayev/${surahNumber}`, {
-      signal: AbortSignal.timeout(7000),
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-    });
-    if (res.ok) {
-      const json = await res.json();
-      const parsed = parseQuranEncSurah(surahNumber, json);
+    const [encResult, pagesResult] = await Promise.allSettled([
+      fetch(`https://quranenc.com/api/v1/translation/sura/azeri_musayev/${surahNumber}`, {
+        signal: AbortSignal.timeout(7000),
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      }),
+      fetch(
+        `https://api.quran.com/api/v4/verses/by_chapter/${surahNumber}?fields=page_number&per_page=300`,
+        {
+          signal: AbortSignal.timeout(7000),
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+        }
+      ),
+    ]);
+
+    if (encResult.status === 'fulfilled' && encResult.value.ok) {
+      const json = await encResult.value.json();
+      let parsed = parseQuranEncSurah(surahNumber, json);
       if (parsed.ayahs.length > 0) {
+        let pageMap = new Map<number, { pageNumber: number; juzNumber: number }>();
+        if (pagesResult.status === 'fulfilled' && pagesResult.value.ok) {
+          try {
+            const pagesJson = await pagesResult.value.json();
+            pageMap = parseQuranComChapterVersesPages(pagesJson);
+          } catch {
+            // fallback page metadata below if needed
+          }
+        }
+
+        if (pageMap.size === 0) {
+          try {
+            const alqRes = await fetch(
+              `https://api.alquran.cloud/v1/surah/${surahNumber}/quran-uthmani`,
+              { signal: AbortSignal.timeout(6000) }
+            );
+            if (alqRes.ok) {
+              const alqJson = await alqRes.json();
+              const rawAyahs = Array.isArray(alqJson?.data?.ayahs) ? alqJson.data.ayahs : [];
+              for (const item of rawAyahs) {
+                const ayahNum = Number(item?.numberInSurah ?? 0);
+                const pageNum = Number(item?.page ?? 0);
+                const juzNum = Number(item?.juz ?? 0);
+                if (ayahNum > 0 && pageNum >= 1 && pageNum <= TOTAL_QURAN_PAGES) {
+                  pageMap.set(ayahNum, {
+                    pageNumber: pageNum,
+                    juzNumber: juzNum >= 1 && juzNum <= 30 ? juzNum : 1,
+                  });
+                }
+              }
+            }
+          } catch {
+            // keep translation without blocking
+          }
+        }
+
+        parsed = attachMushafPagesToSurah(parsed, pageMap);
         surahTranslationCache.set(surahNumber, parsed);
         return parsed;
       }
@@ -116,13 +165,17 @@ export async function fetchSurahTranslation(surahNumber: number): Promise<SurahT
     surahNumber,
     translatorName: 'Əlixan Musayev',
     editionVersion: '1.0.4',
-    ayahs: arAyahs.map((ar: { numberInSurah?: number; text?: string }, idx: number) => ({
-      surahNumber,
-      ayahNumber: ar.numberInSurah ?? idx + 1,
-      arabicText: String(ar.text ?? '').trim(),
-      translation: String(azAyahs[idx]?.text ?? '').trim(),
-      footnotes: '',
-    })),
+    ayahs: arAyahs.map(
+      (ar: { numberInSurah?: number; page?: number; juz?: number; text?: string }, idx: number) => ({
+        surahNumber,
+        ayahNumber: ar.numberInSurah ?? idx + 1,
+        pageNumber: typeof ar.page === 'number' ? ar.page : undefined,
+        juzNumber: typeof ar.juz === 'number' ? ar.juz : undefined,
+        arabicText: String(ar.text ?? '').trim(),
+        translation: String(azAyahs[idx]?.text ?? '').trim(),
+        footnotes: '',
+      })
+    ),
   };
   if (payload.ayahs.length > 0) {
     surahTranslationCache.set(surahNumber, payload);

@@ -348,3 +348,207 @@ export function mergePageAyahsWithMusayev(
     ayahs,
   };
 }
+
+export interface MushafPageGroup {
+  pageNumber: number;
+  juzNumber: number;
+  ayahStart: number;
+  ayahEnd: number;
+  ayahCount: number;
+  ayahRangeLabel: string;
+  ayahs: AyahTranslation[];
+}
+
+export function parseQuranComChapterVersesPages(
+  payload: unknown
+): Map<number, { pageNumber: number; juzNumber: number }> {
+  const result = new Map<number, { pageNumber: number; juzNumber: number }>();
+  const obj = payload as {
+    verses?: Array<{
+      verse_number?: number;
+      verse_key?: string;
+      page_number?: number;
+      juz_number?: number;
+    }>;
+  };
+  if (!Array.isArray(obj?.verses)) return result;
+
+  for (const v of obj.verses) {
+    const ayahFromKey = String(v.verse_key ?? '').split(':')[1];
+    const ayahNumber = Number.parseInt(ayahFromKey ?? '', 10) || (v.verse_number ?? 0);
+    const pageNumber = Number(v.page_number ?? 0);
+    const juzNumber = Number(v.juz_number ?? 0);
+    if (ayahNumber > 0 && pageNumber >= 1 && pageNumber <= TOTAL_QURAN_PAGES) {
+      result.set(ayahNumber, {
+        pageNumber,
+        juzNumber: juzNumber >= 1 && juzNumber <= 30 ? juzNumber : getJuzForPage(pageNumber),
+      });
+    }
+  }
+  return result;
+}
+
+export function attachMushafPagesToSurah(
+  payload: SurahTranslationPayload,
+  pageMap: Map<number, { pageNumber: number; juzNumber: number }>
+): SurahTranslationPayload {
+  if (pageMap.size === 0) return payload;
+  return {
+    ...payload,
+    ayahs: payload.ayahs.map((ayah) => {
+      const meta = pageMap.get(ayah.ayahNumber);
+      if (!meta) return ayah;
+      return {
+        ...ayah,
+        pageNumber: meta.pageNumber,
+        juzNumber: meta.juzNumber,
+      };
+    }),
+  };
+}
+
+export function groupAyahsByMushafPage(
+  ayahs: AyahTranslation[],
+  fallbackStartPage = 1
+): MushafPageGroup[] {
+  if (ayahs.length === 0) return [];
+
+  const buckets = new Map<number, AyahTranslation[]>();
+  for (const ayah of ayahs) {
+    const pageNum =
+      ayah.pageNumber && ayah.pageNumber >= 1 && ayah.pageNumber <= TOTAL_QURAN_PAGES
+        ? ayah.pageNumber
+        : fallbackStartPage;
+    const list = buckets.get(pageNum);
+    if (list) {
+      list.push(ayah);
+    } else {
+      buckets.set(pageNum, [ayah]);
+    }
+  }
+
+  return Array.from(buckets.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([pageNumber, pageAyahs]) => {
+      const sorted = [...pageAyahs].sort((a, b) => a.ayahNumber - b.ayahNumber);
+      const ayahStart = sorted[0].ayahNumber;
+      const ayahEnd = sorted[sorted.length - 1].ayahNumber;
+      const juzNumber = sorted[0].juzNumber ?? getJuzForPage(pageNumber);
+      const ayahRangeLabel = ayahStart === ayahEnd ? `${ayahStart}` : `${ayahStart}–${ayahEnd}`;
+
+      return {
+        pageNumber,
+        juzNumber,
+        ayahStart,
+        ayahEnd,
+        ayahCount: sorted.length,
+        ayahRangeLabel,
+        ayahs: sorted,
+      };
+    });
+}
+
+export function summarizeMushafPageContents(payload: MushafPagePayload): string {
+  if (!payload.ayahs.length) return '';
+  const groups: Array<{ surahName: string; start: number; end: number }> = [];
+
+  for (const ayah of payload.ayahs) {
+    const last = groups[groups.length - 1];
+    if (last && last.surahName === ayah.surahName) {
+      last.end = ayah.ayahNumber;
+    } else {
+      groups.push({
+        surahName: ayah.surahName,
+        start: ayah.ayahNumber,
+        end: ayah.ayahNumber,
+      });
+    }
+  }
+
+  return groups
+    .map((g) =>
+      g.start === g.end ? `${g.surahName} (${g.start})` : `${g.surahName} (${g.start}–${g.end})`
+    )
+    .join(', ');
+}
+
+export function buildMushafPageSeoData(
+  pageNumber: number,
+  origin: string,
+  payload?: MushafPagePayload | null
+): {
+  title: string;
+  description: string;
+  summaryText: string;
+  prevPath?: string;
+  nextPath?: string;
+  jsonLd: Array<Record<string, unknown>>;
+} {
+  const pageOrdinal = formatAzerbaijaniOrdinal(pageNumber);
+  const juzNumber = payload?.juzNumber ?? getJuzForPage(pageNumber);
+  const juzOrdinal = formatAzerbaijaniOrdinal(juzNumber);
+  const summaryText = payload ? summarizeMushafPageContents(payload) : '';
+  const ayahCount = payload?.ayahs.length ?? 0;
+
+  const title = summaryText
+    ? `Qurani-Kərim, ${pageOrdinal} səhifə (${summaryText}) | Quran Qiraeti`
+    : `Qurani-Kərim, ${pageOrdinal} səhifə (Mədinə çapı) — Ərəbcə və Tərcümə | Quran Qiraeti`;
+
+  const description = summaryText
+    ? `Mədinə çapı üzrə Qurani-Kərimin ${pageOrdinal} səhifəsi (${juzOrdinal} Cüz, ${ayahCount} ayə): ${summaryText}. Ərəbcə Osman xətti mətn və Əlixan Musayevin Azərbaycan dilinə tərcüməsi (v1.0.4).`
+    : `Mədinə çapı üzrə Qurani-Kərimin ${pageOrdinal} səhifəsi (${juzOrdinal} Cüz). Ərəbcə mətn və Əlixan Musayevin son nəşr Azərbaycan tərcüməsi.`;
+
+  const cleanOrigin = origin.replace(/\/+$/, '');
+  const pageUrl = `${cleanOrigin}/quran/sehife/${pageNumber}`;
+
+  const jsonLd: Array<Record<string, unknown>> = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebPage',
+      name: `Qurani-Kərim — ${pageOrdinal} səhifə (Mədinə çapı)`,
+      description,
+      inLanguage: ['ar', 'az'],
+      url: pageUrl,
+      isPartOf: {
+        '@type': 'Book',
+        name: 'Qurani-Kərim — Əlixan Musayev tərcüməsi',
+        numberOfPages: TOTAL_QURAN_PAGES,
+        url: `${cleanOrigin}/quran`,
+      },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Ana səhifə',
+          item: `${cleanOrigin}/`,
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Tam Qurani-Kərim',
+          item: `${cleanOrigin}/quran`,
+        },
+        {
+          '@type': 'ListItem',
+          position: 3,
+          name: `${pageOrdinal} səhifə`,
+          item: pageUrl,
+        },
+      ],
+    },
+  ];
+
+  return {
+    title,
+    description,
+    summaryText,
+    prevPath: pageNumber > 1 ? `/quran/sehife/${pageNumber - 1}` : undefined,
+    nextPath: pageNumber < TOTAL_QURAN_PAGES ? `/quran/sehife/${pageNumber + 1}` : undefined,
+    jsonLd,
+  };
+}
+

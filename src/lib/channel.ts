@@ -5,6 +5,8 @@ export type FilterTab = 'all' | RecitationCategory | 'saved';
 export interface AyahTranslation {
   surahNumber: number;
   ayahNumber: number;
+  pageNumber?: number;
+  juzNumber?: number;
   arabicText: string;
   translation: string;
   footnotes: string;

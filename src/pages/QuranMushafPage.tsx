@@ -4,6 +4,7 @@ import { SeoHead } from '../components/SeoHead';
 import {
   MushafPagePayload,
   TOTAL_QURAN_PAGES,
+  buildMushafPageSeoData,
   formatAzerbaijaniOrdinal,
   getJuzForPage,
 } from '../lib/quran';
@@ -59,16 +60,9 @@ export function QuranMushafPage({ pageNumber, onNavigate }: QuranMushafPageProps
 
   const pageOrdinal = formatAzerbaijaniOrdinal(pageNumber);
 
-  const jsonLd = useMemo(
-    () => ({
-      '@context': 'https://schema.org',
-      '@type': 'WebPage',
-      name: `Qurani-Kərim — ${pageOrdinal} səhifə`,
-      description: `Qurani-Kərimin ${pageOrdinal} səhifəsi: ərəbcə mətn və Əlixan Musayevin son nəşr Azərbaycan tərcüməsi.`,
-      inLanguage: ['ar', 'az'],
-      url: `${window.location.origin}/quran/sehife/${pageNumber}`,
-    }),
-    [pageNumber, pageOrdinal]
+  const seoData = useMemo(
+    () => buildMushafPageSeoData(pageNumber, window.location.origin, payload),
+    [pageNumber, payload]
   );
 
   if (!isValidPage) {
@@ -127,10 +121,12 @@ export function QuranMushafPage({ pageNumber, onNavigate }: QuranMushafPageProps
   return (
     <article className="py-12 lg:py-16">
       <SeoHead
-        title={`Qurani-Kərim, ${pageOrdinal} səhifə — Ərəbcə və Tərcümə | Quran Qiraeti`}
-        description={`Qurani-Kərimin ${pageOrdinal} səhifəsi (${juzOrdinal} Cüz). Ərəbcə mətn və Əlixan Musayevin son nəşr Azərbaycan tərcüməsi.`}
+        title={seoData.title}
+        description={seoData.description}
         path={`/quran/sehife/${pageNumber}`}
-        jsonLd={jsonLd}
+        prevPath={seoData.prevPath}
+        nextPath={seoData.nextPath}
+        jsonLd={seoData.jsonLd}
       />
 
       <div className="mx-auto max-w-5xl px-6">
@@ -177,6 +173,16 @@ export function QuranMushafPage({ pageNumber, onNavigate }: QuranMushafPageProps
               <span aria-hidden="true" className="mx-1.5">·</span>
               <span className="font-mono-tabular">{juzOrdinal} Cüz</span>
               <span aria-hidden="true" className="mx-1.5">·</span>
+              <span>Mədinə çapı</span>
+              {payload && (
+                <>
+                  <span aria-hidden="true" className="mx-1.5">·</span>
+                  <span data-testid="mushaf-ayah-count" className="font-mono-tabular">
+                    {payload.ayahs.length} ayə
+                  </span>
+                </>
+              )}
+              <span aria-hidden="true" className="mx-1.5">·</span>
               <span>
                 Əlixan Musayev (v{(payload?.editionVersion ?? '1.0.4').replace(/^v/i, '')})
               </span>
@@ -184,6 +190,11 @@ export function QuranMushafPage({ pageNumber, onNavigate }: QuranMushafPageProps
             <h1 className="font-display mt-2 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl dark:text-stone-100">
               Qurani-Kərim — {pageOrdinal} səhifə
             </h1>
+            {seoData.summaryText && (
+              <p className="mt-2 text-xs text-stone-600 dark:text-stone-400">
+                Bu Mədinə səhifəsində: {seoData.summaryText}
+              </p>
+            )}
           </div>
 
           {payload && payload.surahsOnPage.length > 0 && (

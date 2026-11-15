@@ -5,7 +5,9 @@ import {
 import {
   MushafPagePayload,
   UthmaniPageAyahInput,
+  attachMushafPagesToSurah,
   mergePageAyahsWithMusayev,
+  parseQuranComChapterVersesPages,
   parseQuranComPageVerses,
 } from './quran';
 
@@ -36,15 +38,32 @@ export async function fetchSurahWithFallback(
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
   }
 
-  // 2. Direct CORS fallback: quranenc.com (Əlixan Musayev v1.0.4)
-  const quranEncRes = await fetch(
-    `https://quranenc.com/api/v1/translation/sura/azeri_musayev/${surahNumber}`,
-    { signal }
-  );
-  if (quranEncRes.ok) {
-    const quranEncJson = await quranEncRes.json();
-    const parsed = parseQuranEncSurah(surahNumber, quranEncJson);
+  // 2. Direct CORS fallback: quranenc.com (Əlixan Musayev v1.0.4) + quran.com Madinah page numbers
+  const [quranEncResult, pagesResult] = await Promise.allSettled([
+    fetch(`https://quranenc.com/api/v1/translation/sura/azeri_musayev/${surahNumber}`, { signal }),
+    fetch(
+      `https://api.quran.com/api/v4/verses/by_chapter/${surahNumber}?fields=page_number&per_page=300`,
+      { signal }
+    ),
+  ]);
+
+  if (quranEncResult.status === 'rejected' && quranEncResult.reason instanceof DOMException && quranEncResult.reason.name === 'AbortError') {
+    throw quranEncResult.reason;
+  }
+
+  if (quranEncResult.status === 'fulfilled' && quranEncResult.value.ok) {
+    const quranEncJson = await quranEncResult.value.json();
+    let parsed = parseQuranEncSurah(surahNumber, quranEncJson);
     if (parsed.ayahs.length > 0) {
+      if (pagesResult.status === 'fulfilled' && pagesResult.value.ok) {
+        try {
+          const pagesJson = await pagesResult.value.json();
+          const pageMap = parseQuranComChapterVersesPages(pagesJson);
+          parsed = attachMushafPagesToSurah(parsed, pageMap);
+        } catch {
+          // keep parsed translation cleanly even if page metadata fails
+        }
+      }
       return parsed;
     }
   }

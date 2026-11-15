@@ -3,8 +3,11 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
+  Check,
   CheckCircle2,
   Clock,
+  Copy,
+  ExternalLink,
   LogOut,
   Moon,
   RefreshCw,
@@ -27,9 +30,10 @@ import {
   formatMsDuration,
   formatShortTimestampAz,
 } from '../lib/analytics';
+import { ParsedFirebaseAuthError, parseFirebaseAuthError } from '../lib/authErrors';
 import {
   AdminUserRecord,
-  BOOTSTRAPPED_ADMIN_EMAIL,
+  FIREBASE_PROJECT_ID,
   addAdminUser,
   listAdminUsers,
   removeAdminUser,
@@ -90,7 +94,8 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
   const [authReady, setAuthReady] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdminVerified, setIsAdminVerified] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<ParsedFirebaseAuthError | null>(null);
+  const [domainCopied, setDomainCopied] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
 
   const [section, setSection] = useState<AdminSection>('overview');
@@ -129,12 +134,18 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
         if (!active) return;
         setIsAdminVerified(res.isAdmin);
         if (!res.isAdmin && res.reason) {
-          setAuthError(res.reason);
+          setAuthError({ code: 'auth/not-admin', message: res.reason });
         }
       } catch (err) {
         if (!active) return;
         setIsAdminVerified(false);
-        setAuthError(err instanceof Error ? err.message : 'Admin yoxlaması zamanı xəta baş verdi.');
+        setAuthError(
+          parseFirebaseAuthError(
+            err,
+            typeof window !== 'undefined' ? window.location.hostname : '',
+            FIREBASE_PROJECT_ID
+          )
+        );
       } finally {
         if (active) setAuthReady(true);
       }
@@ -198,12 +209,29 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
   async function handleGoogleSignIn() {
     setIsSigningIn(true);
     setAuthError(null);
+    setDomainCopied(false);
     try {
       await signInAdminWithGoogle();
     } catch (err) {
-      setAuthError(err instanceof Error ? err.message : 'Google ilə giriş uğursuz oldu.');
+      setAuthError(
+        parseFirebaseAuthError(
+          err,
+          typeof window !== 'undefined' ? window.location.hostname : '',
+          FIREBASE_PROJECT_ID
+        )
+      );
     } finally {
       setIsSigningIn(false);
+    }
+  }
+
+  async function handleCopyDomain(domain: string) {
+    try {
+      await navigator.clipboard.writeText(domain);
+      setDomainCopied(true);
+      window.setTimeout(() => setDomainCopied(false), 2000);
+    } catch {
+      // ignore clipboard error
     }
   }
 
@@ -316,20 +344,73 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
             </p>
 
             <div className="mt-6 border-t border-stone-200 pt-5 text-xs text-stone-500 dark:border-stone-800 dark:text-stone-400">
-              <p>
-                Təyin edilmiş admin hesabı:{' '}
-                <span className="font-mono text-stone-800 dark:text-stone-200">
-                  {BOOTSTRAPPED_ADMIN_EMAIL}
-                </span>
-              </p>
+              <p>Yalnız səlahiyyətli admin hesabları ilə giriş mümkündür.</p>
             </div>
 
             {authError && (
               <div
                 role="alert"
-                className="mt-5 rounded-lg border border-[#DC2626]/30 bg-[#DC2626]/5 px-4 py-3 text-xs text-[#DC2626] dark:border-[#F87171]/30 dark:bg-[#F87171]/10 dark:text-[#F87171]"
+                data-testid="admin-auth-error"
+                className="mt-5 rounded-lg border border-[#DC2626]/30 bg-[#DC2626]/5 px-4 py-3.5 text-xs text-[#DC2626] dark:border-[#F87171]/30 dark:bg-[#F87171]/10 dark:text-[#F87171]"
               >
-                {authError}
+                <p className="font-medium leading-relaxed">{authError.message}</p>
+
+                {authError.code === 'auth/unauthorized-domain' && authError.domain && (
+                  <div className="mt-3 space-y-2.5 border-t border-[#DC2626]/20 pt-3 text-stone-700 dark:border-[#F87171]/20 dark:text-stone-300">
+                    <div className="flex items-center justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-1.5 dark:border-stone-700 dark:bg-[#111513]">
+                      <code className="font-mono text-[11px] text-stone-900 dark:text-stone-100">
+                        {authError.domain}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyDomain(authError.domain!)}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                      >
+                        {domainCopied ? (
+                          <>
+                            <Check className="h-3 w-3" aria-hidden="true" />
+                            <span>Köçürüldü</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3 w-3" aria-hidden="true" />
+                            <span>Kopyala</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <ol className="list-decimal space-y-1 pl-4 text-[11px] leading-relaxed">
+                      <li>Firebase Console → Authentication → Settings → Authorized domains bölməsini açın.</li>
+                      <li>Yuxarıdakı domeni («Add domain») siyahıya əlavə edin və yadda saxlayın.</li>
+                      <li>Səhifəni yeniləyib yenidən Google ilə daxil olun.</li>
+                    </ol>
+                    {authError.consoleSettingsUrl && (
+                      <a
+                        href={authError.consoleSettingsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                      >
+                        <span>Firebase Authorized Domains ayarını aç</span>
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {authError.code === 'auth/operation-not-allowed' && authError.consoleSettingsUrl && (
+                  <div className="mt-2.5">
+                    <a
+                      href={authError.consoleSettingsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                    >
+                      <span>Google giriş metodunu aktivləşdir</span>
+                      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 
@@ -351,7 +432,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                   className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 px-4 py-2.5 text-xs font-medium text-stone-700 hover:border-stone-400 dark:border-stone-700 dark:text-stone-300"
                 >
                   <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Hesabdan çıx ({currentUser.email})</span>
+                  <span>Hesabdan çıx</span>
                 </button>
               )}
 

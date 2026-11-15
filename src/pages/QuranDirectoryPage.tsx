@@ -23,7 +23,7 @@ export function QuranDirectoryPage({
   onNavigate,
   onToggleTheme,
 }: QuranDirectoryPageProps) {
-  const [browseMode, setBrowseMode] = useState<'surahs' | 'pages'>('surahs');
+  const [browseMode, setBrowseMode] = useState<'pages' | 'surahs'>('pages');
   const [surahQuery, setSurahQuery] = useState('');
   const [selectedJuz, setSelectedJuz] = useState<number | 'all'>('all');
   const [jumpPageInput, setJumpPageInput] = useState('');
@@ -52,7 +52,7 @@ export function QuranDirectoryPage({
     () => ({
       '@context': 'https://schema.org',
       '@type': 'Book',
-      name: 'Qurani-Kərim — Ərəbcə mətn və Əlixan Musayevin Azərbaycan dilinə tərcüməsi',
+      name: 'Qurani-Kərim (Mədinə çapı, 604 səhifə) — Ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi',
       inLanguage: ['ar', 'az'],
       numberOfPages: TOTAL_QURAN_PAGES,
       translator: {
@@ -75,8 +75,8 @@ export function QuranDirectoryPage({
   return (
     <section className="py-14 lg:py-16">
       <SeoHead
-        title="Tam Qurani-Kərim — 114 Surə və 604 Səhifə | Quran Qiraeti"
-        description="Qurani-Kərimin bütün 114 surəsi və 604 səhifəsi ərəbcə mətn və Əlixan Musayevin son nəşr Azərbaycan tərcüməsi (v1.0.4) ilə."
+        title="Tam Qurani-Kərim — Mədinə Çapı (604 Səhifə) və 114 Surə | Quran Qiraeti"
+        description="Mədinə çapı üzrə Qurani-Kərimin 604 səhifəsi və 114 surəsi: hər səhifədə Mədinə müshəfindəki dəqiq ayə sayı, ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi (v1.0.4)."
         path="/quran"
         jsonLd={jsonLd}
       />
@@ -86,16 +86,17 @@ export function QuranDirectoryPage({
         <div className="flex flex-col gap-6 border-b border-stone-200 pb-8 sm:flex-row sm:items-end sm:justify-between dark:border-stone-800">
           <div>
             <p className="text-xs font-medium tracking-widest text-stone-500 dark:text-stone-400">
-              Tam Qurani-Kərim · Əlixan Musayev tərcüməsi (v1.0.4)
+              Tam Qurani-Kərim · Mədinə çapı (<span className="font-mono-tabular">604</span> səhifə) · Əlixan Musayev (v1.0.4)
             </p>
             <h1 className="font-display mt-2 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl text-balance dark:text-stone-100">
-              Qurani-Kərim: Bütün surələr və səhifələr
+              Qurani-Kərim: Mədinə çapı üzrə səhifələr və surələr
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-stone-600 dark:text-stone-300">
-              Bütün <span className="font-mono-tabular">{TOTAL_QURAN_SURAHS}</span> surə və{' '}
-              <span className="font-mono-tabular">{TOTAL_QURAN_PAGES}</span> Quran səhifəsi üzrə ərəbcə
-              mətn və Əlixan Musayevin son nəşr mənaca tərcüməsi. Hər bir surə və səhifə ayrıca
-              səhifədə açılır.
+              Mədinə çapına uyğun olaraq bütün{' '}
+              <span className="font-mono-tabular">{TOTAL_QURAN_PAGES}</span> səhifə və{' '}
+              <span className="font-mono-tabular">{TOTAL_QURAN_SURAHS}</span> surə ayrıca SEO
+              ünvanlarına bölünmüşdür. Hər səhifədə Mədinə çapındakı dəqiq ayə sayı ərəbcə mətn
+              və Əlixan Musayevin son nəşr tərcüməsi ilə göstərilir.
             </p>
           </div>
 
@@ -133,13 +134,26 @@ export function QuranDirectoryPage({
           </div>
         </div>
 
-        {/* Mode Switcher: Surələr (114) vs Səhifələr (604) */}
+        {/* Mode Switcher: Mədinə çapı səhifələri (604) vs Surələr (114) */}
         <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div
             role="tablist"
             aria-label="Quran bölmə rejimi"
             className="inline-flex items-center gap-1 self-start rounded-lg bg-[#F1EFE9] p-1 dark:bg-[#181E1B]"
           >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={browseMode === 'pages'}
+              onClick={() => setBrowseMode('pages')}
+              className={`rounded-md px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                browseMode === 'pages'
+                  ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
+                  : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+              }`}
+            >
+              Mədinə çapı səhifələri (<span className="font-mono-tabular">604</span>)
+            </button>
             <button
               type="button"
               role="tab"
@@ -152,19 +166,6 @@ export function QuranDirectoryPage({
               }`}
             >
               Surələr üzrə (<span className="font-mono-tabular">114</span>)
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={browseMode === 'pages'}
-              onClick={() => setBrowseMode('pages')}
-              className={`rounded-md px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
-                browseMode === 'pages'
-                  ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
-                  : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
-              }`}
-            >
-              Quran səhifələri (<span className="font-mono-tabular">604</span>)
             </button>
           </div>
 
@@ -199,7 +200,7 @@ export function QuranDirectoryPage({
             <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-stone-500 dark:text-stone-400">
                 <span className="font-mono-tabular">{filteredSurahs.length}</span> surə göstərilir ·
-                Hər surənin üzərinə klikləyərək ayrıca oxu səhifəsini açın
+                Hər surə daxilində ayələr Mədinə çapı səhifələrinə bölünərək təqdim olunur
               </p>
 
               <div className="relative w-full sm:w-80">
@@ -281,7 +282,7 @@ export function QuranDirectoryPage({
                         }}
                         className="text-stone-500 hover:text-[#0F4C3A] dark:text-stone-400 dark:hover:text-[#86C7AE]"
                       >
-                        Mushaf səhifəsi <span className="font-mono-tabular">{surah.startPage}</span>
+                        Mədinə çapı: Səh. <span className="font-mono-tabular">{surah.startPage}</span>
                       </a>
 
                       <a

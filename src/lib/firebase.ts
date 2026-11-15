@@ -36,7 +36,18 @@ import {
   resolvePageTelemetryMeta,
 } from './analytics';
 
-export const BOOTSTRAPPED_ADMIN_EMAIL = 'mahir1999a@gmail.com';
+export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
+const BOOTSTRAPPED_ADMIN_EMAIL_SHA256 =
+  'c00a9c2c72ba2c120b8edf90ac1584dd117552bdfca10d4c69808fa25f01534d';
+
+async function sha256Hex(value: string): Promise<string> {
+  if (typeof crypto === 'undefined' || !crypto.subtle) return '';
+  const data = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -232,8 +243,9 @@ export async function verifyAndSyncAdminAccess(user: User | null): Promise<{
     return { isAdmin: false, reason: 'E-poçt ünvanınız Google tərəfindən təsdiqlənməyib.' };
   }
 
-  const email = (user.email ?? '').toLowerCase();
-  const isBootstrapped = email === BOOTSTRAPPED_ADMIN_EMAIL.toLowerCase();
+  const email = (user.email ?? '').trim().toLowerCase();
+  const emailHash = email ? await sha256Hex(email) : '';
+  const isBootstrapped = emailHash === BOOTSTRAPPED_ADMIN_EMAIL_SHA256;
   const adminDocPath = `admins/${user.uid}`;
 
   try {
@@ -246,7 +258,7 @@ export async function verifyAndSyncAdminAccess(user: User | null): Promise<{
       try {
         await setDoc(doc(db, 'admins', user.uid), {
           uid: user.uid,
-          email: (user.email ?? BOOTSTRAPPED_ADMIN_EMAIL).slice(0, 160),
+          email: (user.email ?? '').slice(0, 160),
           displayName: (user.displayName || 'Əsas Admin').slice(0, 120),
           role: 'admin',
           createdAt: serverTimestamp(),
@@ -259,7 +271,7 @@ export async function verifyAndSyncAdminAccess(user: User | null): Promise<{
 
     return {
       isAdmin: false,
-      reason: `${user.email ?? 'Bu hesab'} admin siyahısında qeydiyyatda deyil.`,
+      reason: 'Bu Google hesabı admin siyahısında qeydiyyatda deyil.',
     };
   } catch (error) {
     if (isBootstrapped) {

@@ -4,6 +4,8 @@ interface SeoHeadProps {
   title: string;
   description: string;
   path: string;
+  prevPath?: string;
+  nextPath?: string;
   jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>;
 }
 
@@ -17,7 +19,21 @@ function upsertMeta(selector: string, attrName: 'name' | 'property', attrValue: 
   el.setAttribute('content', content);
 }
 
-export function SeoHead({ title, description, path, jsonLd }: SeoHeadProps) {
+function syncRelLink(rel: 'canonical' | 'prev' | 'next', href?: string) {
+  const existing = document.head.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
+  if (!href) {
+    if (existing) existing.remove();
+    return;
+  }
+  const el = existing ?? document.createElement('link');
+  el.setAttribute('rel', rel);
+  el.setAttribute('href', href);
+  if (!existing) {
+    document.head.appendChild(el);
+  }
+}
+
+export function SeoHead({ title, description, path, prevPath, nextPath, jsonLd }: SeoHeadProps) {
   useEffect(() => {
     const origin = window.location.origin;
     const canonicalUrl = `${origin}${path}`;
@@ -30,13 +46,9 @@ export function SeoHead({ title, description, path, jsonLd }: SeoHeadProps) {
     upsertMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
     upsertMeta('meta[name="twitter:description"]', 'name', 'twitter:description', description);
 
-    let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-    if (!canonical) {
-      canonical = document.createElement('link');
-      canonical.setAttribute('rel', 'canonical');
-      document.head.appendChild(canonical);
-    }
-    canonical.setAttribute('href', canonicalUrl);
+    syncRelLink('canonical', canonicalUrl);
+    syncRelLink('prev', prevPath ? `${origin}${prevPath}` : undefined);
+    syncRelLink('next', nextPath ? `${origin}${nextPath}` : undefined);
 
     const scriptId = 'quran-qiraeti-jsonld';
     let script = document.getElementById(scriptId) as HTMLScriptElement | null;
@@ -51,7 +63,7 @@ export function SeoHead({ title, description, path, jsonLd }: SeoHeadProps) {
     } else if (script) {
       script.remove();
     }
-  }, [title, description, path, jsonLd]);
+  }, [title, description, path, prevPath, nextPath, jsonLd]);
 
   return null;
 }
