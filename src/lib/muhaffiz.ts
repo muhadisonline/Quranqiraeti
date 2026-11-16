@@ -7,6 +7,7 @@ import {
 
 export type MuhaffizFontSize = 'sm' | 'md' | 'lg';
 export type MuhaffizRevealMode = 'word' | 'ayah';
+export type MuhaffizPaperTheme = 'cream' | 'white' | 'black';
 export type MuhaffizReciterId =
   | 'Alafasy_128kbps'
   | 'Husary_128kbps'
@@ -17,18 +18,87 @@ export interface MuhaffizPreferences {
   firstWordHint: boolean;
   showTranslation: boolean;
   autoRevealAllOnLoad: boolean;
+  silentMode: boolean;
+  silentSpeedSec: number;
+  paperTheme: MuhaffizPaperTheme;
   fontSize: MuhaffizFontSize;
   autoIntervalMs: number;
   reciter: MuhaffizReciterId;
 }
+
+export const MUHAFFIZ_SILENT_SPEEDS = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5] as const;
+
+export const MUHAFFIZ_THEME_PALETTES: Record<
+  MuhaffizPaperTheme,
+  {
+    label: string;
+    paper: string;
+    ink: string;
+    bar: string;
+    card: string;
+    line: string;
+    muted: string;
+    fresh: string;
+    chip: string;
+    green: string;
+    gold: string;
+    isDark: boolean;
+  }
+> = {
+  cream: {
+    label: 'Krem',
+    paper: '#fffaf0',
+    ink: '#1a1612',
+    bar: '#fffaf1',
+    card: '#fffdf7',
+    line: '#e2d3b6',
+    muted: '#6d5c45',
+    fresh: '#f3e2b3',
+    chip: '#fffaf1',
+    green: '#1c3d32',
+    gold: '#c4a35a',
+    isDark: false,
+  },
+  white: {
+    label: 'Ağ',
+    paper: '#ffffff',
+    ink: '#161616',
+    bar: '#ffffff',
+    card: '#fafafa',
+    line: '#e4e4e4',
+    muted: '#5c5c5c',
+    fresh: '#ececec',
+    chip: '#ffffff',
+    green: '#1c3d32',
+    gold: '#c4a35a',
+    isDark: false,
+  },
+  black: {
+    label: 'Qara',
+    paper: '#111111',
+    ink: '#f4efe4',
+    bar: '#1a1a1a',
+    card: '#191815',
+    line: '#3a342c',
+    muted: '#cbbfa8',
+    fresh: '#3a3424',
+    chip: '#1c1c1c',
+    green: '#d5e0da',
+    gold: '#c4a35a',
+    isDark: true,
+  },
+};
 
 export const DEFAULT_MUHAFFIZ_PREFS: MuhaffizPreferences = {
   revealMode: 'word',
   firstWordHint: false,
   showTranslation: false,
   autoRevealAllOnLoad: false,
+  silentMode: true,
+  silentSpeedSec: 1.5,
+  paperTheme: 'cream',
   fontSize: 'md',
-  autoIntervalMs: 1200,
+  autoIntervalMs: 1500,
   reciter: 'Alafasy_128kbps',
 };
 
@@ -834,3 +904,120 @@ export const FATIHAT_PAGE_1_MUHAFFIZ_SEED: MuhaffizPageData = {
   rows: groupTokensIntoMushafRows(buildTokensFromQuranComVerses(FATIHAT_PAGE_1_VERSES_SEED)),
   centeredPage: true,
 };
+
+/**
+ * Returns private-use codepoint pair for `/muhaffiz/sura_names.woff2`:
+ * prefix glyph '\uE000' ("سورة") + BCD-hex offset for surah number 1..114.
+ */
+export function getSurahBannerGlyphs(surahNumber: number): {
+  prefixGlyph: string;
+  nameGlyph: string;
+} {
+  const clean = Math.min(114, Math.max(1, Math.trunc(surahNumber || 1)));
+  const hexOffset = Number.parseInt(String(clean), 16);
+  return {
+    prefixGlyph: '\uE000',
+    nameGlyph: String.fromCharCode(0xe000 + hexOffset),
+  };
+}
+
+export interface MissedWordRecord {
+  tokenId: string;
+  ayahKey: string;
+  pageNumber: number;
+  surahName: string;
+  stemText: string;
+  createdAt: string;
+}
+
+/**
+ * Strips Quranic diacritics/harakat and normalizes hamza/alef/teh variants
+ * for resilient browser SpeechRecognition matching against Arabic Mushaf words.
+ */
+export function normalizeArabicForSpeech(input: string): string {
+  return (input || '')
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640\u0610-\u061A]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/[^\u0621-\u064A\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function similarityRatio(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.includes(b) || b.includes(a)) {
+    return Math.min(a.length, b.length) / Math.max(a.length, b.length);
+  }
+  let matches = 0;
+  const maxLen = Math.max(a.length, b.length);
+  const minLen = Math.min(a.length, b.length);
+  for (let i = 0; i < minLen; i++) {
+    if (a[i] === b[i]) matches++;
+  }
+  return matches / maxLen;
+}
+
+/**
+ * Advances sequentially across Mushaf page word tokens given a recognized Arabic transcript,
+ * revealing matched words and optionally surfacing intermediate skipped words.
+ */
+export function matchSpokenArabicAgainstTokens(
+  transcript: string,
+  wordTokens: MushafWordToken[],
+  cursorIndex: number
+): {
+  nextCursorIndex: number;
+  matchedTokenIds: string[];
+  skippedTokens: MushafWordToken[];
+} {
+  const spokenWords = normalizeArabicForSpeech(transcript)
+    .split(' ')
+    .filter((w) => w.length > 0);
+  if (spokenWords.length === 0 || wordTokens.length === 0) {
+    return { nextCursorIndex: cursorIndex, matchedTokenIds: [], skippedTokens: [] };
+  }
+
+  let cursor = Math.max(0, Math.min(cursorIndex, wordTokens.length - 1));
+  const matchedTokenIds: string[] = [];
+  const skippedTokens: MushafWordToken[] = [];
+
+  for (const spoken of spokenWords) {
+    if (cursor >= wordTokens.length) break;
+    const lookaheadLimit = Math.min(wordTokens.length, cursor + 4);
+    let foundIdx = -1;
+    let bestScore = 0;
+    for (let idx = cursor; idx < lookaheadLimit; idx++) {
+      const target = normalizeArabicForSpeech(wordTokens[idx].stemText);
+      const score = spoken === target ? 1 : similarityRatio(spoken, target);
+      if (score === 1) {
+        foundIdx = idx;
+        bestScore = 1;
+        break;
+      }
+      if (score >= 0.75 && score > bestScore) {
+        bestScore = score;
+        foundIdx = idx;
+      }
+    }
+    if (foundIdx >= 0) {
+      for (let skip = cursor; skip < foundIdx; skip++) {
+        skippedTokens.push(wordTokens[skip]);
+        matchedTokenIds.push(wordTokens[skip].id);
+      }
+      matchedTokenIds.push(wordTokens[foundIdx].id);
+      cursor = foundIdx + 1;
+    }
+  }
+
+  return {
+    nextCursorIndex: cursor,
+    matchedTokenIds,
+    skippedTokens,
+  };
+}
+

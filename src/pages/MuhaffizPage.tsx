@@ -1,27 +1,26 @@
 import {
-  ArrowLeft,
-  ArrowRight,
   BookOpen,
-  Bookmark,
-  Check,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Eye,
   EyeOff,
-  Home,
+  Menu,
   Mic,
+  MicOff,
   Minus,
-  Moon,
-  MoreHorizontal,
   Pause,
+  Play,
   Plus,
-  RotateCcw,
-  Sun,
+  Trash2,
+  Volume2,
   VolumeX,
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PWAInstallButton } from '../components/PWAInstallButton';
 import { SeoHead } from '../components/SeoHead';
+import { MuhaffizIndexOverlay } from '../components/muhaffiz/MuhaffizIndexOverlay';
+import { MuhaffizSettingsSheet } from '../components/muhaffiz/MuhaffizSettingsSheet';
 import { useAudioPlaybackPrefs, useReadingGoal } from '../hooks/useReaderPreferences';
 import {
   EMPTY_HIFZ_PROGRESS,
@@ -37,19 +36,22 @@ import {
   DEFAULT_MUHAFFIZ_PREFS,
   FATIHAT_PAGE_1_MUHAFFIZ_SEED,
   MUHAFFIZ_RECITERS,
+  MUHAFFIZ_SILENT_SPEEDS,
+  MUHAFFIZ_THEME_PALETTES,
   MuhaffizFontSize,
   MuhaffizPageData,
   MuhaffizPreferences,
-  MuhaffizReciterId,
+  MissedWordRecord,
   UTHMANIC_HAFS_FONT_URL,
   ayahKey,
   clampMuhaffizPage,
-  formatArabicJuzLabel,
   getEveryAyahAudioUrl,
   getQcfV2FontUrl,
+  getSurahBannerGlyphs,
   groupPageAyahsBySurah,
   hideLastStep,
   isAyahRevealed,
+  matchSpokenArabicAgainstTokens,
   orderedWordTokens,
   revealEntireAyahTokens,
   revealNextStep,
@@ -57,9 +59,8 @@ import {
   toggleEntireAyahTokens,
   toggleWordToken,
 } from '../lib/muhaffiz';
-import { SURAH_CATALOG, TOTAL_QURAN_PAGES } from '../lib/quran';
 import { fetchMuhaffizPageWithFallback } from '../lib/quranClient';
-import { AudioPlaybackSpeed, AyahRepeatCount } from '../lib/readerState';
+import { TOTAL_QURAN_PAGES } from '../lib/quran';
 import { buildBreadcrumbJsonLd } from '../lib/seo';
 
 interface MuhaffizPageProps {
@@ -69,9 +70,38 @@ interface MuhaffizPageProps {
   onToggleTheme: () => void;
 }
 
-const PREFS_STORAGE_KEY = 'quranqiraeti_muhaffiz_prefs_v2';
+const PREFS_STORAGE_KEY = 'quranqiraeti_muhaffiz_prefs_v3';
 const LAST_PAGE_STORAGE_KEY = 'quranqiraeti_muhaffiz_last_page_v1';
 const HIFZ_PROGRESS_STORAGE_KEY = 'quranqiraeti_hifz_progress_v1';
+const MISSED_WORDS_STORAGE_KEY = 'quranqiraeti_missed_words_v1';
+
+interface SpeechRecognitionInstance {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+interface SpeechRecognitionResultEventLike {
+  resultIndex: number;
+  results: ArrayLike<{
+    isFinal: boolean;
+    0: { transcript: string };
+  }>;
+}
+
+function getSpeechRecognitionCtor(): (new () => SpeechRecognitionInstance) | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as {
+    SpeechRecognition?: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
 
 function loadHifzProgress(): HifzProgressState {
   try {
@@ -83,18 +113,43 @@ function loadHifzProgress(): HifzProgressState {
   }
 }
 
-function loadPrefs(): MuhaffizPreferences {
+function loadPrefs(fallbackDark: boolean): MuhaffizPreferences {
   try {
     const raw = localStorage.getItem(PREFS_STORAGE_KEY);
-    if (!raw) return DEFAULT_MUHAFFIZ_PREFS;
+    if (!raw) {
+      return {
+        ...DEFAULT_MUHAFFIZ_PREFS,
+        paperTheme: fallbackDark ? 'black' : 'cream',
+      };
+    }
     const parsed = JSON.parse(raw) as Partial<MuhaffizPreferences>;
     return {
       ...DEFAULT_MUHAFFIZ_PREFS,
       ...parsed,
       revealMode: parsed.revealMode === 'ayah' ? 'ayah' : 'word',
+      paperTheme:
+        parsed.paperTheme === 'white' || parsed.paperTheme === 'black' || parsed.paperTheme === 'cream'
+          ? parsed.paperTheme
+          : fallbackDark
+            ? 'black'
+            : 'cream',
     };
   } catch {
-    return DEFAULT_MUHAFFIZ_PREFS;
+    return {
+      ...DEFAULT_MUHAFFIZ_PREFS,
+      paperTheme: fallbackDark ? 'black' : 'cream',
+    };
+  }
+}
+
+function loadMissedWords(): MissedWordRecord[] {
+  try {
+    const raw = localStorage.getItem(MISSED_WORDS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, 80) : [];
+  } catch {
+    return [];
   }
 }
 
@@ -115,7 +170,6 @@ export function MuhaffizPage({
   initialPageNumber,
   isDark,
   onNavigate,
-  onToggleTheme,
 }: MuhaffizPageProps) {
   const [pageNumber, setPageNumber] = useState<number>(() => getInitialPage(initialPageNumber));
   const [pageData, setPageData] = useState<MuhaffizPageData | null>(() =>
@@ -124,52 +178,77 @@ export function MuhaffizPage({
   const [isLoading, setIsLoading] = useState<boolean>(getInitialPage(initialPageNumber) !== 1);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // QCF v2 per-page authentic King Fahd Complex font tracking
+  // Fonts: UthmanicHafs1 + MushafSurahNames (sura_names.woff2) + per-page QCF
   const loadedQcfPagesRef = useRef<Set<number>>(new Set());
   const [qcfReadyPage, setQcfReadyPage] = useState<number | null>(null);
   const [hafsHeaderReady, setHafsHeaderReady] = useState<boolean>(false);
+  const [surahNamesFontReady, setSurahNamesFontReady] = useState<boolean>(false);
 
-  const [prefs, setPrefs] = useState<MuhaffizPreferences>(() => loadPrefs());
+  const [prefs, setPrefs] = useState<MuhaffizPreferences>(() => loadPrefs(isDark));
   const [hifzProgress, setHifzProgress] = useState<HifzProgressState>(() => loadHifzProgress());
+  const [missedWords, setMissedWords] = useState<MissedWordRecord[]>(() => loadMissedWords());
   const [revealedTokenIds, setRevealedTokenIds] = useState<Set<string>>(() => new Set());
+  const [lastRevealedTokenId, setLastRevealedTokenId] = useState<string | null>(null);
 
   const [isAutoRevealing, setIsAutoRevealing] = useState(false);
+  const [speedPopOpen, setSpeedPopOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [jumpModalOpen, setJumpModalOpen] = useState(false);
-  const [jumpTab, setJumpTab] = useState<'page' | 'surah' | 'juz'>('surah');
-  const [jumpPageInput, setJumpPageInput] = useState(() => String(getInitialPage(initialPageNumber)));
-  const [surahSearch, setSurahSearch] = useState('');
+  const [indexOpen, setIndexOpen] = useState(false);
+  const [mistakesOpen, setMistakesOpen] = useState(false);
 
-  // Audio playback state
+  // Qari Audio playback state
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingKey, setPlayingKey] = useState<string | null>(null);
-  const [audioError, setAudioError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // Live Arabic Microphone recitation recognition
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const speechCursorRef = useRef<number>(0);
+  const [isMicListening, setIsMicListening] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState<string>('');
+
   const { playbackSpeed, setPlaybackSpeed, repeatCount, setRepeatCount } = useAudioPlaybackPrefs();
   const { recordPageRead } = useReadingGoal();
 
-  // Load shared UthmanicHafs1 font once for running headers, Surah names & fallback text
+  const palette = MUHAFFIZ_THEME_PALETTES[prefs.paperTheme];
+
+  // Load UthmanicHafs1 + sura_names.woff2 once
   useEffect(() => {
     let cancelled = false;
     if (typeof FontFace === 'undefined' || !document.fonts) return;
-    const face = new FontFace('UthmanicHafs1', `url(${UTHMANIC_HAFS_FONT_URL})`, {
+
+    const hafsFace = new FontFace('UthmanicHafs1', `url(${UTHMANIC_HAFS_FONT_URL})`, {
       display: 'swap',
     });
-    face
+    hafsFace
       .load()
       .then((loaded) => {
         if (cancelled) return;
         document.fonts.add(loaded);
         setHafsHeaderReady(true);
       })
-      .catch(() => {
-        // Fallback smoothly to Amiri if CDN unavailable
-      });
+      .catch(() => {});
+
+    const surahNamesFace = new FontFace(
+      'MushafSurahNames',
+      'url(/muhaffiz/sura_names.woff2)',
+      { display: 'swap' }
+    );
+    surahNamesFace
+      .load()
+      .then((loaded) => {
+        if (cancelled) return;
+        document.fonts.add(loaded);
+        setSurahNamesFontReady(true);
+      })
+      .catch(() => {});
+
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Load per-page King Fahd Complex QCF v2 glyph font (p1.woff2 .. p604.woff2)
+  // Load per-page King Fahd Complex QCF glyph font
   useEffect(() => {
     let cancelled = false;
     if (typeof FontFace === 'undefined' || !document.fonts) return;
@@ -197,7 +276,6 @@ export function MuhaffizPage({
       loadPageFont(pageNumber).then((ok) => {
         if (!cancelled && ok) {
           setQcfReadyPage(pageNumber);
-          // Warm next page font silently in background
           if (pageNumber < TOTAL_QURAN_PAGES) {
             void loadPageFont(pageNumber + 1);
           }
@@ -214,7 +292,6 @@ export function MuhaffizPage({
     if (initialPageNumber !== undefined && Number.isFinite(initialPageNumber)) {
       const clamped = clampMuhaffizPage(initialPageNumber);
       setPageNumber(clamped);
-      setJumpPageInput(String(clamped));
     }
   }, [initialPageNumber]);
 
@@ -222,7 +299,7 @@ export function MuhaffizPage({
     try {
       localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs));
     } catch {
-      // ignore storage error
+      // ignore
     }
   }, [prefs]);
 
@@ -230,17 +307,24 @@ export function MuhaffizPage({
     try {
       localStorage.setItem(HIFZ_PROGRESS_STORAGE_KEY, JSON.stringify(hifzProgress));
     } catch {
-      // ignore storage error
+      // ignore
     }
   }, [hifzProgress]);
 
   useEffect(() => {
     try {
+      localStorage.setItem(MISSED_WORDS_STORAGE_KEY, JSON.stringify(missedWords));
+    } catch {
+      // ignore
+    }
+  }, [missedWords]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem(LAST_PAGE_STORAGE_KEY, String(pageNumber));
     } catch {
-      // ignore storage error
+      // ignore
     }
-    setJumpPageInput(String(pageNumber));
     recordPageRead(pageNumber);
   }, [pageNumber, recordPageRead]);
 
@@ -254,6 +338,22 @@ export function MuhaffizPage({
     setPlayingKey(null);
   }, []);
 
+  const stopMic = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onresult = null;
+      recognitionRef.current.onerror = null;
+      recognitionRef.current.onend = null;
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // ignore
+      }
+      recognitionRef.current = null;
+    }
+    setIsMicListening(false);
+    setLiveTranscript('');
+  }, []);
+
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.playbackRate = playbackSpeed;
@@ -263,9 +363,13 @@ export function MuhaffizPage({
   useEffect(() => {
     const controller = new AbortController();
     stopAudio();
+    stopMic();
     setIsAutoRevealing(false);
-    setAudioError(null);
+    setSpeedPopOpen(false);
+    setStatusMessage(null);
     setLoadError(null);
+    setLastRevealedTokenId(null);
+    speechCursorRef.current = 0;
 
     if (pageNumber === 1) {
       setPageData(FATIHAT_PAGE_1_MUHAFFIZ_SEED);
@@ -279,7 +383,7 @@ export function MuhaffizPage({
         setPageData(payload);
         const tokens = orderedWordTokens(payload.rows);
         setRevealedTokenIds(
-          prefs.autoRevealAllOnLoad ? new Set(tokens.map((t) => t.id)) : new Set()
+          prefs.silentMode ? new Set() : new Set(tokens.map((t) => t.id))
         );
       })
       .catch((err) => {
@@ -288,10 +392,10 @@ export function MuhaffizPage({
           setPageData(FATIHAT_PAGE_1_MUHAFFIZ_SEED);
           const seedTokens = orderedWordTokens(FATIHAT_PAGE_1_MUHAFFIZ_SEED.rows);
           setRevealedTokenIds(
-            prefs.autoRevealAllOnLoad ? new Set(seedTokens.map((t) => t.id)) : new Set()
+            prefs.silentMode ? new Set() : new Set(seedTokens.map((t) => t.id))
           );
         } else {
-          setLoadError('Mushaf səhifəsi yüklənərkən xəta baş verdi. Zəhmət olmasa yenidən yoxlayın.');
+          setLoadError('Mushaf səhifəsi yüklənərkən xəta baş verdi. Yenidən cəhd edin.');
         }
       })
       .finally(() => {
@@ -308,81 +412,87 @@ export function MuhaffizPage({
   useEffect(() => {
     return () => {
       stopAudio();
+      stopMic();
     };
-  }, [stopAudio]);
+  }, [stopAudio, stopMic]);
 
   const ayahs = useMemo(() => pageData?.ayahs ?? [], [pageData]);
   const wordTokens = useMemo(() => orderedWordTokens(pageData?.rows ?? []), [pageData]);
   const surahGroups = useMemo(() => groupPageAyahsBySurah(ayahs), [ayahs]);
 
   const cleanSurahTitle = (raw: string) => raw.replace(/\s+surəsi$/i, '').trim();
-
-  const headerArabicSurah = useMemo(() => {
-    if (surahGroups.length === 0) return 'القرآن الكريم';
-    return surahGroups[0].arabicSurahName;
-  }, [surahGroups]);
+  const primarySurahName =
+    surahGroups[0]?.surahName ?? pageData?.surahsOnPage[0]?.surahName ?? 'Fatihə';
 
   const revealedWordCount = useMemo(
     () => wordTokens.filter((t) => revealedTokenIds.has(t.id)).length,
     [wordTokens, revealedTokenIds]
   );
-
   const revealedAyahCount = useMemo(
     () => ayahs.filter((a) => isAyahRevealed(ayahKey(a), wordTokens, revealedTokenIds)).length,
     [ayahs, wordTokens, revealedTokenIds]
   );
-
-  const progressPercent =
-    wordTokens.length > 0 ? Math.round((revealedWordCount / wordTokens.length) * 100) : 0;
   const allRevealed = wordTokens.length > 0 && revealedWordCount === wordTokens.length;
 
   const hifzSummary = useMemo(() => summarizeHifzProgress(hifzProgress), [hifzProgress]);
   const juzHifzSummary = useMemo(() => summarizeJuzHifzProgress(hifzProgress), [hifzProgress]);
   const currentPageHifzStatus = getHifzPageStatus(hifzProgress, pageNumber);
   const isCurrentPageBookmarked = hifzProgress.bookmarkedPage === pageNumber;
-  const trackedPagesList = useMemo(
-    () =>
-      Object.entries(hifzProgress.pages)
-        .map(([p, status]) => ({ page: Number(p), status }))
-        .sort((a, b) => a.page - b.page),
-    [hifzProgress.pages]
-  );
 
   const handleRevealNext = useCallback(() => {
-    setRevealedTokenIds((prev) => revealNextStep(prefs.revealMode, ayahs, wordTokens, prev));
+    setRevealedTokenIds((prev) => {
+      const next = revealNextStep(prefs.revealMode, ayahs, wordTokens, prev);
+      if (next !== prev) {
+        const added = wordTokens.filter((t) => !prev.has(t.id) && next.has(t.id));
+        if (added.length > 0) setLastRevealedTokenId(added[added.length - 1].id);
+      }
+      return next;
+    });
   }, [prefs.revealMode, ayahs, wordTokens]);
 
   const handleHideLast = useCallback(() => {
-    setRevealedTokenIds((prev) => hideLastStep(prefs.revealMode, ayahs, wordTokens, prev));
+    setRevealedTokenIds((prev) => {
+      const next = hideLastStep(prefs.revealMode, ayahs, wordTokens, prev);
+      setLastRevealedTokenId(null);
+      return next;
+    });
   }, [prefs.revealMode, ayahs, wordTokens]);
 
-  const handleRevealAll = useCallback(() => {
+  const handleToggleSilentMode = useCallback(() => {
     setIsAutoRevealing(false);
-    setRevealedTokenIds(new Set(wordTokens.map((t) => t.id)));
+    setSpeedPopOpen(false);
+    setPrefs((prev) => {
+      const nextSilent = !prev.silentMode;
+      setRevealedTokenIds(nextSilent ? new Set() : new Set(wordTokens.map((t) => t.id)));
+      setLastRevealedTokenId(null);
+      speechCursorRef.current = 0;
+      return {
+        ...prev,
+        silentMode: nextSilent,
+        autoRevealAllOnLoad: !nextSilent,
+      };
+    });
   }, [wordTokens]);
 
-  const handleHideAll = useCallback(() => {
-    setIsAutoRevealing(false);
-    stopAudio();
-    setRevealedTokenIds(new Set());
-  }, [stopAudio]);
-
-  // Auto-reveal timer (follows active revealMode: sözbə-söz or ayə-ayə)
+  // Auto-reveal interval synced to silentSpeedSec (0.5s .. 5s)
   useEffect(() => {
     if (!isAutoRevealing || wordTokens.length === 0) return;
-
+    const ms = Math.max(400, Math.round(prefs.silentSpeedSec * 1000));
     const timer = window.setInterval(() => {
       setRevealedTokenIds((prev) => {
         const next = revealNextStep(prefs.revealMode, ayahs, wordTokens, prev);
         if (next === prev) {
           setIsAutoRevealing(false);
+          return prev;
         }
+        const added = wordTokens.filter((t) => !prev.has(t.id) && next.has(t.id));
+        if (added.length > 0) setLastRevealedTokenId(added[added.length - 1].id);
         return next;
       });
-    }, prefs.autoIntervalMs);
+    }, ms);
 
     return () => window.clearInterval(timer);
-  }, [isAutoRevealing, prefs.revealMode, ayahs, wordTokens, prefs.autoIntervalMs]);
+  }, [isAutoRevealing, prefs.revealMode, prefs.silentSpeedSec, ayahs, wordTokens]);
 
   const playAyahAtIndex = useCallback(
     (index: number, remainingRepeats?: number) => {
@@ -394,7 +504,8 @@ export function MuhaffizPage({
       const ayah = ayahs[index];
       const key = ayahKey(ayah);
       stopAudio();
-      setAudioError(null);
+      stopMic();
+      setStatusMessage(null);
       setIsAutoRevealing(false);
 
       setRevealedTokenIds((prev) => revealEntireAyahTokens(wordTokens, prev, key));
@@ -422,16 +533,16 @@ export function MuhaffizPage({
       audio.onerror = () => {
         if (audioRef.current !== audio) return;
         stopAudio();
-        setAudioError('Bu ayənin səs faylı hazırda oxuna bilmədi.');
+        setStatusMessage('Bu ayənin səs faylı hazırda oxuna bilmədi.');
       };
 
       void audio.play().catch(() => {
         if (audioRef.current !== audio) return;
         stopAudio();
-        setAudioError('Səs oxutma brauzer tərəfindən dayandırıldı. Yenidən toxunun.');
+        setStatusMessage('Səs oxutma brauzer tərəfindən dayandırıldı.');
       });
     },
-    [ayahs, wordTokens, prefs.reciter, playbackSpeed, repeatCount, stopAudio]
+    [ayahs, wordTokens, prefs.reciter, playbackSpeed, repeatCount, stopAudio, stopMic]
   );
 
   function handleToggleListen() {
@@ -446,14 +557,108 @@ export function MuhaffizPage({
     playAyahAtIndex(firstUnrevealedIdx >= 0 ? firstUnrevealedIdx : 0);
   }
 
+  function handleToggleMicrophone() {
+    if (isMicListening) {
+      stopMic();
+      return;
+    }
+    stopAudio();
+    setIsAutoRevealing(false);
+    setStatusMessage(null);
+
+    const SpeechCtor = getSpeechRecognitionCtor();
+    if (!SpeechCtor) {
+      // Graceful fallback to Qari audio if browser lacks SpeechRecognition
+      setStatusMessage('Canlı mikrofon bu brauzerdə dəstəklənmir — Qari tilavəti başladıldı.');
+      handleToggleListen();
+      return;
+    }
+
+    try {
+      const recognition = new SpeechCtor();
+      recognition.lang = 'ar-SA';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      speechCursorRef.current = Math.max(
+        0,
+        wordTokens.findIndex((t) => !revealedTokenIds.has(t.id))
+      );
+
+      recognition.onresult = (event) => {
+        let fullChunk = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          fullChunk += ` ${event.results[i][0].transcript}`;
+        }
+        const trimmed = fullChunk.trim();
+        if (!trimmed) return;
+        setLiveTranscript(trimmed);
+
+        const result = matchSpokenArabicAgainstTokens(
+          trimmed,
+          wordTokens,
+          speechCursorRef.current
+        );
+        if (result.matchedTokenIds.length > 0) {
+          speechCursorRef.current = result.nextCursorIndex;
+          setRevealedTokenIds((prev) => {
+            const next = new Set(prev);
+            for (const id of result.matchedTokenIds) next.add(id);
+            return next;
+          });
+          setLastRevealedTokenId(result.matchedTokenIds[result.matchedTokenIds.length - 1]);
+        }
+        if (result.skippedTokens.length > 0) {
+          const nowIso = new Date().toISOString();
+          setMissedWords((prev) => {
+            const existingIds = new Set(prev.map((m) => m.tokenId));
+            const additions: MissedWordRecord[] = [];
+            for (const tok of result.skippedTokens) {
+              if (!existingIds.has(tok.id)) {
+                additions.push({
+                  tokenId: tok.id,
+                  ayahKey: tok.ayahKey,
+                  pageNumber,
+                  surahName: primarySurahName,
+                  stemText: tok.stemText,
+                  createdAt: nowIso,
+                });
+              }
+            }
+            return [...additions, ...prev].slice(0, 80);
+          });
+        }
+      };
+
+      recognition.onerror = (ev) => {
+        setIsMicListening(false);
+        if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+          setStatusMessage('Mikrofona icazə verilmədi. Qari tilavətindən istifadə edə bilərsiniz.');
+        } else {
+          setStatusMessage('Səs tanıma dayandırıldı.');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsMicListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+      setIsMicListening(true);
+    } catch {
+      setStatusMessage('Mikrofon açıla bilmədi — Qari tilavətini dinləyə bilərsiniz.');
+    }
+  }
+
   function goToPage(target: number) {
     const clean = clampMuhaffizPage(target);
     setPageNumber(clean);
-    setJumpModalOpen(false);
+    setIndexOpen(false);
     setSettingsOpen(false);
+    setMistakesOpen(false);
   }
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts (+, -, Arrows, Space, Escape)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
@@ -461,34 +666,31 @@ export function MuhaffizPage({
         target &&
         (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
       if (e.key === 'Escape') {
-        setJumpModalOpen(false);
+        setSpeedPopOpen(false);
         setSettingsOpen(false);
+        setIndexOpen(false);
+        setMistakesOpen(false);
         return;
       }
-      if (isTyping || jumpModalOpen) return;
+      if (isTyping || indexOpen || settingsOpen) return;
 
-      if (e.key === '+' || e.key === '=' || e.key === 'ArrowLeft') {
+      if (e.key === '+' || e.key === '=') {
         e.preventDefault();
         handleRevealNext();
-      } else if (e.key === '-' || e.key === '_' || e.key === 'ArrowRight') {
+      } else if (e.key === '-' || e.key === '_') {
         e.preventDefault();
         handleHideLast();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (pageNumber < TOTAL_QURAN_PAGES) goToPage(pageNumber + 1);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (pageNumber > 1) goToPage(pageNumber - 1);
       }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleHideLast, handleRevealNext, jumpModalOpen]);
-
-  const filteredSurahs = useMemo(() => {
-    const q = surahSearch.trim().toLowerCase();
-    if (!q) return SURAH_CATALOG;
-    return SURAH_CATALOG.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        String(s.number).includes(q) ||
-        s.arabicName.includes(q)
-    );
-  }, [surahSearch]);
+  }, [handleHideLast, handleRevealNext, indexOpen, settingsOpen, pageNumber]);
 
   const revealedAyahsForTranslation = useMemo(
     () =>
@@ -501,34 +703,56 @@ export function MuhaffizPage({
 
   const isCenteredPage = Boolean(pageData?.centeredPage);
   const isQcfFontActive = qcfReadyPage === pageNumber;
-
   const headerFontStyle = {
     fontFamily: hafsHeaderReady ? '"UthmanicHafs1", "Amiri", serif' : '"Amiri", serif',
   };
 
-  // Responsive Madinah Mushaf single-screen viewport typography scaling (0 vertical/horizontal overflow)
   const mushafSizeClass: Record<MuhaffizFontSize, string> = isCenteredPage
     ? {
-        sm: 'text-[clamp(1.18rem,min(4.7vw,3dvh),1.75rem)]',
-        md: 'text-[clamp(1.32rem,min(5.2vw,3.35dvh),2.05rem)]',
-        lg: 'text-[clamp(1.45rem,min(5.6vw,3.65dvh),2.25rem)]',
+        sm: 'text-[clamp(1.22rem,min(4.8vw,3.1dvh),1.8rem)]',
+        md: 'text-[clamp(1.38rem,min(5.3vw,3.55dvh),2.15rem)]',
+        lg: 'text-[clamp(1.52rem,min(5.7vw,3.85dvh),2.35rem)]',
       }
     : {
-        sm: 'text-[clamp(0.95rem,min(4.2vw,2.45dvh),1.48rem)]',
-        md: 'text-[clamp(1.04rem,min(4.5vw,2.72dvh),1.62rem)]',
-        lg: 'text-[clamp(1.12rem,min(4.85vw,2.95dvh),1.78rem)]',
+        sm: 'text-[clamp(0.98rem,min(4.2vw,2.55dvh),1.52rem)]',
+        md: 'text-[clamp(1.08rem,min(4.5vw,2.8dvh),1.68rem)]',
+        lg: 'text-[clamp(1.18rem,min(4.85vw,3.05dvh),1.82rem)]',
       };
+
+  const missedSet = useMemo(() => new Set(missedWords.map((m) => m.tokenId)), [missedWords]);
+
+  const statusLabel = isMicListening
+    ? 'Dinlənilir...'
+    : playingKey
+      ? `Tilavət · ${playingKey}`
+      : prefs.silentMode
+        ? 'Səssiz təkrar'
+        : 'Oxu';
+
+  const statusSubLabel = isMicListening
+    ? liveTranscript || 'Ərəbcə ayələri oxuyun...'
+    : playingKey
+      ? MUHAFFIZ_RECITERS.find((r) => r.id === prefs.reciter)?.label ?? 'Qari'
+      : statusMessage ||
+        (prefs.silentMode
+          ? `${revealedWordCount}/${wordTokens.length} söz açılıb`
+          : null);
 
   return (
     <section
-      className="relative flex h-[100dvh] w-full flex-col justify-between overflow-hidden bg-[#FFF6E9] text-[#17191C] dark:bg-[#0F1412] dark:text-[#F3F1EC]"
       data-testid="muhaffiz-viewport"
       data-qcf-ready={isQcfFontActive ? 'true' : 'false'}
       data-reveal-mode={prefs.revealMode}
+      data-paper-theme={prefs.paperTheme}
+      style={{
+        backgroundColor: palette.paper,
+        color: palette.ink,
+      }}
+      className="relative flex h-[100dvh] w-full flex-col overflow-hidden transition-colors duration-200 select-none"
     >
       <SeoHead
         title={`Mühafiz (Əzbər Mushafı) — Səhifə ${pageNumber} | Quran Qiraeti`}
-        description="Ayələri sözbə-söz və ya ayə-ayə gizlədib-açaraq səhifə-səhifə (1–604 Mədinə Mushafı) Qurani-Kərimi əzbərləmək üçün Mühafiz Mushafı."
+        description="Quran.mushafuk.online üslubunda Mədinə Mushafı: ayələri sözbə-söz və ya ayə-ayə gizlət, səssiz təkrar və canlı mikrofonla əzbər yoxlaması et."
         path={pageNumber === 1 ? '/muhaffiz' : `/muhaffiz/${pageNumber}`}
         ogImage="/og-default.png"
         prevPath={pageNumber > 1 ? `/muhaffiz/${pageNumber - 1}` : undefined}
@@ -541,7 +765,7 @@ export function MuhaffizPage({
             applicationCategory: 'EducationalApplication',
             inLanguage: ['az', 'ar'],
             description:
-              '604 Mədinə Mushafı səhifəsində sətir-sətir yerini dəyişmədən sözbə-söz və ya ayə-ayə gizlətmə, pilləli açma və tilavət dinləmə funksiyalı Quran əzbərləmə aləti.',
+              '604 Mədinə Mushafı səhifəsində səssiz təkrar, sözbə-söz gizlətmə, canlı tilavət dinləmə və əzbər izləmə aləti.',
           },
           buildBreadcrumbJsonLd(window.location.origin, [
             { name: 'Ana səhifə', path: '/' },
@@ -551,95 +775,124 @@ export function MuhaffizPage({
         ]}
       />
 
-      {/* Discreet desktop corner back button */}
-      <div className="fixed top-2 left-3 z-20 hidden sm:block">
-        <button
-          type="button"
-          onClick={() => onNavigate('/')}
-          aria-label="Ana səhifəyə qayıt"
-          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[#7A6F5A] transition-colors hover:bg-[#EDE3CF] hover:text-[#17191C] dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100"
-        >
-          <Home className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Sayt</span>
-        </button>
-      </div>
-
-      {/* Top 3-Part Mushaf Running Header (الجزء | ١ | سورة الفاتحة) */}
+      {/* Sticky Minimalist Top Bar (exact quran.mushafuk.online .t-top structure) */}
       <header
-        dir="rtl"
-        className="mx-auto flex h-11 w-full max-w-[520px] shrink-0 items-center justify-between border-b border-[#E5DEC9] px-3 sm:px-5 dark:border-stone-800"
+        dir="ltr"
+        style={{ backgroundColor: palette.paper }}
+        className="z-20 flex h-12 shrink-0 items-center justify-between gap-2 px-2 sm:px-4"
       >
-        <span
-          style={headerFontStyle}
-          className="text-base sm:text-lg text-[#4D4536] dark:text-stone-300"
-        >
-          {formatArabicJuzLabel(pageData?.juzNumber ?? 1)}
-        </span>
-
+        {/* Left: ≡ Ayarlar */}
         <button
           type="button"
-          onClick={() => setJumpModalOpen(true)}
-          aria-label={`Səhifə seçimi, hazırda ${pageNumber}-ci səhifə`}
-          data-testid="muhaffiz-page-picker"
-          className="relative min-w-[40px] overflow-hidden rounded-lg bg-[#E9E1CE] px-3 py-0.5 text-center text-sm sm:text-base text-[#17191C] transition-colors hover:bg-[#DFD5BE] dark:bg-stone-800 dark:text-stone-100 dark:hover:bg-stone-700"
-          style={headerFontStyle}
+          onClick={() => {
+            setMistakesOpen(false);
+            setSettingsOpen(true);
+          }}
+          aria-expanded={settingsOpen}
+          aria-label="Ayarlar"
+          title="Ayarlar"
+          data-testid="muhaffiz-settings-btn"
+          style={
+            settingsOpen
+              ? { backgroundColor: palette.green, color: palette.paper }
+              : { color: palette.green }
+          }
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-colors hover:bg-black/5"
         >
-          <span>{toArabicIndicDigits(pageNumber)}</span>
-          <span
-            aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 h-[2px] bg-black/10 dark:bg-white/10"
-          />
-          <span
-            aria-hidden="true"
-            style={{ width: `${progressPercent}%` }}
-            className="absolute right-0 bottom-0 h-[2px] bg-[#0F6A56] transition-all duration-300 dark:bg-[#86C7AE]"
-          />
+          <Menu className="h-5 w-5" aria-hidden="true" />
         </button>
 
-        <span
-          style={headerFontStyle}
-          className="text-base sm:text-lg text-[#4D4536] dark:text-stone-300"
+        {/* Center quiet clickable indicator */}
+        <button
+          type="button"
+          onClick={() => setIndexOpen(true)}
+          style={{ color: palette.muted }}
+          className="truncate rounded-lg px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-75"
         >
-          {headerArabicSurah}
-        </span>
+          {cleanSurahTitle(primarySurahName)} · Səh. {pageNumber} · Cüz {pageData?.juzNumber ?? 1}
+        </button>
+
+        {/* Right group: [Səssiz təkrar Eye-off] [Surə və səhifə Book + Xəta badge] */}
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleToggleSilentMode}
+            aria-pressed={prefs.silentMode}
+            aria-label="Səssiz təkrar"
+            title="Səssiz təkrar (Hifz gizlətmə)"
+            data-testid="muhaffiz-silent-toggle"
+            style={
+              prefs.silentMode
+                ? { backgroundColor: palette.green, color: palette.paper }
+                : { color: palette.green }
+            }
+            className="grid h-10 w-10 place-items-center rounded-xl transition-colors hover:bg-black/5"
+          >
+            {prefs.silentMode ? (
+              <EyeOff className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <Eye className="h-5 w-5" aria-hidden="true" />
+            )}
+          </button>
+
+          <div className="relative h-10 w-10">
+            <button
+              type="button"
+              onClick={() => setIndexOpen(true)}
+              aria-label="Surə və səhifə"
+              title="Surə və səhifə"
+              data-testid="muhaffiz-page-picker"
+              style={{ color: palette.green }}
+              className="grid h-10 w-10 place-items-center rounded-xl transition-colors hover:bg-black/5"
+            >
+              <BookOpen className="h-5 w-5" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMistakesOpen((v) => !v)}
+              aria-expanded={mistakesOpen}
+              aria-label={`Xəta ${missedWords.length}`}
+              title="Qeyd olunan xətalar"
+              data-testid="muhaffiz-mistakes-btn"
+              style={{
+                backgroundColor: palette.isDark ? '#a85a4c' : '#7a3b2e',
+                color: '#fffaf0',
+                boxShadow: `0 0 0 2px ${palette.paper}`,
+              }}
+              className="absolute -top-1 -right-1 z-10 min-w-[18px] rounded-full px-1 text-center font-mono-tabular text-[10px] leading-[18px] font-bold"
+            >
+              {missedWords.length}
+            </button>
+          </div>
+        </div>
       </header>
 
-      {/* Main Single-Viewport Madinah Mushaf Surface (fits all 15 lines in 100dvh with 0 scroll) */}
+      {/* Main 15-Line Centered Madinah Mushaf Sheet */}
       <div
         dir="rtl"
         data-testid="muhaffiz-sheet"
-        className={`mx-auto flex min-h-0 w-full max-w-[520px] flex-1 flex-col overflow-hidden px-2.5 sm:px-5 ${
-          isCenteredPage ? 'justify-center gap-y-2.5 py-2 sm:gap-y-3' : 'justify-between py-1.5 sm:py-2'
+        className={`mx-auto flex min-h-0 w-full max-w-[920px] flex-1 flex-col overflow-hidden px-3 sm:px-6 ${
+          isCenteredPage ? 'justify-center gap-y-2.5 sm:gap-y-3' : 'justify-between py-1 sm:py-2'
         }`}
       >
-        {audioError && (
-          <p
-            role="status"
-            className="shrink-0 rounded-lg border border-[#D97706]/30 bg-[#D97706]/10 px-3 py-1 text-center text-xs text-[#B45309] dark:text-[#FBBF24]"
-          >
-            {audioError}
-          </p>
-        )}
-
         {isLoading ? (
           <div className="my-auto space-y-2 text-center">
-            <p
-              style={headerFontStyle}
-              className="text-2xl text-[#6A5F4C] dark:text-stone-400"
-            >
+            <p style={{ ...headerFontStyle, color: palette.muted }} className="text-2xl">
               جاري تحميل الصفحة {toArabicIndicDigits(pageNumber)}...
             </p>
-            <p className="text-xs text-[#7D715B] dark:text-stone-500">
+            <p className="text-xs" style={{ color: palette.muted }}>
               {pageNumber}-ci səhifə yüklənir...
             </p>
           </div>
         ) : loadError ? (
           <div className="my-auto text-center">
-            <p className="text-sm text-[#DC2626] dark:text-[#F87171]">{loadError}</p>
+            <p className="text-sm text-[#9c2f24]">{loadError}</p>
             <button
               type="button"
               onClick={() => setPageNumber((p) => p)}
-              className="mt-4 rounded-lg bg-[#0F6A56] px-4 py-2 text-xs font-medium text-white"
+              style={{ backgroundColor: palette.green, color: palette.paper }}
+              className="mt-4 rounded-xl px-4 py-2 text-xs font-semibold"
             >
               Yenidən yüklə
             </button>
@@ -647,21 +900,39 @@ export function MuhaffizPage({
         ) : (
           pageData?.rows.map((row, rIdx) => {
             if (row.kind === 'surah-header') {
+              const glyphs = getSurahBannerGlyphs(row.surahNumber);
               return (
                 <div
                   key={`h-${row.surahNumber}-${rIdx}`}
-                  className={`w-full shrink-0 rounded-xl border border-[#249A83]/55 bg-[#DEF0E8] px-3 text-center dark:border-[#34D399]/35 dark:bg-[#163329] ${
-                    isCenteredPage ? 'py-1.5 sm:py-2' : 'py-0.5'
-                  }`}
+                  className="relative mx-auto flex w-[min(420px,92%)] shrink-0 items-center justify-center overflow-hidden"
                 >
-                  <p
-                    style={headerFontStyle}
-                    className={`leading-tight text-[#0E5E4C] dark:text-[#86C7AE] ${
-                      isCenteredPage ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg'
+                  <img
+                    src="/muhaffiz/surah-banner.png"
+                    alt=""
+                    aria-hidden="true"
+                    className={`h-auto w-full object-contain ${
+                      palette.isDark ? 'brightness-110 invert' : ''
                     }`}
+                  />
+                  <span
+                    aria-label={row.arabicSurahName}
+                    style={{
+                      fontFamily: surahNamesFontReady
+                        ? '"MushafSurahNames", "UthmanicHafs1", "Amiri", serif'
+                        : headerFontStyle.fontFamily,
+                      color: palette.ink,
+                    }}
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 text-[clamp(1.05rem,3.4vw,1.55rem)] leading-none"
                   >
-                    {row.arabicSurahName}
-                  </p>
+                    {surahNamesFontReady ? (
+                      <>
+                        <span>{glyphs.prefixGlyph}</span>
+                        <span>{glyphs.nameGlyph}</span>
+                      </>
+                    ) : (
+                      <span>{row.arabicSurahName}</span>
+                    )}
+                  </span>
                 </div>
               );
             }
@@ -670,9 +941,9 @@ export function MuhaffizPage({
               return (
                 <p
                   key={`b-${row.surahNumber}-${rIdx}`}
-                  style={headerFontStyle}
-                  className={`shrink-0 text-center leading-tight text-[#0E5E4C] dark:text-[#D5E6DF] ${
-                    isCenteredPage ? 'text-lg sm:text-2xl' : 'text-sm sm:text-base'
+                  style={{ ...headerFontStyle, color: palette.ink }}
+                  className={`shrink-0 text-center leading-tight ${
+                    isCenteredPage ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg'
                   }`}
                 >
                   بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ
@@ -687,8 +958,8 @@ export function MuhaffizPage({
               <div
                 key={`l-${row.lineNumber}-${rIdx}`}
                 data-line={row.lineNumber}
-                className={`flex min-h-0 flex-nowrap items-baseline ${mushafSizeClass[prefs.fontSize]} leading-[1.32] ${
-                  useCenteredRow ? 'justify-center gap-x-1.5 sm:gap-x-2' : 'justify-between'
+                className={`flex min-h-0 flex-nowrap items-baseline ${mushafSizeClass[prefs.fontSize]} leading-[1.28] ${
+                  useCenteredRow ? 'justify-center gap-x-2 sm:gap-x-2.5' : 'justify-center gap-x-[0.22em] sm:gap-x-[0.35em]'
                 }`}
               >
                 {row.tokens.map((token) => {
@@ -696,7 +967,11 @@ export function MuhaffizPage({
                   const tokenFontStyle = canUseQcf
                     ? { fontFamily: `"QcfV1Page_${pageNumber}", "UthmanicHafs1", "Amiri", serif` }
                     : headerFontStyle;
-                  const ayahAllRevealed = isAyahRevealed(token.ayahKey, wordTokens, revealedTokenIds);
+                  const ayahAllRevealed = isAyahRevealed(
+                    token.ayahKey,
+                    wordTokens,
+                    revealedTokenIds
+                  );
                   const isPlaying = playingKey === token.ayahKey;
 
                   if (token.charType === 'end') {
@@ -704,22 +979,29 @@ export function MuhaffizPage({
                       <button
                         key={token.id}
                         type="button"
-                        onClick={() =>
-                          setRevealedTokenIds((prev) =>
-                            toggleEntireAyahTokens(wordTokens, prev, token.ayahKey)
-                          )
+                        onClick={() => {
+                          if (prefs.silentMode) {
+                            setRevealedTokenIds((prev) =>
+                              toggleEntireAyahTokens(wordTokens, prev, token.ayahKey)
+                            );
+                          } else {
+                            const idx = ayahs.findIndex((a) => ayahKey(a) === token.ayahKey);
+                            if (idx >= 0) playAyahAtIndex(idx);
+                          }
+                        }}
+                        aria-pressed={prefs.silentMode ? ayahAllRevealed : isPlaying}
+                        aria-label={
+                          prefs.silentMode
+                            ? `Ayə ${token.ayahKey} ${ayahAllRevealed ? 'gizlət' : 'göstər'}`
+                            : `Ayə ${token.ayahKey} tilavətini dinlə`
                         }
-                        aria-pressed={ayahAllRevealed}
-                        aria-label={`Ayə ${token.ayahKey} ${ayahAllRevealed ? 'gizlət' : 'göstər'}`}
                         data-testid={`muhaffiz-ayah-${token.ayahKey}`}
-                        style={tokenFontStyle}
-                        className={`inline-flex shrink-0 cursor-pointer items-center justify-center rounded px-0.5 leading-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#0F6A56] ${
-                          isPlaying
-                            ? 'bg-[#0F6A56] text-white'
-                            : ayahAllRevealed
-                              ? 'text-[#0E5E4C] dark:text-[#86C7AE]'
-                              : 'text-[#6B6454] hover:text-[#0E5E4C] dark:text-stone-400 dark:hover:text-[#86C7AE]'
-                        }`}
+                        style={{
+                          ...tokenFontStyle,
+                          color: isPlaying ? palette.green : palette.ink,
+                          backgroundColor: isPlaying ? palette.fresh : undefined,
+                        }}
+                        className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded px-0.5 leading-none transition-colors hover:opacity-75 focus-visible:outline-2"
                       >
                         {canUseQcf
                           ? token.codeV2Full
@@ -730,42 +1012,71 @@ export function MuhaffizPage({
 
                   const isTokenRevealed = revealedTokenIds.has(token.id);
                   const isWordVisible =
-                    isTokenRevealed || (prefs.firstWordHint && token.isFirstWordOfAyah);
+                    !prefs.silentMode ||
+                    isTokenRevealed ||
+                    (prefs.firstWordHint && token.isFirstWordOfAyah);
+                  const isFresh = lastRevealedTokenId === token.id || isPlaying;
+                  const isMissed = missedSet.has(token.id);
 
                   return (
                     <button
                       key={token.id}
                       type="button"
-                      onClick={() =>
-                        setRevealedTokenIds((prev) =>
-                          prefs.revealMode === 'ayah'
-                            ? toggleEntireAyahTokens(wordTokens, prev, token.ayahKey)
-                            : toggleWordToken(prev, token.id)
-                        )
-                      }
+                      onClick={() => {
+                        if (prefs.silentMode) {
+                          setRevealedTokenIds((prev) =>
+                            prefs.revealMode === 'ayah'
+                              ? toggleEntireAyahTokens(wordTokens, prev, token.ayahKey)
+                              : toggleWordToken(prev, token.id)
+                          );
+                          setLastRevealedTokenId(token.id);
+                        } else {
+                          // Outside silent mode: tap word to toggle it as flagged mistake for review
+                          setMissedWords((prev) => {
+                            const exists = prev.some((m) => m.tokenId === token.id);
+                            if (exists) return prev.filter((m) => m.tokenId !== token.id);
+                            return [
+                              {
+                                tokenId: token.id,
+                                ayahKey: token.ayahKey,
+                                pageNumber,
+                                surahName: primarySurahName,
+                                stemText: token.stemText,
+                                createdAt: new Date().toISOString(),
+                              },
+                              ...prev,
+                            ].slice(0, 80);
+                          });
+                        }
+                      }}
                       aria-label={token.stemText}
                       aria-pressed={isWordVisible}
                       data-testid={`muhaffiz-word-${token.id}`}
                       data-word-revealed={isWordVisible ? 'true' : 'false'}
                       data-word-text={token.stemText}
-                      style={tokenFontStyle}
-                      className={`inline-flex shrink-0 cursor-pointer items-baseline whitespace-nowrap rounded-xs px-[0.5px] leading-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#0F6A56] ${
-                        isPlaying ? 'bg-[#0E5E4C]/12 dark:bg-[#86C7AE]/15' : ''
-                      }`}
+                      style={{
+                        ...tokenFontStyle,
+                        backgroundColor: isWordVisible && isFresh ? palette.fresh : undefined,
+                        boxShadow: isMissed ? 'inset 0 -0.1em 0 #9c2f24' : undefined,
+                      }}
+                      className="inline-flex shrink-0 cursor-pointer items-baseline whitespace-nowrap rounded-xs px-[0.5px] leading-none transition-colors focus-visible:outline-2"
                     >
                       <span
-                        className={
-                          isWordVisible
-                            ? 'border-b-[1.5px] border-transparent pb-[1px] text-[#0E5E4C] transition-colors duration-150 dark:text-[#D8F0E5]'
-                            : 'select-none border-b-[1.5px] border-[#DFD1BA] pb-[1px] text-transparent transition-colors duration-150 dark:border-stone-700'
-                        }
+                        style={{
+                          color: isWordVisible ? palette.ink : 'transparent',
+                          borderBottom: isWordVisible
+                            ? '1.5px solid transparent'
+                            : `1.5px solid ${palette.line}`,
+                        }}
+                        className="pb-[1px]"
                       >
                         {canUseQcf ? token.codeV2Stem : token.stemText}
                       </span>
                       {(canUseQcf ? token.codeV2Waqf : token.waqfMark) && (
                         <span
                           aria-hidden="true"
-                          className="select-none text-[#0E5E4C] dark:text-[#86C7AE]"
+                          style={{ color: palette.ink }}
+                          className="select-none"
                         >
                           {canUseQcf ? token.codeV2Waqf : token.waqfMark}
                         </span>
@@ -779,713 +1090,426 @@ export function MuhaffizPage({
         )}
       </div>
 
-      {/* Optional Azerbaijani Translation Drawer (when toggled on inside ••• Settings) */}
+      {/* Optional Translation Drawer */}
       {prefs.showTranslation && revealedAyahsForTranslation.length > 0 && (
-        <div className="mx-auto max-h-28 w-full max-w-[520px] shrink-0 overflow-y-auto border-t border-[#E5DEC9] bg-[#FCF7EC] px-4 py-2 text-xs dark:border-stone-800 dark:bg-[#141A17]">
-          <div className="flex items-center justify-between border-b border-[#EAE2CE] pb-1 dark:border-stone-800">
-            <span className="font-semibold text-[#17191C] dark:text-stone-100">
-              Açılmış ayələrin tərcüməsi (Ə. Musayev)
+        <div
+          style={{
+            backgroundColor: palette.bar,
+            borderColor: palette.line,
+            color: palette.ink,
+          }}
+          className="mx-auto max-h-28 w-full max-w-[920px] shrink-0 overflow-y-auto border-t px-4 py-2 text-xs"
+        >
+          <div className="flex items-center justify-between pb-1" style={{ color: palette.muted }}>
+            <span className="font-semibold" style={{ color: palette.ink }}>
+              Tərcümə (Ə. Musayev)
             </span>
-            <span className="font-mono-tabular text-[11px] text-[#6B6251] dark:text-stone-400">
+            <span className="font-mono-tabular">
               {revealedAyahCount} / {ayahs.length}
             </span>
           </div>
-          <div className="mt-1.5 space-y-1.5">
+          <div className="space-y-1.5">
             {revealedAyahsForTranslation.map((ayah) => (
               <div key={`tr-${ayahKey(ayah)}`}>
-                <p className="font-medium text-[#0E5E4C] dark:text-[#86C7AE]">
-                  {cleanSurahTitle(ayah.surahName)} {ayahKey(ayah)}
-                </p>
-                <p className="leading-relaxed text-[#3F3B33] dark:text-stone-300">
-                  {ayah.translation}
-                </p>
+                <span className="font-semibold" style={{ color: palette.green }}>
+                  {cleanSurahTitle(ayah.surahName)} {ayahKey(ayah)}:{' '}
+                </span>
+                <span>{ayah.translation}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Bottom Control Dock (static shrink-0 flex child — zero collision with Line 15) */}
-      <footer className="relative z-30 h-14 shrink-0 border-t border-[#E5DEC9] bg-[#FFF6E9] dark:border-stone-800 dark:bg-[#0F1412]">
-        <div className="relative mx-auto flex h-full max-w-[520px] flex-nowrap items-center justify-between gap-1.5 px-3 sm:gap-2">
-          {/* Settings Popover triggered by ••• */}
-          {settingsOpen && (
-            <div
-              role="dialog"
-              aria-label="Mühafiz parametrləri"
-              className="absolute bottom-full left-3 mb-2 max-h-[calc(100dvh-5.5rem)] w-72 overflow-y-auto rounded-xl border border-[#DED4BD] bg-[#FFFBF3] p-4 shadow-xl dark:border-stone-700 dark:bg-[#161D1A]"
+      {/* Centered Subtle Page Number (exact match to quran.mushafuk.online) */}
+      <div
+        className="shrink-0 pb-0.5 text-center font-mono-tabular text-xs font-medium"
+        style={{ color: palette.muted }}
+      >
+        {pageNumber}
+      </div>
+
+      {/* Bottom Dock (.t-bar — Left status, Center Səssiz təkrar pill controls, Right 44x44 Deep Green Mic button) */}
+      <footer
+        dir="ltr"
+        style={{ backgroundColor: palette.paper }}
+        className="relative z-30 shrink-0 px-3 pt-1 pb-2.5 sm:px-5"
+      >
+        <div className="relative mx-auto flex max-w-[920px] items-center justify-between gap-2">
+          {/* Left: Status indicator + quick Qari listen button (desktop) */}
+          <div className="flex min-w-0 shrink-0 items-center gap-2 sm:flex-1">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+              className="h-4.5 w-4.5 shrink-0"
             >
-              <div className="flex items-center justify-between border-b border-[#EAE2CE] pb-2.5 dark:border-stone-800">
-                <span className="text-xs font-semibold text-[#17191C] dark:text-stone-100">
-                  Mühafiz Parametrləri
-                </span>
+              <path
+                d="M12 2L20 7.5V16.5L12 22L4 16.5V7.5L12 2Z"
+                fill={palette.green}
+                fillOpacity="0.14"
+                stroke={palette.green}
+                strokeWidth="1.8"
+              />
+              <path
+                d="M9 13V11M12 15V9M15 13V11"
+                stroke={palette.gold}
+                strokeWidth="1.9"
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <b
+                  className="whitespace-nowrap text-xs font-bold sm:text-sm"
+                  style={{ color: palette.green }}
+                >
+                  <span className="sm:hidden">{prefs.silentMode ? 'Səssiz' : 'Oxu'}</span>
+                  <span className="hidden sm:inline">{statusLabel}</span>
+                </b>
                 <button
                   type="button"
-                  onClick={() => setSettingsOpen(false)}
-                  aria-label="Parametrləri bağla"
-                  className="rounded p-1 text-stone-500 hover:text-stone-900 dark:text-stone-400"
+                  onClick={handleToggleListen}
+                  aria-label={playingKey ? 'Qari tilavətini dayandır' : 'Qari tilavətini dinlə'}
+                  title={playingKey ? 'Dayandır' : 'Qari tilavəti'}
+                  style={{ borderColor: palette.line, color: palette.muted }}
+                  className="hidden h-6 items-center gap-1 rounded-full border px-2 text-[11px] font-medium hover:opacity-80 sm:inline-flex"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  {playingKey ? (
+                    <VolumeX className="h-3 w-3" aria-hidden="true" />
+                  ) : (
+                    <Volume2 className="h-3 w-3" aria-hidden="true" />
+                  )}
+                  <span>{playingKey ? 'Dayandır' : 'Qari'}</span>
                 </button>
               </div>
-
-              <div className="mt-3 space-y-3 text-xs">
-                {/* Word-by-word vs Ayah-by-ayah reveal mode */}
-                <div>
-                  <span className="block text-stone-500 dark:text-stone-400">Açılış rejimi</span>
-                  <div className="mt-1 grid grid-cols-2 gap-1 rounded-lg bg-[#EFE7D5] p-1 dark:bg-[#101412]">
-                    {(
-                      [
-                        { id: 'word', label: 'Sözbə-söz' },
-                        { id: 'ayah', label: 'Ayə-ayə' },
-                      ] as const
-                    ).map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setPrefs((p) => ({ ...p, revealMode: opt.id }))}
-                        data-testid={`muhaffiz-mode-${opt.id}`}
-                        className={`rounded-md py-1 text-[11px] font-medium ${
-                          prefs.revealMode === opt.id
-                            ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
-                            : 'text-stone-600 dark:text-stone-400'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={allRevealed ? handleHideAll : handleRevealAll}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#DFD5BE] bg-white px-2.5 py-2 font-medium text-stone-800 hover:border-[#0E5E4C] dark:border-stone-700 dark:bg-[#1E2622] dark:text-stone-100"
-                  >
-                    {allRevealed ? (
-                      <>
-                        <EyeOff className="h-3.5 w-3.5" />
-                        <span>Hamısını gizlət</span>
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>Hamısını göstər</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={onToggleTheme}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#DFD5BE] bg-white px-2.5 py-2 font-medium text-stone-800 hover:border-[#0E5E4C] dark:border-stone-700 dark:bg-[#1E2622] dark:text-stone-100"
-                  >
-                    {isDark ? (
-                      <Sun className="h-3.5 w-3.5 text-[#C6A769]" />
-                    ) : (
-                      <Moon className="h-3.5 w-3.5" />
-                    )}
-                    <span>{isDark ? 'Gündüz' : 'Gecə'}</span>
-                  </button>
-                </div>
-
-                <label className="flex items-center justify-between gap-2 text-stone-700 dark:text-stone-300">
-                  <span>İlk sözü ipucu kimi göstər</span>
-                  <input
-                    type="checkbox"
-                    checked={prefs.firstWordHint}
-                    onChange={(e) =>
-                      setPrefs((p) => ({ ...p, firstWordHint: e.target.checked }))
-                    }
-                    className="h-4 w-4 accent-[#0E5E4C]"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between gap-2 text-stone-700 dark:text-stone-300">
-                  <span>Açılan ayələrin tərcüməsi</span>
-                  <input
-                    type="checkbox"
-                    checked={prefs.showTranslation}
-                    onChange={(e) =>
-                      setPrefs((p) => ({ ...p, showTranslation: e.target.checked }))
-                    }
-                    className="h-4 w-4 accent-[#0E5E4C]"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between gap-2 text-stone-700 dark:text-stone-300">
-                  <span>Açılışda hamısını göstər</span>
-                  <input
-                    type="checkbox"
-                    checked={prefs.autoRevealAllOnLoad}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setPrefs((p) => ({ ...p, autoRevealAllOnLoad: checked }));
-                      if (checked) handleRevealAll();
-                      else handleHideAll();
-                    }}
-                    className="h-4 w-4 accent-[#0E5E4C]"
-                  />
-                </label>
-
-                <div>
-                  <span className="block text-stone-500 dark:text-stone-400">Mətn ölçüsü</span>
-                  <div className="mt-1 grid grid-cols-3 gap-1 rounded-lg bg-[#EFE7D5] p-1 dark:bg-[#101412]">
-                    {(
-                      [
-                        { id: 'sm', label: 'Kiçik' },
-                        { id: 'md', label: 'Orta' },
-                        { id: 'lg', label: 'Böyük' },
-                      ] as const
-                    ).map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setPrefs((p) => ({ ...p, fontSize: opt.id }))}
-                        className={`rounded-md py-1 text-[11px] font-medium ${
-                          prefs.fontSize === opt.id
-                            ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
-                            : 'text-stone-600 dark:text-stone-400'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="muhaffiz-speed"
-                    className="block text-stone-500 dark:text-stone-400"
-                  >
-                    Avtomatik açılma sürəti
-                  </label>
-                  <select
-                    id="muhaffiz-speed"
-                    value={prefs.autoIntervalMs}
-                    onChange={(e) =>
-                      setPrefs((p) => ({ ...p, autoIntervalMs: Number(e.target.value) }))
-                    }
-                    className="mt-1 w-full rounded-lg border border-[#DFD5BE] bg-white px-2.5 py-1.5 text-xs text-stone-800 dark:border-stone-700 dark:bg-[#111513] dark:text-stone-100"
-                  >
-                    <option value={800}>0.8 saniyə (Çox sürətli)</option>
-                    <option value={1200}>1.2 saniyə (Sözbə-söz)</option>
-                    <option value={2000}>2 saniyə</option>
-                    <option value={3500}>3.5 saniyə</option>
-                    <option value={5000}>5 saniyə</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="muhaffiz-reciter"
-                    className="block text-stone-500 dark:text-stone-400"
-                  >
-                    Qari (Səs yoxlaması)
-                  </label>
-                  <select
-                    id="muhaffiz-reciter"
-                    value={prefs.reciter}
-                    onChange={(e) =>
-                      setPrefs((p) => ({ ...p, reciter: e.target.value as MuhaffizReciterId }))
-                    }
-                    className="mt-1 w-full rounded-lg border border-[#DFD5BE] bg-white px-2.5 py-1.5 text-xs text-stone-800 dark:border-stone-700 dark:bg-[#111513] dark:text-stone-100"
-                  >
-                    {MUHAFFIZ_RECITERS.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="block text-stone-500 dark:text-stone-400">Oxutma sürəti</span>
-                    <div
-                      data-testid="muhaffiz-audio-speed"
-                      className="mt-1 grid grid-cols-3 gap-0.5 rounded-lg bg-[#EFE7D5] p-0.5 dark:bg-[#101412]"
-                    >
-                      {([0.75, 1, 1.25] as AudioPlaybackSpeed[]).map((spd) => (
-                        <button
-                          key={spd}
-                          type="button"
-                          onClick={() => setPlaybackSpeed(spd)}
-                          aria-pressed={playbackSpeed === spd}
-                          className={`rounded-md py-1 font-mono-tabular text-[11px] font-medium ${
-                            playbackSpeed === spd
-                              ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
-                              : 'text-stone-600 dark:text-stone-400'
-                          }`}
-                        >
-                          {spd}×
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="block text-stone-500 dark:text-stone-400">Ayə təkrarı</span>
-                    <div
-                      data-testid="muhaffiz-audio-repeat"
-                      className="mt-1 grid grid-cols-3 gap-0.5 rounded-lg bg-[#EFE7D5] p-0.5 dark:bg-[#101412]"
-                    >
-                      {(
-                        [
-                          { val: 1 as AyahRepeatCount, label: '1×' },
-                          { val: 3 as AyahRepeatCount, label: '3×' },
-                          { val: 0 as AyahRepeatCount, label: '∞' },
-                        ]
-                      ).map((opt) => (
-                        <button
-                          key={opt.val}
-                          type="button"
-                          onClick={() => setRepeatCount(opt.val)}
-                          aria-pressed={repeatCount === opt.val}
-                          className={`rounded-md py-1 font-mono-tabular text-[11px] font-medium ${
-                            repeatCount === opt.val
-                              ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
-                              : 'text-stone-600 dark:text-stone-400'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Hifz Progress Tracking for Current Page */}
-                <div className="border-t border-[#EAE2CE] pt-2.5 dark:border-stone-800">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-medium text-stone-700 dark:text-stone-300">
-                      Hifz irəliləyişi
-                    </span>
-                    <span
-                      data-testid="hifz-progress-summary"
-                      className="font-mono-tabular font-semibold text-[#0E5E4C] dark:text-[#86C7AE]"
-                    >
-                      {hifzSummary.memorizedCount} / {TOTAL_QURAN_PAGES} ({hifzSummary.memorizedPercent}%)
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#EFE7D5] dark:bg-[#101412]">
-                    <div
-                      style={{ width: `${Math.min(100, hifzSummary.memorizedPercent)}%` }}
-                      className="h-full bg-[#0E5E4C] transition-all duration-300 dark:bg-[#86C7AE]"
-                    />
-                  </div>
-                  <div className="mt-2 grid grid-cols-3 gap-1">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setHifzProgress((prev) =>
-                          setHifzPageStatus(
-                            prev,
-                            pageNumber,
-                            currentPageHifzStatus === 'memorized' ? 'none' : 'memorized'
-                          )
-                        )
-                      }
-                      aria-pressed={currentPageHifzStatus === 'memorized'}
-                      data-testid="hifz-mark-memorized"
-                      className={`inline-flex items-center justify-center gap-1 rounded-lg border px-1.5 py-1.5 text-[11px] font-medium transition-colors ${
-                        currentPageHifzStatus === 'memorized'
-                          ? 'border-[#0E5E4C] bg-[#0E5E4C] text-white dark:border-[#196B52] dark:bg-[#196B52]'
-                          : 'border-[#DFD5BE] bg-white text-stone-700 hover:border-[#0E5E4C] dark:border-stone-700 dark:bg-[#1E2622] dark:text-stone-200'
-                      }`}
-                    >
-                      <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
-                      <span>Əzbərlədim</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setHifzProgress((prev) =>
-                          setHifzPageStatus(
-                            prev,
-                            pageNumber,
-                            currentPageHifzStatus === 'learning' ? 'none' : 'learning'
-                          )
-                        )
-                      }
-                      aria-pressed={currentPageHifzStatus === 'learning'}
-                      data-testid="hifz-mark-learning"
-                      className={`inline-flex items-center justify-center gap-1 rounded-lg border px-1.5 py-1.5 text-[11px] font-medium transition-colors ${
-                        currentPageHifzStatus === 'learning'
-                          ? 'border-amber-600 bg-amber-600 text-white'
-                          : 'border-[#DFD5BE] bg-white text-stone-700 hover:border-amber-600 dark:border-stone-700 dark:bg-[#1E2622] dark:text-stone-200'
-                      }`}
-                    >
-                      <RotateCcw className="h-3 w-3 shrink-0" aria-hidden="true" />
-                      <span>Təkrarda</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setHifzProgress((prev) => toggleHifzBookmark(prev, pageNumber))
-                      }
-                      aria-pressed={isCurrentPageBookmarked}
-                      data-testid="hifz-toggle-bookmark"
-                      className={`inline-flex items-center justify-center gap-1 rounded-lg border px-1.5 py-1.5 text-[11px] font-medium transition-colors ${
-                        isCurrentPageBookmarked
-                          ? 'border-[#C6A769] bg-[#C6A769]/20 text-[#7A5E26] dark:text-[#E2C98A]'
-                          : 'border-[#DFD5BE] bg-white text-stone-700 hover:border-[#C6A769] dark:border-stone-700 dark:bg-[#1E2622] dark:text-stone-200'
-                      }`}
-                    >
-                      <Bookmark
-                        className={`h-3 w-3 shrink-0 ${isCurrentPageBookmarked ? 'fill-current' : ''}`}
-                        aria-hidden="true"
-                      />
-                      <span>Əlfəcin</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2 border-t border-[#EAE2CE] pt-2.5 dark:border-stone-800">
-                  <PWAInstallButton compact />
-                  <div className="flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => onNavigate(`/quran/sehife/${pageNumber}`)}
-                      className="inline-flex items-center gap-1 text-[#0E5E4C] hover:underline dark:text-[#86C7AE]"
-                    >
-                      <BookOpen className="h-3.5 w-3.5" />
-                      <span>Normal oxu</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onNavigate('/')}
-                      className="inline-flex items-center gap-1 text-stone-600 hover:underline dark:text-stone-300"
-                    >
-                      <Home className="h-3.5 w-3.5" />
-                      <span>Ana səhifə</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 1. ••• Settings Button */}
-          <button
-            type="button"
-            onClick={() => setSettingsOpen((o) => !o)}
-            aria-expanded={settingsOpen}
-            aria-label="Parametrlər"
-            data-testid="muhaffiz-settings-btn"
-            className="inline-flex h-10 w-11 shrink-0 items-center justify-center rounded-xl bg-[#E9E1CE] text-[#3E392E] transition-colors hover:bg-[#DFD5BE] dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700"
-          >
-            <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-          </button>
-
-          {/* 2. ← Next Page (RTL Mushaf turn page left) */}
-          <button
-            type="button"
-            onClick={() => goToPage(pageNumber + 1)}
-            disabled={pageNumber >= TOTAL_QURAN_PAGES}
-            aria-label="Növbəti səhifə"
-            data-testid="muhaffiz-next-page"
-            className="inline-flex h-10 w-9 shrink-0 items-center justify-center rounded-xl text-[#2C2A25] transition-colors hover:bg-[#EFE7D5] disabled:text-[#B8AF9C] disabled:hover:bg-transparent dark:text-stone-200 dark:hover:bg-stone-800 dark:disabled:text-stone-600"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          </button>
-
-          {/* 3. → Prev Page (RTL Mushaf turn page right) */}
-          <button
-            type="button"
-            onClick={() => goToPage(pageNumber - 1)}
-            disabled={pageNumber <= 1}
-            aria-label="Əvvəlki səhifə"
-            data-testid="muhaffiz-prev-page"
-            className="inline-flex h-10 w-9 shrink-0 items-center justify-center rounded-xl text-[#2C2A25] transition-colors hover:bg-[#EFE7D5] disabled:text-[#B8AF9C] disabled:hover:bg-transparent dark:text-stone-200 dark:hover:bg-stone-800 dark:disabled:text-stone-600"
-          >
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </button>
-
-          {/* 4. Clock / Auto-Reveal Timer */}
-          <button
-            type="button"
-            onClick={() => {
-              stopAudio();
-              setIsAutoRevealing((v) => !v);
-            }}
-            aria-pressed={isAutoRevealing}
-            aria-label={isAutoRevealing ? 'Avtomatik göstərməni saxla' : 'Avtomatik göstər'}
-            data-testid="muhaffiz-auto-btn"
-            className={`inline-flex h-10 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
-              isAutoRevealing
-                ? 'bg-[#C6A769]/25 text-[#9A7B3E] dark:text-[#E2C98A]'
-                : 'text-[#2C2A25] hover:bg-[#EFE7D5] dark:text-stone-200 dark:hover:bg-stone-800'
-            }`}
-          >
-            {isAutoRevealing ? (
-              <Pause className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <Clock className="h-4 w-4" aria-hidden="true" />
-            )}
-          </button>
-
-          {/* 5. Mic / Listen Verification */}
-          <button
-            type="button"
-            onClick={handleToggleListen}
-            aria-pressed={Boolean(playingKey)}
-            aria-label={playingKey ? 'Tilavəti dayandır' : 'Tilavəti dinlə'}
-            data-testid="muhaffiz-listen-btn"
-            className={`inline-flex h-10 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
-              playingKey
-                ? 'bg-[#0E5E4C]/15 text-[#0E5E4C] dark:bg-[#196B52]/30 dark:text-[#86C7AE]'
-                : 'text-[#2C2A25] hover:bg-[#EFE7D5] dark:text-stone-200 dark:hover:bg-stone-800'
-            }`}
-          >
-            {playingKey ? (
-              <VolumeX className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <Mic className="h-4 w-4" aria-hidden="true" />
-            )}
-          </button>
-
-          {/* 6. Wide − (Hide Last Word or Ayah) */}
-          <button
-            type="button"
-            onClick={handleHideLast}
-            disabled={revealedWordCount === 0}
-            aria-label={
-              prefs.revealMode === 'word' ? 'Son sözü gizlət' : 'Son ayəni gizlət'
-            }
-            data-testid="muhaffiz-hide-last"
-            className="inline-flex h-10 max-w-[100px] flex-1 items-center justify-center rounded-xl bg-[#FCE8E6] text-[#E11D48] transition-colors hover:bg-[#FAD6D3] disabled:opacity-45 dark:bg-[#421B1E] dark:text-[#FCA5A5] dark:hover:bg-[#522226]"
-          >
-            <Minus className="h-4 w-4" aria-hidden="true" />
-          </button>
-
-          {/* 7. Wide + (Reveal Next Word or Ayah) */}
-          <button
-            type="button"
-            onClick={handleRevealNext}
-            disabled={allRevealed || wordTokens.length === 0}
-            aria-label={
-              prefs.revealMode === 'word' ? 'Növbəti sözü göstər' : 'Növbəti ayəni göstər'
-            }
-            data-testid="muhaffiz-reveal-next"
-            className="inline-flex h-10 max-w-[100px] flex-1 items-center justify-center rounded-xl bg-[#E7F4E8] text-[#15803D] transition-colors hover:bg-[#D5EAD7] disabled:opacity-45 dark:bg-[#183829] dark:text-[#86EFAC] dark:hover:bg-[#1F4734]"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
-      </footer>
-
-      {/* Page / Surah / Juz Jump Modal */}
-      {jumpModalOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Surə, Cüz və ya Səhifəyə keçid"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
-          onClick={() => setJumpModalOpen(false)}
-        >
-          <div
-            className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#DFD5BE] bg-[#FFFBF3] shadow-2xl dark:border-stone-700 dark:bg-[#141916]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[#EAE2CE] px-5 py-4 dark:border-stone-800">
-              <h2 className="font-display text-xl font-semibold text-stone-900 dark:text-stone-100">
-                Surə, Cüz və ya Səhifə Seç
-              </h2>
-              <button
-                type="button"
-                onClick={() => setJumpModalOpen(false)}
-                aria-label="Bağla"
-                className="rounded-lg p-1.5 text-stone-500 hover:bg-stone-200/70 dark:text-stone-400 dark:hover:bg-stone-800"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="px-5 pt-3 space-y-2.5">
-              {(hifzSummary.memorizedCount > 0 ||
-                hifzSummary.learningCount > 0 ||
-                hifzProgress.bookmarkedPage !== null) && (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#EAE2CE] bg-white px-3 py-2 text-[11px] dark:border-stone-800 dark:bg-[#181E1B]">
-                  <span className="font-mono-tabular text-stone-600 dark:text-stone-300">
-                    Əzbərlənib: <strong className="text-[#0E5E4C] dark:text-[#86C7AE]">{hifzSummary.memorizedCount}</strong> / {TOTAL_QURAN_PAGES}
-                    {hifzSummary.learningCount > 0 && ` · Təkrarda: ${hifzSummary.learningCount}`}
-                  </span>
-                  {hifzProgress.bookmarkedPage !== null && (
-                    <button
-                      type="button"
-                      onClick={() => goToPage(hifzProgress.bookmarkedPage!)}
-                      className="inline-flex items-center gap-1 font-medium text-[#9A7B3E] hover:underline dark:text-[#E2C98A]"
-                    >
-                      <Bookmark className="h-3 w-3 fill-current" aria-hidden="true" />
-                      <span>Əlfəcin: Səh. {hifzProgress.bookmarkedPage}</span>
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div className="grid grid-cols-3 gap-1 rounded-lg bg-[#EFE7D5] p-1 dark:bg-[#181E1B]">
-                {(
-                  [
-                    { id: 'surah', label: 'Surələr (114)' },
-                    { id: 'juz', label: 'Cüzlər (30)' },
-                    { id: 'page', label: 'Səhifə (1–604)' },
-                  ] as const
-                ).map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setJumpTab(t.id)}
-                    className={`rounded-md py-1.5 text-xs font-medium transition-colors ${
-                      jumpTab === t.id
-                        ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
-                        : 'text-stone-600 hover:text-stone-900 dark:text-stone-400'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-5">
-              {jumpTab === 'surah' && (
-                <div className="space-y-3">
-                  <input
-                    type="search"
-                    value={surahSearch}
-                    onChange={(e) => setSurahSearch(e.target.value)}
-                    placeholder="Surə adı və ya nömrəsi ilə axtar (məs. Bəqərə, 2)..."
-                    className="w-full rounded-lg border border-[#DFD5BE] bg-white px-3.5 py-2 text-xs text-stone-900 focus:border-[#0E5E4C] focus:outline-none dark:border-stone-700 dark:bg-[#111513] dark:text-stone-100"
-                  />
-                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                    {filteredSurahs.map((s) => (
-                      <button
-                        key={s.number}
-                        type="button"
-                        onClick={() => goToPage(s.startPage)}
-                        className="flex items-center justify-between rounded-lg border border-[#EAE2CE] bg-white px-3.5 py-2.5 text-left transition-colors hover:border-[#0E5E4C] dark:border-stone-800 dark:bg-[#181E1B]"
-                      >
-                        <div>
-                          <p className="text-xs font-medium text-stone-900 dark:text-stone-100">
-                            {s.number}. {s.name}
-                          </p>
-                          <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                            Səhifə {s.startPage} · {s.ayahCount} ayə
-                          </p>
-                        </div>
-                        <span className="font-arabic text-base text-[#0E5E4C] dark:text-[#86C7AE]">
-                          {s.arabicName}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {jumpTab === 'juz' && (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {juzHifzSummary.map((j) => (
-                    <button
-                      key={j.juz}
-                      type="button"
-                      onClick={() => goToPage(j.startPage)}
-                      data-testid={`muhaffiz-juz-card-${j.juz}`}
-                      className="rounded-lg border border-[#EAE2CE] bg-white p-3 text-left transition-colors hover:border-[#0E5E4C] dark:border-stone-800 dark:bg-[#181E1B]"
-                    >
-                      <div className="flex items-center justify-between gap-1">
-                        <p className="text-xs font-semibold text-stone-900 dark:text-stone-100">
-                          {j.juz}-ci Cüz
-                        </p>
-                        {j.memorizedPages > 0 && (
-                          <span className="font-mono-tabular text-[11px] font-medium text-[#0E5E4C] dark:text-[#86C7AE]">
-                            {j.memorizedPages}/{j.totalPages}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 font-mono-tabular text-[11px] text-stone-500 dark:text-stone-400">
-                        Səhifə {j.startPage}–{j.endPage}
-                      </p>
-                      <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-[#EFE7D5] dark:bg-[#101412]">
-                        <div
-                          style={{ width: `${Math.min(100, j.memorizedPercent)}%` }}
-                          className="h-full bg-[#0E5E4C] transition-all duration-300 dark:bg-[#86C7AE]"
-                        />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {jumpTab === 'page' && (
-                <div className="space-y-4">
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      goToPage(Number.parseInt(jumpPageInput, 10) || 1);
-                    }}
-                    className="space-y-4"
-                  >
-                    <div>
-                      <label
-                        htmlFor="jump-page-number"
-                        className="block text-xs font-medium text-stone-700 dark:text-stone-300"
-                      >
-                        Mədinə Mushafı səhifə nömrəsi (1–604)
-                      </label>
-                      <div className="mt-2 flex items-center gap-2">
-                        <input
-                          id="jump-page-number"
-                          type="number"
-                          min={1}
-                          max={TOTAL_QURAN_PAGES}
-                          value={jumpPageInput}
-                          onChange={(e) => setJumpPageInput(e.target.value)}
-                          className="w-full rounded-lg border border-[#DFD5BE] bg-white px-3.5 py-2.5 font-mono-tabular text-sm text-stone-900 focus:border-[#0E5E4C] focus:outline-none dark:border-stone-700 dark:bg-[#111513] dark:text-stone-100"
-                        />
-                        <button
-                          type="submit"
-                          className="shrink-0 rounded-lg bg-[#0E5E4C] px-5 py-2.5 text-xs font-medium text-white hover:bg-[#0B4A3C] dark:bg-[#196B52]"
-                        >
-                          Aç
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-
-                  {trackedPagesList.length > 0 && (
-                    <div className="border-t border-[#EAE2CE] pt-3 dark:border-stone-800">
-                      <p className="text-[11px] font-medium text-stone-600 dark:text-stone-400">
-                        İzlənən səhifələr ({trackedPagesList.length})
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {trackedPagesList.map((item) => (
-                          <button
-                            key={item.page}
-                            type="button"
-                            onClick={() => goToPage(item.page)}
-                            className={`rounded-md border px-2.5 py-1 font-mono-tabular text-[11px] font-medium ${
-                              item.status === 'memorized'
-                                ? 'border-[#0E5E4C]/35 bg-[#0E5E4C]/12 text-[#0E5E4C] dark:text-[#86C7AE]'
-                                : 'border-amber-600/35 bg-amber-500/12 text-amber-800 dark:text-amber-300'
-                            }`}
-                          >
-                            Səh. {item.page}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+              {statusSubLabel && (
+                <p
+                  className="hidden truncate text-[11px] sm:block"
+                  style={{ color: palette.muted }}
+                >
+                  {statusSubLabel}
+                </p>
               )}
             </div>
           </div>
+
+          {/* Center: Silent Repeat Controls (when Səssiz təkrar active) OR clean page arrows */}
+          <div className="relative flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => goToPage(pageNumber + 1)}
+              disabled={pageNumber >= TOTAL_QURAN_PAGES}
+              aria-label="Növbəti səhifə"
+              title="Növbəti səhifə"
+              data-testid="muhaffiz-next-page"
+              style={{ borderColor: palette.line, backgroundColor: palette.chip }}
+              className="grid h-9 w-9 place-items-center rounded-full border transition-opacity hover:opacity-75 disabled:opacity-35"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => goToPage(pageNumber - 1)}
+              disabled={pageNumber <= 1}
+              aria-label="Əvvəlki səhifə"
+              title="Əvvəlki səhifə"
+              data-testid="muhaffiz-prev-page"
+              style={{ borderColor: palette.line, backgroundColor: palette.chip }}
+              className="grid h-9 w-9 place-items-center rounded-full border transition-opacity hover:opacity-75 disabled:opacity-35"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+
+            {prefs.silentMode && (
+              <>
+                <span
+                  aria-hidden="true"
+                  style={{ backgroundColor: palette.line }}
+                  className="mx-0.5 h-5 w-px"
+                />
+
+                {/* Speed Popover Trigger (⏱ 1.5s) */}
+                <button
+                  type="button"
+                  onClick={() => setSpeedPopOpen((v) => !v)}
+                  aria-haspopup="dialog"
+                  aria-expanded={speedPopOpen}
+                  aria-label={`Sürət: ${prefs.silentSpeedSec}s`}
+                  title="Avtomatik açılma sürəti"
+                  data-testid="muhaffiz-speed-btn"
+                  style={{ borderColor: palette.line, backgroundColor: palette.chip }}
+                  className="inline-flex h-9 items-center gap-1 rounded-full border px-2.5 font-mono-tabular text-xs font-semibold transition-opacity hover:opacity-80"
+                >
+                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>{prefs.silentSpeedSec}s</span>
+                </button>
+
+                {/* Auto-Reveal Play/Pause */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    stopAudio();
+                    stopMic();
+                    setIsAutoRevealing((v) => !v);
+                  }}
+                  aria-pressed={isAutoRevealing}
+                  aria-label={
+                    isAutoRevealing ? 'Sözləri açmağı saxla' : 'Sözləri bir-bir aç'
+                  }
+                  title="Sözləri bir-bir aç"
+                  data-testid="muhaffiz-auto-btn"
+                  style={
+                    isAutoRevealing
+                      ? { backgroundColor: palette.green, color: palette.paper, borderColor: palette.green }
+                      : { borderColor: palette.line, backgroundColor: palette.chip }
+                  }
+                  className="grid h-9 w-9 place-items-center rounded-full border transition-colors"
+                >
+                  {isAutoRevealing ? (
+                    <Pause className="h-3.5 w-3.5" aria-hidden="true" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                </button>
+
+                {/* Hide Last (-) / Reveal Next (+) compact pills */}
+                <button
+                  type="button"
+                  onClick={handleHideLast}
+                  disabled={revealedWordCount === 0}
+                  aria-label={prefs.revealMode === 'word' ? 'Son sözü gizlət' : 'Son ayəni gizlət'}
+                  data-testid="muhaffiz-hide-last"
+                  style={{ borderColor: palette.line, backgroundColor: palette.chip }}
+                  className="hidden h-9 w-9 place-items-center rounded-full border disabled:opacity-35 sm:grid"
+                >
+                  <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleRevealNext}
+                  disabled={allRevealed || wordTokens.length === 0}
+                  aria-label={prefs.revealMode === 'word' ? 'Növbəti sözü göstər' : 'Növbəti ayəni göstər'}
+                  data-testid="muhaffiz-reveal-next"
+                  style={{ borderColor: palette.line, backgroundColor: palette.chip }}
+                  className="hidden h-9 w-9 place-items-center rounded-full border disabled:opacity-35 sm:grid"
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+
+                {/* Speed selector popover (0.5s .. 5s) */}
+                {speedPopOpen && (
+                  <div
+                    role="dialog"
+                    aria-label="Sürət"
+                    style={{
+                      backgroundColor: palette.paper,
+                      borderColor: palette.line,
+                      color: palette.ink,
+                    }}
+                    className="absolute bottom-full left-1/2 z-40 mb-2 w-60 -translate-x-1/2 rounded-2xl border p-3 shadow-xl"
+                  >
+                    <div className="mb-2 flex items-baseline justify-between text-xs">
+                      <b>Sürət</b>
+                      <span style={{ color: palette.muted }}>saniyə / söz</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {MUHAFFIZ_SILENT_SPEEDS.map((spd) => {
+                        const active = prefs.silentSpeedSec === spd;
+                        return (
+                          <button
+                            key={spd}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => {
+                              setPrefs((p) => ({
+                                ...p,
+                                silentSpeedSec: spd,
+                                autoIntervalMs: Math.round(spd * 1000),
+                              }));
+                              setSpeedPopOpen(false);
+                            }}
+                            style={
+                              active
+                                ? {
+                                    backgroundColor: palette.ink,
+                                    color: palette.paper,
+                                    borderColor: palette.ink,
+                                  }
+                                : { borderColor: palette.line, backgroundColor: palette.chip }
+                            }
+                            className="h-8 rounded-full border font-mono-tabular text-xs font-semibold"
+                          >
+                            {spd}s
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Right: Circular Deep Forest Green Mikrofon Button */}
+          <div className="flex shrink-0 justify-end sm:flex-1">
+            <button
+              type="button"
+              onClick={handleToggleMicrophone}
+              aria-pressed={isMicListening}
+              aria-label={isMicListening ? 'Mikrofonu dayandır' : 'Mikrofon'}
+              title={isMicListening ? 'Mikrofonu dayandır' : 'Mikrofonla oxu'}
+              data-testid="muhaffiz-mic-btn"
+              style={{
+                backgroundColor: '#1c3d32',
+                color: '#fffaf0',
+                boxShadow:
+                  isMicListening || playingKey
+                    ? `0 0 0 3px ${palette.gold}`
+                    : undefined,
+              }}
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full transition-shadow hover:opacity-90"
+            >
+              {isMicListening ? (
+                <MicOff className="h-5 w-5" aria-hidden="true" />
+              ) : (
+                <Mic className="h-5 w-5" aria-hidden="true" />
+              )}
+            </button>
+          </div>
+        </div>
+      </footer>
+
+      {/* Mistakes Drawer (.t-miss) */}
+      {mistakesOpen && (
+        <div
+          role="dialog"
+          aria-label="Xətalar"
+          dir="ltr"
+          style={{
+            backgroundColor: palette.paper,
+            borderColor: palette.line,
+            color: palette.ink,
+          }}
+          className="fixed inset-x-3 bottom-18 z-40 mx-auto max-h-[46vh] max-w-[520px] overflow-y-auto rounded-2xl border p-3 shadow-2xl"
+        >
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-sm font-bold">Xətalar ({missedWords.length})</span>
+            <div className="flex items-center gap-3">
+              {missedWords.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setMissedWords([])}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#9c2f24] hover:underline"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Təmizlə</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setMistakesOpen(false)}
+                aria-label="Bağla"
+                style={{ backgroundColor: palette.line }}
+                className="grid h-7 w-7 place-items-center rounded-full"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {missedWords.length === 0 ? (
+            <p className="py-4 text-center text-xs" style={{ color: palette.muted }}>
+              Hələ qeydə alınmış xəta yoxdur. Canlı oxunuşda buraxılan sözlər və ya oxu rejimində
+              işarələdiyiniz sözlər burada görünür.
+            </p>
+          ) : (
+            <div className="divide-y" style={{ borderColor: palette.line }}>
+              {missedWords.map((item) => (
+                <button
+                  key={`${item.tokenId}-${item.createdAt}`}
+                  type="button"
+                  onClick={() => goToPage(item.pageNumber)}
+                  className="flex w-full items-center justify-between gap-3 py-2 text-left transition-colors hover:bg-black/5"
+                >
+                  <div>
+                    <p className="text-xs font-semibold">
+                      {cleanSurahTitle(item.surahName)} · {item.ayahKey}
+                    </p>
+                    <p className="text-[11px]" style={{ color: palette.muted }}>
+                      Mədinə səhifəsi {item.pageNumber}
+                    </p>
+                  </div>
+                  <span dir="rtl" lang="ar" style={headerFontStyle} className="text-xl">
+                    {item.stemText}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
+
+      {/* Ayarlar Bottom Sheet */}
+      <MuhaffizSettingsSheet
+        isOpen={settingsOpen}
+        pageNumber={pageNumber}
+        revealedAyahCount={revealedAyahCount}
+        missedCount={missedWords.length}
+        prefs={prefs}
+        hifzSummary={hifzSummary}
+        currentPageHifzStatus={currentPageHifzStatus}
+        isCurrentPageBookmarked={isCurrentPageBookmarked}
+        playbackSpeed={playbackSpeed}
+        repeatCount={repeatCount}
+        isPlayingAudio={Boolean(playingKey)}
+        allRevealed={allRevealed}
+        onClose={() => setSettingsOpen(false)}
+        onUpdatePrefs={(updater) => setPrefs((prev) => updater(prev))}
+        onToggleRevealAll={() => {
+          setIsAutoRevealing(false);
+          if (allRevealed) {
+            stopAudio();
+            setRevealedTokenIds(new Set());
+          } else {
+            setRevealedTokenIds(new Set(wordTokens.map((t) => t.id)));
+          }
+        }}
+        onToggleAudio={handleToggleListen}
+        onSetPlaybackSpeed={setPlaybackSpeed}
+        onSetRepeatCount={setRepeatCount}
+        onSetPageStatus={(status) =>
+          setHifzProgress((prev) => setHifzPageStatus(prev, pageNumber, status))
+        }
+        onToggleBookmark={() =>
+          setHifzProgress((prev) => toggleHifzBookmark(prev, pageNumber))
+        }
+        onOpenIndex={() => {
+          setSettingsOpen(false);
+          setIndexOpen(true);
+        }}
+        onNavigate={onNavigate}
+      />
+
+      {/* Full-Screen Surə və Səhifə Picker (.t-index) */}
+      <MuhaffizIndexOverlay
+        isOpen={indexOpen}
+        currentPage={pageNumber}
+        currentSurahName={primarySurahName}
+        paperTheme={prefs.paperTheme}
+        hifzProgress={hifzProgress}
+        juzSummary={juzHifzSummary}
+        onClose={() => setIndexOpen(false)}
+        onSelectPage={goToPage}
+        onOpenSettings={() => {
+          setIndexOpen(false);
+          setSettingsOpen(true);
+        }}
+      />
     </section>
   );
 }

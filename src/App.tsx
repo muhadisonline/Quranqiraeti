@@ -3,6 +3,7 @@ import { AboutChannelSection, VerseOfTheDaySection } from './components/ChannelS
 import { Footer } from './components/Footer';
 import { HeroSection } from './components/HeroSection';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { QuickJumpModal } from './components/QuickJumpModal';
 import { RecitationArchive } from './components/RecitationArchive';
 import { SeoHead } from './components/SeoHead';
 import { SurahRequestSection } from './components/SurahRequestSection';
@@ -124,6 +125,18 @@ function AppContent() {
 
   const [activeVideo, setActiveVideo] = useState<RecitationVideo | null>(null);
   const [requests, setRequests] = useState<SurahRequestRecord[]>([]);
+  const [isQuickJumpOpen, setIsQuickJumpOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    function handleGlobalSearchShortcut(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsQuickJumpOpen((prev) => !prev);
+      }
+    }
+    window.addEventListener('keydown', handleGlobalSearchShortcut);
+    return () => window.removeEventListener('keydown', handleGlobalSearchShortcut);
+  }, []);
 
   useEffect(() => {
     function handlePopState() {
@@ -317,6 +330,7 @@ function AppContent() {
           currentPath={currentPath}
           subscribeUrl={stats.subscribeUrl}
           onNavigate={navigate}
+          onOpenQuickSearch={() => setIsQuickJumpOpen(true)}
         />
       )}
 
@@ -562,6 +576,13 @@ function AppContent() {
           }
         }}
         onToggleSave={handleToggleSave}
+      />
+
+      <QuickJumpModal
+        isOpen={isQuickJumpOpen}
+        videos={allVideos}
+        onClose={() => setIsQuickJumpOpen(false)}
+        onNavigate={navigate}
       />
 
       <OfflineIndicator />

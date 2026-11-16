@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight, Bookmark, Check, Copy, ImageDown, Play, Square, Volume2 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ReaderAudioBar } from '../components/ReaderAudioBar';
 import { SeoHead } from '../components/SeoHead';
 import {
   useAudioPlaybackPrefs,
@@ -289,6 +290,27 @@ export function QuranMushafPage({ pageNumber, activeHash, onNavigate }: QuranMus
       }
     }
     playAyahAtIndex(0);
+  }
+
+  const playingPageIndex = useMemo(() => {
+    const list = payload?.ayahs ?? [];
+    if (!playingKey) return -1;
+    return list.findIndex((a) => `${a.surahNumber}:${a.ayahNumber}` === playingKey);
+  }, [payload, playingKey]);
+
+  const activePlayingAyah =
+    playingPageIndex >= 0 ? payload?.ayahs[playingPageIndex] : undefined;
+
+  function handleCycleSpeed() {
+    const order: AudioPlaybackSpeed[] = [0.75, 1, 1.25];
+    const nextIdx = (order.indexOf(playbackSpeed) + 1) % order.length;
+    setPlaybackSpeed(order[nextIdx] ?? 1);
+  }
+
+  function handleCycleRepeat() {
+    const order: AyahRepeatCount[] = [1, 3, 0];
+    const nextIdx = (order.indexOf(repeatCount) + 1) % order.length;
+    setRepeatCount(order[nextIdx] ?? 1);
   }
 
   if (!isValidPage) {
@@ -906,6 +928,38 @@ export function QuranMushafPage({ pageNumber, activeHash, onNavigate }: QuranMus
           )}
         </nav>
       </div>
+
+      {playingKey && (
+        <ReaderAudioBar
+          playingLabel={
+            activePlayingAyah
+              ? `${activePlayingAyah.surahName} · ${playingKey} (Səh. ${pageNumber})`
+              : `Səhifə ${pageNumber} · ${playingKey}`
+          }
+          reciterLabel={MUHAFFIZ_RECITERS.find((r) => r.id === reciter)?.label ?? reciter}
+          hasPrev={playingPageIndex > 0}
+          hasNext={
+            playingPageIndex >= 0 &&
+            playingPageIndex < (payload?.ayahs.length ?? 0) - 1
+          }
+          playbackSpeed={playbackSpeed}
+          repeatCount={repeatCount}
+          onPrev={() => {
+            if (playingPageIndex > 0) playAyahAtIndex(playingPageIndex - 1);
+          }}
+          onNext={() => {
+            if (
+              playingPageIndex >= 0 &&
+              playingPageIndex < (payload?.ayahs.length ?? 0) - 1
+            ) {
+              playAyahAtIndex(playingPageIndex + 1);
+            }
+          }}
+          onStop={stopAudio}
+          onCycleSpeed={handleCycleSpeed}
+          onCycleRepeat={handleCycleRepeat}
+        />
+      )}
     </article>
   );
 }

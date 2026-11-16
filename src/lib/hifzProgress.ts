@@ -104,11 +104,13 @@ export function getHifzPageStatus(
   return state.pages[page] ?? 'none';
 }
 
-export function summarizeHifzProgress(state: HifzProgressState): {
+export interface HifzSummary {
   memorizedCount: number;
   learningCount: number;
   memorizedPercent: number;
-} {
+}
+
+export function summarizeHifzProgress(state: HifzProgressState): HifzSummary {
   let memorizedCount = 0;
   let learningCount = 0;
   for (const val of Object.values(state.pages)) {

@@ -4,6 +4,8 @@ import {
   DEFAULT_MUHAFFIZ_PREFS,
   FATIHAT_PAGE_1_MUHAFFIZ_SEED,
   FATIHAT_PAGE_1_SEED,
+  MUHAFFIZ_SILENT_SPEEDS,
+  MUHAFFIZ_THEME_PALETTES,
   ayahKey,
   buildSyntheticMuhaffizRows,
   buildTokensFromQuranComVerses,
@@ -12,12 +14,15 @@ import {
   formatArabicJuzLabel,
   getEveryAyahAudioUrl,
   getQcfV2FontUrl,
+  getSurahBannerGlyphs,
   groupPageAyahsBySurah,
   groupTokensIntoMushafRows,
   hideLastAyah,
   hideLastStep,
   hideLastWord,
   isAyahRevealed,
+  matchSpokenArabicAgainstTokens,
+  normalizeArabicForSpeech,
   orderedWordTokens,
   revealNextAyah,
   revealNextStep,
@@ -191,3 +196,32 @@ test('getEveryAyahAudioUrl formats padded MP3 endpoints cleanly', () => {
     'https://everyayah.com/data/Husary_128kbps/112004.mp3'
   );
 });
+
+test('getSurahBannerGlyphs and MUHAFFIZ_THEME_PALETTES match Mushafuk glyph and theme specs', () => {
+  const fatiha = getSurahBannerGlyphs(1);
+  assert.equal(fatiha.prefixGlyph, '\uE000');
+  assert.equal(fatiha.nameGlyph, '\uE001');
+  const yasin = getSurahBannerGlyphs(36);
+  assert.equal(yasin.nameGlyph, String.fromCharCode(0xe000 + 0x36));
+  assert.equal(MUHAFFIZ_THEME_PALETTES.cream.paper, '#fffaf0');
+  assert.equal(MUHAFFIZ_THEME_PALETTES.white.paper, '#ffffff');
+  assert.equal(MUHAFFIZ_THEME_PALETTES.black.paper, '#111111');
+  assert.equal(MUHAFFIZ_SILENT_SPEEDS.includes(1.5), true);
+});
+
+test('normalizeArabicForSpeech and matchSpokenArabicAgainstTokens match spoken recitation and flag skipped words', () => {
+  assert.equal(normalizeArabicForSpeech('بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ'), 'بسم الله الرحمن');
+  const tokens = orderedWordTokens(FATIHAT_PAGE_1_MUHAFFIZ_SEED.rows);
+
+  const exact = matchSpokenArabicAgainstTokens('بسم الله', tokens, 0);
+  assert.equal(exact.nextCursorIndex, 2);
+  assert.equal(exact.matchedTokenIds.length, 2);
+  assert.equal(exact.skippedTokens.length, 0);
+
+  // Skips الرحمن and hits الرحيم directly
+  const skipped = matchSpokenArabicAgainstTokens('الرحيم', tokens, 2);
+  assert.equal(skipped.nextCursorIndex, 4);
+  assert.equal(skipped.skippedTokens.length, 1);
+  assert.equal(skipped.skippedTokens[0].stemText, 'ٱلرَّحْمَـٰنِ');
+});
+

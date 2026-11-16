@@ -1,4 +1,4 @@
-import { Menu, X } from 'lucide-react';
+import { Menu, Search, X } from 'lucide-react';
 import { MouseEvent, useState } from 'react';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -6,6 +6,7 @@ interface TopBarProps {
   currentPath: string;
   subscribeUrl: string;
   onNavigate: (path: string) => void;
+  onOpenQuickSearch: () => void;
 }
 
 const NAV_LINKS = [
@@ -17,7 +18,7 @@ const NAV_LINKS = [
   { path: '/haqqinda', label: 'Haqqında' },
 ];
 
-export function TopBar({ currentPath, subscribeUrl, onNavigate }: TopBarProps) {
+export function TopBar({ currentPath, subscribeUrl, onNavigate, onOpenQuickSearch }: TopBarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   function handleLinkClick(e: MouseEvent<HTMLAnchorElement>, path: string) {
@@ -67,8 +68,22 @@ export function TopBar({ currentPath, subscribeUrl, onNavigate }: TopBarProps) {
           })}
         </nav>
 
-        {/* Zone 3: PWA Install + Single Primary Action + Mobile Menu Trigger */}
+        {/* Zone 3: Quick Search + PWA Install + Single Primary Action + Mobile Menu Trigger */}
         <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={onOpenQuickSearch}
+            data-testid="topbar-quick-search"
+            aria-label="Sürətli Quran və Tilavət axtarışı (Ctrl+K)"
+            className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 whitespace-nowrap transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200 dark:hover:border-[#86C7AE] min-h-[38px]"
+          >
+            <Search className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
+            <span className="hidden sm:inline">Axtar</span>
+            <kbd className="hidden lg:inline-block rounded border border-stone-200 bg-[#F7F5F0] px-1.5 py-0.5 font-mono-tabular text-[10px] text-stone-500 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-400">
+              ⌘K
+            </kbd>
+          </button>
+
           <div className="hidden sm:flex items-center">
             <PWAInstallButton />
           </div>

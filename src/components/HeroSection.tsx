@@ -99,6 +99,17 @@ export function HeroSection({
                 >
                   Mühafiz (Əzbər Mushafı)
                 </a>
+                <span aria-hidden="true">·</span>
+                <a
+                  href="/dualar"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onNavigate('/dualar');
+                  }}
+                  className="font-medium text-stone-700 hover:text-[#0F4C3A] dark:text-stone-300 dark:hover:text-[#86C7AE]"
+                >
+                  Qurandakı Dualar
+                </a>
                 {lastRead && (
                   <>
                     <span aria-hidden="true">·</span>

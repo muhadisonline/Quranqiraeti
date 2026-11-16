@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ReaderAudioBar } from '../components/ReaderAudioBar';
 import { SeoHead } from '../components/SeoHead';
 import {
   useAudioPlaybackPrefs,
@@ -357,6 +358,23 @@ export function QuranSurahPage({
       }
     }
     playAyahAtIndex(0);
+  }
+
+  const playingDisplayIndex = useMemo(() => {
+    if (!playingKey) return -1;
+    return displayedAyahs.findIndex((a) => `${a.surahNumber}:${a.ayahNumber}` === playingKey);
+  }, [playingKey, displayedAyahs]);
+
+  function handleCycleSpeed() {
+    const order: AudioPlaybackSpeed[] = [0.75, 1, 1.25];
+    const nextIdx = (order.indexOf(playbackSpeed) + 1) % order.length;
+    setPlaybackSpeed(order[nextIdx] ?? 1);
+  }
+
+  function handleCycleRepeat() {
+    const order: AyahRepeatCount[] = [1, 3, 0];
+    const nextIdx = (order.indexOf(repeatCount) + 1) % order.length;
+    setRepeatCount(order[nextIdx] ?? 1);
   }
 
   const firstPage = pageGroups[0]?.pageNumber ?? surah?.startPage;
@@ -1210,6 +1228,28 @@ export function QuranSurahPage({
           )}
         </nav>
       </div>
+
+      {playingKey && (
+        <ReaderAudioBar
+          playingLabel={`${surah.name} · ${playingKey}`}
+          reciterLabel={MUHAFFIZ_RECITERS.find((r) => r.id === reciter)?.label ?? reciter}
+          hasPrev={playingDisplayIndex > 0}
+          hasNext={playingDisplayIndex >= 0 && playingDisplayIndex < displayedAyahs.length - 1}
+          playbackSpeed={playbackSpeed}
+          repeatCount={repeatCount}
+          onPrev={() => {
+            if (playingDisplayIndex > 0) playAyahAtIndex(playingDisplayIndex - 1);
+          }}
+          onNext={() => {
+            if (playingDisplayIndex >= 0 && playingDisplayIndex < displayedAyahs.length - 1) {
+              playAyahAtIndex(playingDisplayIndex + 1);
+            }
+          }}
+          onStop={stopAudio}
+          onCycleSpeed={handleCycleSpeed}
+          onCycleRepeat={handleCycleRepeat}
+        />
+      )}
     </article>
   );
 }
