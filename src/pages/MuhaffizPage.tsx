@@ -22,6 +22,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PWAInstallButton } from '../components/PWAInstallButton';
 import { SeoHead } from '../components/SeoHead';
+import { useAudioPlaybackPrefs, useReadingGoal } from '../hooks/useReaderPreferences';
 import {
   EMPTY_HIFZ_PROGRESS,
   HifzProgressState,
@@ -29,6 +30,7 @@ import {
   sanitizeHifzProgress,
   setHifzPageStatus,
   summarizeHifzProgress,
+  summarizeJuzHifzProgress,
   toggleHifzBookmark,
 } from '../lib/hifzProgress';
 import {
@@ -55,8 +57,9 @@ import {
   toggleEntireAyahTokens,
   toggleWordToken,
 } from '../lib/muhaffiz';
-import { JUZ_PAGE_RANGES, SURAH_CATALOG, TOTAL_QURAN_PAGES } from '../lib/quran';
+import { SURAH_CATALOG, TOTAL_QURAN_PAGES } from '../lib/quran';
 import { fetchMuhaffizPageWithFallback } from '../lib/quranClient';
+import { AudioPlaybackSpeed, AyahRepeatCount } from '../lib/readerState';
 import { buildBreadcrumbJsonLd } from '../lib/seo';
 
 interface MuhaffizPageProps {
@@ -141,6 +144,8 @@ export function MuhaffizPage({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingKey, setPlayingKey] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const { playbackSpeed, setPlaybackSpeed, repeatCount, setRepeatCount } = useAudioPlaybackPrefs();
+  const { recordPageRead } = useReadingGoal();
 
   // Load shared UthmanicHafs1 font once for running headers, Surah names & fallback text
   useEffect(() => {
@@ -236,7 +241,8 @@ export function MuhaffizPage({
       // ignore storage error
     }
     setJumpPageInput(String(pageNumber));
-  }, [pageNumber]);
+    recordPageRead(pageNumber);
+  }, [pageNumber, recordPageRead]);
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -247,6 +253,12 @@ export function MuhaffizPage({
     }
     setPlayingKey(null);
   }, []);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -325,6 +337,7 @@ export function MuhaffizPage({
   const allRevealed = wordTokens.length > 0 && revealedWordCount === wordTokens.length;
 
   const hifzSummary = useMemo(() => summarizeHifzProgress(hifzProgress), [hifzProgress]);
+  const juzHifzSummary = useMemo(() => summarizeJuzHifzProgress(hifzProgress), [hifzProgress]);
   const currentPageHifzStatus = getHifzPageStatus(hifzProgress, pageNumber);
   const isCurrentPageBookmarked = hifzProgress.bookmarkedPage === pageNumber;
   const trackedPagesList = useMemo(
@@ -372,11 +385,12 @@ export function MuhaffizPage({
   }, [isAutoRevealing, prefs.revealMode, ayahs, wordTokens, prefs.autoIntervalMs]);
 
   const playAyahAtIndex = useCallback(
-    (index: number) => {
+    (index: number, remainingRepeats?: number) => {
       if (index < 0 || index >= ayahs.length) {
         stopAudio();
         return;
       }
+      const repeatsLeft = remainingRepeats ?? repeatCount;
       const ayah = ayahs[index];
       const key = ayahKey(ayah);
       stopAudio();
@@ -388,13 +402,18 @@ export function MuhaffizPage({
       const audio = new Audio(
         getEveryAyahAudioUrl(ayah.surahNumber, ayah.ayahNumber, prefs.reciter)
       );
+      audio.playbackRate = playbackSpeed;
       audioRef.current = audio;
       setPlayingKey(key);
 
       audio.onended = () => {
         if (audioRef.current !== audio) return;
-        if (index + 1 < ayahs.length) {
-          playAyahAtIndex(index + 1);
+        if (repeatsLeft === 0) {
+          playAyahAtIndex(index, 0);
+        } else if (repeatsLeft > 1) {
+          playAyahAtIndex(index, repeatsLeft - 1);
+        } else if (index + 1 < ayahs.length) {
+          playAyahAtIndex(index + 1, repeatCount);
         } else {
           stopAudio();
         }
@@ -412,7 +431,7 @@ export function MuhaffizPage({
         setAudioError('Səs oxutma brauzer tərəfindən dayandırıldı. Yenidən toxunun.');
       });
     },
-    [ayahs, wordTokens, prefs.reciter, stopAudio]
+    [ayahs, wordTokens, prefs.reciter, playbackSpeed, repeatCount, stopAudio]
   );
 
   function handleToggleListen() {
@@ -982,6 +1001,62 @@ export function MuhaffizPage({
                   </select>
                 </div>
 
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="block text-stone-500 dark:text-stone-400">Oxutma sürəti</span>
+                    <div
+                      data-testid="muhaffiz-audio-speed"
+                      className="mt-1 grid grid-cols-3 gap-0.5 rounded-lg bg-[#EFE7D5] p-0.5 dark:bg-[#101412]"
+                    >
+                      {([0.75, 1, 1.25] as AudioPlaybackSpeed[]).map((spd) => (
+                        <button
+                          key={spd}
+                          type="button"
+                          onClick={() => setPlaybackSpeed(spd)}
+                          aria-pressed={playbackSpeed === spd}
+                          className={`rounded-md py-1 font-mono-tabular text-[11px] font-medium ${
+                            playbackSpeed === spd
+                              ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
+                              : 'text-stone-600 dark:text-stone-400'
+                          }`}
+                        >
+                          {spd}×
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="block text-stone-500 dark:text-stone-400">Ayə təkrarı</span>
+                    <div
+                      data-testid="muhaffiz-audio-repeat"
+                      className="mt-1 grid grid-cols-3 gap-0.5 rounded-lg bg-[#EFE7D5] p-0.5 dark:bg-[#101412]"
+                    >
+                      {(
+                        [
+                          { val: 1 as AyahRepeatCount, label: '1×' },
+                          { val: 3 as AyahRepeatCount, label: '3×' },
+                          { val: 0 as AyahRepeatCount, label: '∞' },
+                        ]
+                      ).map((opt) => (
+                        <button
+                          key={opt.val}
+                          type="button"
+                          onClick={() => setRepeatCount(opt.val)}
+                          aria-pressed={repeatCount === opt.val}
+                          className={`rounded-md py-1 font-mono-tabular text-[11px] font-medium ${
+                            repeatCount === opt.val
+                              ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
+                              : 'text-stone-600 dark:text-stone-400'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Hifz Progress Tracking for Current Page */}
                 <div className="border-t border-[#EAE2CE] pt-2.5 dark:border-stone-800">
                   <div className="flex items-center justify-between text-[11px]">
@@ -1314,19 +1389,33 @@ export function MuhaffizPage({
 
               {jumpTab === 'juz' && (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {JUZ_PAGE_RANGES.map((j) => (
+                  {juzHifzSummary.map((j) => (
                     <button
                       key={j.juz}
                       type="button"
                       onClick={() => goToPage(j.startPage)}
+                      data-testid={`muhaffiz-juz-card-${j.juz}`}
                       className="rounded-lg border border-[#EAE2CE] bg-white p-3 text-left transition-colors hover:border-[#0E5E4C] dark:border-stone-800 dark:bg-[#181E1B]"
                     >
-                      <p className="text-xs font-semibold text-stone-900 dark:text-stone-100">
-                        {j.juz}-ci Cüz
-                      </p>
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="text-xs font-semibold text-stone-900 dark:text-stone-100">
+                          {j.juz}-ci Cüz
+                        </p>
+                        {j.memorizedPages > 0 && (
+                          <span className="font-mono-tabular text-[11px] font-medium text-[#0E5E4C] dark:text-[#86C7AE]">
+                            {j.memorizedPages}/{j.totalPages}
+                          </span>
+                        )}
+                      </div>
                       <p className="mt-0.5 font-mono-tabular text-[11px] text-stone-500 dark:text-stone-400">
                         Səhifə {j.startPage}–{j.endPage}
                       </p>
+                      <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-[#EFE7D5] dark:bg-[#101412]">
+                        <div
+                          style={{ width: `${Math.min(100, j.memorizedPercent)}%` }}
+                          className="h-full bg-[#0E5E4C] transition-all duration-300 dark:bg-[#86C7AE]"
+                        />
+                      </div>
                     </button>
                   ))}
                 </div>

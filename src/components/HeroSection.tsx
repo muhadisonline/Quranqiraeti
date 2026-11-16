@@ -1,6 +1,7 @@
-import { ArrowRight, Play } from 'lucide-react';
+import { ArrowRight, BookOpen, Play } from 'lucide-react';
 import { useState } from 'react';
 import heroManuscriptImage from '../assets/images/hero_quran_manuscript_1794730601154.jpg';
+import { useLastRead, useSavedAyahs } from '../hooks/useReaderPreferences';
 import { ChannelStats, RecitationVideo } from '../lib/channel';
 
 interface HeroSectionProps {
@@ -23,6 +24,8 @@ export function HeroSection({
   onNavigate,
 }: HeroSectionProps) {
   const [imgFailed, setImgFailed] = useState(false);
+  const lastRead = useLastRead();
+  const { savedAyahs } = useSavedAyahs();
 
   return (
     <section className="border-b border-stone-200/80 dark:border-stone-800/80">
@@ -44,29 +47,90 @@ export function HeroSection({
               </p>
             </div>
 
-            <div className="mt-8 flex flex-wrap items-center gap-5 pt-2">
-              <button
-                type="button"
-                onClick={() => onPlayFeatured(featuredVideo)}
-                className="inline-flex items-center gap-2.5 rounded-lg bg-[#0F4C3A] px-5 py-3 text-sm font-medium text-white whitespace-nowrap shrink-0 transition-colors duration-150 hover:bg-[#0B3A2C] dark:bg-[#196B52] dark:hover:bg-[#1E7F61] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F4C3A] focus-visible:ring-offset-2 min-h-[44px]"
-              >
-                <Play className="h-4 w-4 fill-current" aria-hidden="true" />
-                <span>
-                  Dinlə: {featuredVideo.surahName} ({featuredVideo.duration})
-                </span>
-              </button>
+            <div className="mt-8 space-y-4 pt-2">
+              <div className="flex flex-wrap items-center gap-5">
+                <button
+                  type="button"
+                  onClick={() => onPlayFeatured(featuredVideo)}
+                  className="inline-flex items-center gap-2.5 rounded-lg bg-[#0F4C3A] px-5 py-3 text-sm font-medium text-white whitespace-nowrap shrink-0 transition-colors duration-150 hover:bg-[#0B3A2C] dark:bg-[#196B52] dark:hover:bg-[#1E7F61] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F4C3A] focus-visible:ring-offset-2 min-h-[44px]"
+                >
+                  <Play className="h-4 w-4 fill-current" aria-hidden="true" />
+                  <span>
+                    Dinlə: {featuredVideo.surahName} ({featuredVideo.duration})
+                  </span>
+                </button>
 
-              <a
-                href="/shorts"
-                onClick={(e) => {
-                  e.preventDefault();
-                  onNavigate('/shorts');
-                }}
-                className="inline-flex items-center gap-1.5 py-2 text-sm font-medium text-stone-700 underline decoration-stone-300 underline-offset-4 transition-colors duration-150 hover:text-[#0F4C3A] hover:decoration-[#0F4C3A] dark:text-stone-300 dark:decoration-stone-700 dark:hover:text-[#86C7AE] whitespace-nowrap shrink-0 min-h-[44px]"
+                <a
+                  href="/shorts"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onNavigate('/shorts');
+                  }}
+                  className="inline-flex items-center gap-1.5 py-2 text-sm font-medium text-stone-700 underline decoration-stone-300 underline-offset-4 transition-colors duration-150 hover:text-[#0F4C3A] hover:decoration-[#0F4C3A] dark:text-stone-300 dark:decoration-stone-700 dark:hover:text-[#86C7AE] whitespace-nowrap shrink-0 min-h-[44px]"
+                >
+                  <span>Shorts bölməsinə keçid ({shortsCount})</span>
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </a>
+              </div>
+
+              <div
+                data-testid="hero-quick-links"
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-stone-200/80 pt-3.5 text-xs text-stone-500 dark:border-stone-800/80 dark:text-stone-400"
               >
-                <span>Shorts bölməsinə keçid ({shortsCount})</span>
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </a>
+                <a
+                  href="/quran"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onNavigate('/quran');
+                  }}
+                  className="inline-flex items-center gap-1.5 font-medium text-stone-700 hover:text-[#0F4C3A] dark:text-stone-300 dark:hover:text-[#86C7AE]"
+                >
+                  <BookOpen className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
+                  <span>Tam Qurani-Kərim (114 surə)</span>
+                </a>
+                <span aria-hidden="true">·</span>
+                <a
+                  href="/muhaffiz"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onNavigate('/muhaffiz');
+                  }}
+                  className="font-medium text-stone-700 hover:text-[#0F4C3A] dark:text-stone-300 dark:hover:text-[#86C7AE]"
+                >
+                  Mühafiz (Əzbər Mushafı)
+                </a>
+                {lastRead && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <a
+                      href={lastRead.path}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        onNavigate(lastRead.path);
+                      }}
+                      data-testid="hero-resume-link"
+                      className="font-medium text-[#0F4C3A] underline decoration-[#0F4C3A]/40 underline-offset-4 hover:decoration-[#0F4C3A] dark:text-[#86C7AE]"
+                    >
+                      Davam et: {lastRead.label} →
+                    </a>
+                  </>
+                )}
+                {savedAyahs.length > 0 && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <a
+                      href="/quran"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        onNavigate('/quran');
+                      }}
+                      className="font-mono-tabular text-stone-600 hover:text-[#0F4C3A] dark:text-stone-400 dark:hover:text-[#86C7AE]"
+                    >
+                      {savedAyahs.length} saxlanılan ayə
+                    </a>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

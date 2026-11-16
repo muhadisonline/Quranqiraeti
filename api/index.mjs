@@ -1684,6 +1684,7 @@ function buildCoreSitemapXml(origin, todayIsoDate = (/* @__PURE__ */ new Date())
     { loc: `${baseUrl}/`, lastmod: todayIsoDate, changefreq: "daily", priority: "1.0" },
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.9" },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
+    { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.85" },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.8" },
     { loc: `${baseUrl}/haqqinda`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.7" },
@@ -1773,6 +1774,7 @@ function buildSitemapXml(origin, videos, todayIsoDate = (/* @__PURE__ */ new Dat
     { loc: `${baseUrl}/`, lastmod: todayIsoDate, changefreq: "daily", priority: "1.0" },
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.9" },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
+    { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.85" },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.8" },
     { loc: `${baseUrl}/haqqinda`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.7" },
@@ -1931,6 +1933,23 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
         ])
       ],
       noscriptHtml: "<h1>Tam Qurani-K\u0259rim \u2014 M\u0259din\u0259 \xC7ap\u0131 (604 S\u0259hif\u0259) v\u0259 114 Sur\u0259</h1><p>\u018Fr\u0259bc\u0259 m\u0259tn v\u0259 \u018Flixan Musayevin Az\u0259rbaycan dilin\u0259 t\u0259rc\xFCm\u0259si.</p>"
+    };
+  }
+  if (cleanPath === "/dualar") {
+    return {
+      httpStatus: 200,
+      robots: robotsIndex,
+      title: "Qurandak\u0131 Dualar (R\u0259bb\u0259n\u0259 Dualar\u0131) | Quran Qiraeti",
+      description: "Qurani-K\u0259rimd\u0259n se\xE7ilmi\u015F 20 s\u0259hih R\u0259bb\u0259n\u0259 v\u0259 pey\u011F\u0259mb\u0259r duas\u0131 \u2014 \u0259r\u0259bc\u0259 m\u0259tn, \u018Flixan Musayevin Az\u0259rbaycan t\u0259rc\xFCm\u0259si, s\u0259sli tilav\u0259t v\u0259 \u015F\u0259kil kart\u0131 y\xFCkl\u0259m\u0259.",
+      canonicalUrl: `${baseUrl}/dualar`,
+      ogImage: defaultOg,
+      ogType: "website",
+      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
+        { name: "Ana s\u0259hif\u0259", path: "/" },
+        { name: "Qurani-K\u0259rim", path: "/quran" },
+        { name: "Qurandak\u0131 Dualar", path: "/dualar" }
+      ]),
+      noscriptHtml: "<h1>Qurandak\u0131 Dualar (R\u0259bb\u0259n\u0259 Dualar\u0131)</h1><p>Hiday\u0259t, ba\u011F\u0131\u015Flanma, ail\u0259, elm v\u0259 s\u0259bir m\xF6vzular\u0131nda Qurandan se\xE7ilmi\u015F 20 dua.</p>"
     };
   }
   if (cleanPath === "/gunun-ayesi") {

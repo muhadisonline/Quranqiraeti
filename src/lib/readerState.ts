@@ -14,6 +14,7 @@ export interface SavedAyahRecord {
   pageNumber?: number;
   arabicText: string;
   translation: string;
+  note?: string;
   savedAt: string;
 }
 
@@ -26,6 +27,9 @@ export interface LastReadRecord {
 }
 
 export type ReaderTextScale = 'compact' | 'normal' | 'large';
+export type ReaderDisplayMode = 'both' | 'arabic';
+export type AudioPlaybackSpeed = 0.75 | 1 | 1.25;
+export type AyahRepeatCount = 1 | 3 | 0; // 0 = continuous single-ayah loop
 
 export interface QuranSearchMatch {
   surahNumber: number;
@@ -60,6 +64,9 @@ export const SAVED_AYAHS_EVENT = 'quranqiraeti:saved-ayahs-changed';
 export const LAST_READ_STORAGE_KEY = 'quranqiraeti_last_read_v1';
 export const LAST_READ_EVENT = 'quranqiraeti:last-read-changed';
 export const READER_SCALE_STORAGE_KEY = 'quranqiraeti_reader_scale_v1';
+export const READER_DISPLAY_STORAGE_KEY = 'quranqiraeti_reader_display_v1';
+export const AUDIO_SPEED_STORAGE_KEY = 'quranqiraeti_audio_speed_v1';
+export const AUDIO_REPEAT_STORAGE_KEY = 'quranqiraeti_audio_repeat_v1';
 
 export const READER_SCALE_LABELS: Record<ReaderTextScale, string> = {
   compact: 'Kiçik',
@@ -110,6 +117,7 @@ export function sanitizeSavedAyahs(input: unknown): SavedAyahRecord[] {
 
     const catalogSurah = getSurahByNumber(surahNumber);
     const pageNum = Number(item.pageNumber);
+    const noteStr = typeof item.note === 'string' ? item.note.trim().slice(0, 500) : '';
     clean.push({
       surahNumber,
       ayahNumber,
@@ -120,6 +128,7 @@ export function sanitizeSavedAyahs(input: unknown): SavedAyahRecord[] {
           : undefined,
       arabicText: String(item.arabicText ?? '').trim(),
       translation: String(item.translation ?? '').trim(),
+      ...(noteStr ? { note: noteStr } : {}),
       savedAt: typeof item.savedAt === 'string' && item.savedAt ? item.savedAt : new Date().toISOString(),
     });
   }
@@ -166,6 +175,39 @@ export function removeSavedAyahItem(
   ayahNumber: number
 ): SavedAyahRecord[] {
   return list.filter((a) => !(a.surahNumber === surahNumber && a.ayahNumber === ayahNumber));
+}
+
+export function updateSavedAyahNoteItem(
+  list: SavedAyahRecord[],
+  surahNumber: number,
+  ayahNumber: number,
+  note: string
+): SavedAyahRecord[] {
+  const cleanNote = note.trim().slice(0, 500);
+  return list.map((item) => {
+    if (item.surahNumber !== surahNumber || item.ayahNumber !== ayahNumber) return item;
+    if (!cleanNote) {
+      const { note: _removed, ...rest } = item;
+      return rest;
+    }
+    return { ...item, note: cleanNote };
+  });
+}
+
+export function formatSavedAyahsForExport(list: SavedAyahRecord[]): string {
+  if (list.length === 0) return '';
+  const header = `Quran Qiraeti — Saxlanılan Ayələr (${list.length})\n========================================\n\n`;
+  const blocks = list.map((item, idx) => {
+    const ref = `${idx + 1}. ${item.surahName} surəsi · ${item.surahNumber}:${item.ayahNumber}${
+      item.pageNumber ? ` (Mədinə səhifəsi ${item.pageNumber})` : ''
+    }`;
+    const lines = [ref];
+    if (item.arabicText) lines.push(item.arabicText);
+    if (item.translation) lines.push(`"${item.translation}" (Əlixan Musayev tərcüməsi)`);
+    if (item.note) lines.push(`Şəxsi qeyd: ${item.note}`);
+    return lines.join('\n');
+  });
+  return header + blocks.join('\n\n----------------------------------------\n\n') + '\n';
 }
 
 export function loadSavedAyahsFromStorage(): SavedAyahRecord[] {
@@ -268,6 +310,66 @@ export function saveReaderScaleToStorage(scale: ReaderTextScale): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(READER_SCALE_STORAGE_KEY, scale);
+  } catch {
+    // ignore storage error
+  }
+}
+
+export function loadReaderDisplayFromStorage(): ReaderDisplayMode {
+  if (typeof window === 'undefined') return 'both';
+  try {
+    const raw = window.localStorage.getItem(READER_DISPLAY_STORAGE_KEY);
+    if (raw === 'arabic' || raw === 'both') return raw;
+  } catch {
+    // ignore storage error
+  }
+  return 'both';
+}
+
+export function saveReaderDisplayToStorage(mode: ReaderDisplayMode): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(READER_DISPLAY_STORAGE_KEY, mode);
+  } catch {
+    // ignore storage error
+  }
+}
+
+export function loadAudioSpeedFromStorage(): AudioPlaybackSpeed {
+  if (typeof window === 'undefined') return 1;
+  try {
+    const raw = Number(window.localStorage.getItem(AUDIO_SPEED_STORAGE_KEY));
+    if (raw === 0.75 || raw === 1 || raw === 1.25) return raw;
+  } catch {
+    // ignore storage error
+  }
+  return 1;
+}
+
+export function saveAudioSpeedToStorage(speed: AudioPlaybackSpeed): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(AUDIO_SPEED_STORAGE_KEY, String(speed));
+  } catch {
+    // ignore storage error
+  }
+}
+
+export function loadAudioRepeatFromStorage(): AyahRepeatCount {
+  if (typeof window === 'undefined') return 1;
+  try {
+    const raw = Number(window.localStorage.getItem(AUDIO_REPEAT_STORAGE_KEY));
+    if (raw === 1 || raw === 3 || raw === 0) return raw;
+  } catch {
+    // ignore storage error
+  }
+  return 1;
+}
+
+export function saveAudioRepeatToStorage(repeat: AyahRepeatCount): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(AUDIO_REPEAT_STORAGE_KEY, String(repeat));
   } catch {
     // ignore storage error
   }
@@ -384,4 +486,32 @@ export function parseAlQuranSearchPayload(
   }
 
   return results;
+}
+
+export function pickDailyCuratedIndex(length: number, date = new Date()): number {
+  if (length <= 1) return 0;
+  const dayKey = Math.floor(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) / 86_400_000
+  );
+  return Math.abs(dayKey) % length;
+}
+
+export function pickRandomGlobalAyahTarget(
+  catalog: SurahCatalogEntry[] = SURAH_CATALOG,
+  randomFn: () => number = Math.random
+): { surahNumber: number; ayahNumber: number } {
+  const totalAyahs = catalog.reduce((sum, s) => sum + s.ayahCount, 0);
+  if (totalAyahs <= 0) return { surahNumber: 1, ayahNumber: 1 };
+  const clamped = Math.min(0.9999999, Math.max(0, randomFn()));
+  let offset = Math.floor(clamped * totalAyahs);
+  for (const surah of catalog) {
+    if (offset < surah.ayahCount) {
+      return {
+        surahNumber: surah.number,
+        ayahNumber: offset + 1,
+      };
+    }
+    offset -= surah.ayahCount;
+  }
+  return { surahNumber: 1, ayahNumber: 1 };
 }

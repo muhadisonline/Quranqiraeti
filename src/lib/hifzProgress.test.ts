@@ -6,6 +6,7 @@ import {
   sanitizeHifzProgress,
   setHifzPageStatus,
   summarizeHifzProgress,
+  summarizeJuzHifzProgress,
   toggleHifzBookmark,
 } from './hifzProgress';
 
@@ -23,6 +24,12 @@ test('setHifzPageStatus and summarizeHifzProgress track memorized and learning p
   assert.equal(summary.memorizedCount, 2);
   assert.equal(summary.learningCount, 1);
   assert.equal(summary.memorizedPercent, 0.3);
+
+  const juzBreakdown = summarizeJuzHifzProgress(state);
+  assert.equal(juzBreakdown.length, 30);
+  assert.equal(juzBreakdown[0].memorizedPages, 1);
+  assert.equal(juzBreakdown[0].learningPages, 1);
+  assert.equal(juzBreakdown[29].memorizedPages, 1);
 
   state = setHifzPageStatus(state, 2, 'none', '2026-11-16T10:03:00Z');
   assert.equal(getHifzPageStatus(state, 2), 'none');

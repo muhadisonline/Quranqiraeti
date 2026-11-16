@@ -36,6 +36,7 @@ test('buildSitemapXml and split sitemaps cover core routes, 114 surahs, 604 Mush
   assert.ok(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/shorts</loc>'));
+  assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/dualar</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/muhaffiz</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/quran/sure/1</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/quran/sure/114</loc>'));
@@ -60,6 +61,11 @@ test('resolveRouteSeoMetadata & injectRouteSeoIntoHtml handle Surah, Video, Admi
   assert.equal(surahMeta.httpStatus, 200);
   assert.ok(surahMeta.title.includes('Yasin'));
   assert.ok(surahMeta.ogImage.endsWith('/og-default.png'));
+
+  const dualarMeta = resolveRouteSeoMetadata('/dualar', 'https://quranqiraeti.vercel.app', []);
+  assert.equal(dualarMeta.httpStatus, 200);
+  assert.ok(dualarMeta.title.includes('Dualar'));
+  assert.equal(dualarMeta.canonicalUrl, 'https://quranqiraeti.vercel.app/dualar');
 
   const adminMeta = resolveRouteSeoMetadata('/admin', 'https://quranqiraeti.vercel.app', []);
   assert.equal(adminMeta.httpStatus, 200);

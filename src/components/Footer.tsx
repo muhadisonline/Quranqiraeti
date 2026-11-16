@@ -76,6 +76,9 @@ export function Footer({ stats, longVideoCount, onNavigate }: FooterProps) {
             <a href="/quran" onClick={(e) => handleNav(e, '/quran')} className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]">
               Tam Quran
             </a>
+            <a href="/dualar" onClick={(e) => handleNav(e, '/dualar')} className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]">
+              Dualar
+            </a>
             <a href="/muhaffiz" onClick={(e) => handleNav(e, '/muhaffiz')} className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]">
               Mühafiz
             </a>

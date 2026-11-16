@@ -343,4 +343,40 @@ export const CURATED_VERSES: CuratedVerse[] = [
       'Mağara gənclərinin çətinlik anında etdiyi bu dua hər bir mömin üçün rəhbərlik nümunəsidir.',
     relatedVideoId: '3t9J6ng3WdQ',
   },
+  {
+    surahNumber: 2,
+    ayahNumber: 255,
+    surahRef: 'Bəqərə surəsi · 255-ci ayə (Ayətül-Kürsi)',
+    arabicText:
+      'اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَّهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ',
+    azerbaijaniTranslation:
+      '«Allah Özündən başqa haqq məbud olmayandır, Əbədi Yaşayandır, bütün yaratdıqlarının Qəyyumudur. Onu nə mürgü, nə də yuxu tutar.»',
+    commentary:
+      'Qurani-Kərimin ən əzəmətli ayəsi — Allahın elmi, qüdrəti və hər şeyə hakimiyyətini bəyan edir.',
+    relatedVideoId: 'QI9FYWckc-E',
+  },
+  {
+    surahNumber: 2,
+    ayahNumber: 286,
+    surahRef: 'Bəqərə surəsi · 286-cı ayə',
+    arabicText:
+      'لَا يُكَلِّفُ اللَّهُ نَفْسًا إِلَّا وُسْعَهَا ۚ لَهَا مَا كَسَبَتْ وَعَلَيْهَا مَا اكْتَسَبَتْ ۗ رَبَّنَا لَا تُؤَاخِذْنَا إِن نَّسِينَا أَوْ أَخْطَأْنَا',
+    azerbaijaniTranslation:
+      '«Allah hər kəsi yalnız onun qüvvəsi çatdığı qədər mükəlləf edər. Ey Rəbbimiz! Unutsaq və ya xəta etsək bizi cəzalandırma!»',
+    commentary:
+      'İnsanın daşıya biləcəyindən artıq yüklənmədiyini müjdələyən və axşamları oxunması tövsiyə edilən dua ayəsi.',
+    relatedVideoId: 'QI9FYWckc-E',
+  },
+  {
+    surahNumber: 12,
+    ayahNumber: 86,
+    surahRef: 'Yusuf surəsi · 86-cı ayə',
+    arabicText:
+      'قَالَ إِنَّمَا أَشْكُو بَثِّي وَحُزْنِي إِلَى اللَّهِ وَأَعْلَمُ مِنَ اللَّهِ مَا لَا تَعْلَمُونَ',
+    azerbaijaniTranslation:
+      '«O dedi: "Mən dərdimi və kədərimi yalnız Allaha ərz edirəm və Allahdan sizin bilmədiklərinizi bilirəm".»',
+    commentary:
+      'Həzrət Yaqubun (ə) səbir, təvəkkül və ümidi birləşdirən ən təsirli münacatlarından biridir.',
+    relatedVideoId: 'yM497IBCCC0',
+  },
 ];

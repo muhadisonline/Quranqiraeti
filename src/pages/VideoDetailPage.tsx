@@ -1,7 +1,12 @@
-import { ArrowLeft, BookOpen, Bookmark, Check, Copy, ExternalLink, Play, Search, Square, Volume2, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Bookmark, Check, Copy, ExternalLink, ImageDown, Play, Search, Square, Volume2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SeoHead } from '../components/SeoHead';
-import { useReaderTextScale, useSavedAyahs } from '../hooks/useReaderPreferences';
+import {
+  useAudioPlaybackPrefs,
+  useReaderDisplayMode,
+  useReaderTextScale,
+  useSavedAyahs,
+} from '../hooks/useReaderPreferences';
 import {
   RecitationVideo,
   SurahTranslationPayload,
@@ -19,11 +24,14 @@ import {
 import { getSurahByNumber } from '../lib/quran';
 import { fetchSurahWithFallback } from '../lib/quranClient';
 import {
+  AudioPlaybackSpeed,
+  AyahRepeatCount,
   READER_SCALE_CLASSES,
   READER_SCALE_LABELS,
   ReaderTextScale,
 } from '../lib/readerState';
 import { buildBreadcrumbJsonLd } from '../lib/seo';
+import { downloadVerseImageCard } from '../lib/verseCard';
 
 const READER_RECITER_KEY = 'quranqiraeti_reader_reciter_v1';
 
@@ -91,6 +99,8 @@ export function VideoDetailPage({
   const [audioError, setAudioError] = useState<string | null>(null);
   const { isSaved: isAyahSaved, toggleAyahBookmark } = useSavedAyahs();
   const { textScale, setTextScale } = useReaderTextScale();
+  const { displayMode, setDisplayMode } = useReaderDisplayMode();
+  const { playbackSpeed, setPlaybackSpeed, repeatCount, setRepeatCount } = useAudioPlaybackPrefs();
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -101,6 +111,12 @@ export function VideoDetailPage({
     }
     setPlayingKey(null);
   }, []);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed]);
 
   useEffect(() => {
     try {
@@ -243,24 +259,30 @@ export function VideoDetailPage({
   }, [translationData, highlightedAyahKey, filteredAyahs, ayahQuery, visibleLimit]);
 
   const playAyahAtIndex = useCallback(
-    (index: number) => {
+    (index: number, remainingRepeats?: number) => {
       if (index < 0 || index >= displayedAyahs.length) {
         stopAudio();
         return;
       }
+      const repeatsLeft = remainingRepeats ?? repeatCount;
       const ayah = displayedAyahs[index];
       const key = `${ayah.surahNumber}:${ayah.ayahNumber}`;
       stopAudio();
       setAudioError(null);
 
       const audio = new Audio(getEveryAyahAudioUrl(ayah.surahNumber, ayah.ayahNumber, reciter));
+      audio.playbackRate = playbackSpeed;
       audioRef.current = audio;
       setPlayingKey(key);
 
       audio.onended = () => {
         if (audioRef.current !== audio) return;
-        if (index + 1 < displayedAyahs.length) {
-          playAyahAtIndex(index + 1);
+        if (repeatsLeft === 0) {
+          playAyahAtIndex(index, 0);
+        } else if (repeatsLeft > 1) {
+          playAyahAtIndex(index, repeatsLeft - 1);
+        } else if (index + 1 < displayedAyahs.length) {
+          playAyahAtIndex(index + 1, repeatCount);
         } else {
           stopAudio();
         }
@@ -278,7 +300,7 @@ export function VideoDetailPage({
         setAudioError('Səs oxutma brauzer tərəfindən dayandırıldı. Yenidən toxunun.');
       });
     },
-    [displayedAyahs, reciter, stopAudio]
+    [displayedAyahs, reciter, playbackSpeed, repeatCount, stopAudio]
   );
 
   function handleToggleAyahAudio(key: string) {
@@ -738,6 +760,76 @@ export function VideoDetailPage({
                   ))}
                 </div>
 
+                <div
+                  role="group"
+                  aria-label="Oxu görünüşü"
+                  className="inline-flex items-center gap-0.5 rounded-lg border border-stone-200 bg-white p-0.5 dark:border-stone-700 dark:bg-[#141916]"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode(displayMode === 'both' ? 'arabic' : 'both')}
+                    aria-pressed={displayMode === 'arabic'}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                      displayMode === 'arabic'
+                        ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                        : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                    }`}
+                  >
+                    {displayMode === 'arabic' ? 'Ərəbcə' : 'AZ + AR'}
+                  </button>
+                </div>
+
+                <div
+                  role="group"
+                  aria-label="Tilavət sürəti"
+                  className="inline-flex items-center gap-0.5 rounded-lg border border-stone-200 bg-white p-0.5 dark:border-stone-700 dark:bg-[#141916]"
+                >
+                  {([0.75, 1, 1.25] as AudioPlaybackSpeed[]).map((spd) => (
+                    <button
+                      key={spd}
+                      type="button"
+                      onClick={() => setPlaybackSpeed(spd)}
+                      aria-pressed={playbackSpeed === spd}
+                      className={`rounded-md px-2 py-1 font-mono-tabular text-[11px] font-medium transition-colors ${
+                        playbackSpeed === spd
+                          ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                          : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                      }`}
+                    >
+                      {spd}×
+                    </button>
+                  ))}
+                </div>
+
+                <div
+                  role="group"
+                  aria-label="Ayə təkrarı"
+                  className="inline-flex items-center gap-0.5 rounded-lg border border-stone-200 bg-white p-0.5 dark:border-stone-700 dark:bg-[#141916]"
+                >
+                  {(
+                    [
+                      { val: 1 as AyahRepeatCount, label: '1×' },
+                      { val: 3 as AyahRepeatCount, label: '3×' },
+                      { val: 0 as AyahRepeatCount, label: '∞' },
+                    ]
+                  ).map((opt) => (
+                    <button
+                      key={opt.val}
+                      type="button"
+                      onClick={() => setRepeatCount(opt.val)}
+                      aria-pressed={repeatCount === opt.val}
+                      title={opt.val === 0 ? 'Ayəni sonsuz təkrarla' : `Hər ayəni ${opt.val} dəfə oxu`}
+                      className={`rounded-md px-2 py-1 font-mono-tabular text-[11px] font-medium transition-colors ${
+                        repeatCount === opt.val
+                          ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                          : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
                 <p>
                   {ayahQuery.trim()
                     ? `${filteredAyahs.length} uyğun ayə tapıldı`
@@ -931,6 +1023,26 @@ export function VideoDetailPage({
                               </>
                             )}
                           </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void downloadVerseImageCard({
+                                surahName: activeSurahMeta?.surahName ?? video.surahName,
+                                surahNumber: ayah.surahNumber,
+                                ayahNumber: ayah.ayahNumber,
+                                arabicText: ayah.arabicText,
+                                translation: ayah.translation,
+                                theme: document.documentElement.classList.contains('dark')
+                                  ? 'emerald'
+                                  : 'parchment',
+                              })
+                            }
+                            aria-label={`${key} ayəsini şəkil kartı kimi endir`}
+                            className="inline-flex items-center gap-1 rounded-md border border-stone-200 px-2 py-1 text-xs text-stone-600 transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:text-stone-400"
+                          >
+                            <ImageDown className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Şəkil</span>
+                          </button>
                         </div>
                       </div>
 
@@ -942,20 +1054,24 @@ export function VideoDetailPage({
                         {ayah.arabicText}
                       </p>
 
-                      <p
-                        lang="az"
-                        className={`mt-4 ${READER_SCALE_CLASSES[textScale].translation} text-stone-700 dark:text-stone-300`}
-                      >
-                        {ayah.translation}
-                      </p>
+                      {displayMode === 'both' && (
+                        <>
+                          <p
+                            lang="az"
+                            className={`mt-4 ${READER_SCALE_CLASSES[textScale].translation} text-stone-700 dark:text-stone-300`}
+                          >
+                            {ayah.translation}
+                          </p>
 
-                      {ayah.footnotes && (
-                        <p
-                          lang="az"
-                          className="mt-2.5 text-xs leading-relaxed text-stone-500 dark:text-stone-400"
-                        >
-                          {ayah.footnotes}
-                        </p>
+                          {ayah.footnotes && (
+                            <p
+                              lang="az"
+                              className="mt-2.5 text-xs leading-relaxed text-stone-500 dark:text-stone-400"
+                            >
+                              {ayah.footnotes}
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
                   );

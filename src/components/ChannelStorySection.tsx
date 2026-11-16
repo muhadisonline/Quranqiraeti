@@ -1,14 +1,39 @@
-import { BookOpen, Play } from 'lucide-react';
-import { useState } from 'react';
+import { BookOpen, Bookmark, Check, Copy, ImageDown, Play, Shuffle, Square, Volume2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import studioEditorialImage from '../assets/images/recitation_studio_editorial_1794730602469.jpg';
 import { CURATED_VERSES } from '../data/recitations';
+import { useSavedAyahs } from '../hooks/useReaderPreferences';
+import {
+  MUHAFFIZ_RECITERS,
+  MuhaffizReciterId,
+  getEveryAyahAudioUrl,
+} from '../lib/muhaffiz';
+import { getSurahByNumber } from '../lib/quran';
+import { fetchSurahWithFallback } from '../lib/quranClient';
+import {
+  pickDailyCuratedIndex,
+  pickRandomGlobalAyahTarget,
+} from '../lib/readerState';
+import { downloadVerseImageCard } from '../lib/verseCard';
 
 interface VerseSectionProps {
   onPlayVideoById: (videoId: string) => void;
   onNavigate?: (path: string) => void;
 }
 
+interface DynamicDailyVerse {
+  surahNumber: number;
+  ayahNumber: number;
+  pageNumber?: number;
+  surahRef: string;
+  arabicText: string;
+  azerbaijaniTranslation: string;
+  commentary: string;
+  relatedVideoId?: string;
+}
+
 const STUDIO_IMAGE_PATH = studioEditorialImage;
+const READER_RECITER_KEY = 'quranqiraeti_reader_reciter_v1';
 
 const PRINCIPLES = [
   {
@@ -29,8 +54,139 @@ const PRINCIPLES = [
 ];
 
 export function VerseOfTheDaySection({ onPlayVideoById, onNavigate }: VerseSectionProps) {
-  const [verseIdx, setVerseIdx] = useState(0);
-  const activeVerse = CURATED_VERSES[verseIdx] ?? CURATED_VERSES[0];
+  const [verseIdx, setVerseIdx] = useState<number>(() =>
+    pickDailyCuratedIndex(CURATED_VERSES.length)
+  );
+  const [randomVerse, setRandomVerse] = useState<DynamicDailyVerse | null>(null);
+  const [isLoadingRandom, setIsLoadingRandom] = useState(false);
+  const [randomError, setRandomError] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [downloadingImage, setDownloadingImage] = useState(false);
+
+  const [reciter, setReciter] = useState<MuhaffizReciterId>(() => {
+    try {
+      const saved = localStorage.getItem(READER_RECITER_KEY);
+      if (saved && MUHAFFIZ_RECITERS.some((r) => r.id === saved)) {
+        return saved as MuhaffizReciterId;
+      }
+    } catch {
+      // ignore storage error
+    }
+    return 'Alafasy_128kbps';
+  });
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioError, setAudioError] = useState('');
+
+  const { isSaved, toggleAyahBookmark } = useSavedAyahs();
+
+  const curated = CURATED_VERSES[verseIdx] ?? CURATED_VERSES[0];
+  const activeVerse: DynamicDailyVerse = randomVerse ?? {
+    surahNumber: curated.surahNumber,
+    ayahNumber: curated.ayahNumber,
+    surahRef: curated.surahRef,
+    arabicText: curated.arabicText,
+    azerbaijaniTranslation: curated.azerbaijaniTranslation,
+    commentary: curated.commentary,
+    relatedVideoId: curated.relatedVideoId,
+  };
+
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current = null;
+    }
+    setIsPlaying(false);
+  }, []);
+
+  useEffect(() => {
+    return () => stopAudio();
+  }, [stopAudio]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(READER_RECITER_KEY, reciter);
+    } catch {
+      // ignore storage error
+    }
+  }, [reciter]);
+
+  function handleTogglePlay() {
+    if (isPlaying) {
+      stopAudio();
+      return;
+    }
+    stopAudio();
+    setAudioError('');
+    const audio = new Audio(
+      getEveryAyahAudioUrl(activeVerse.surahNumber, activeVerse.ayahNumber, reciter)
+    );
+    audioRef.current = audio;
+    setIsPlaying(true);
+
+    audio.onended = () => {
+      if (audioRef.current === audio) stopAudio();
+    };
+    audio.onerror = () => {
+      if (audioRef.current === audio) {
+        stopAudio();
+        setAudioError('Bu ayənin səs faylı hazırda oxuna bilmədi.');
+      }
+    };
+    void audio.play().catch(() => {
+      if (audioRef.current === audio) {
+        stopAudio();
+        setAudioError('Səs oxutma brauzer tərəfindən dayandırıldı. Yenidən toxunun.');
+      }
+    });
+  }
+
+  async function handlePickRandomVerse() {
+    stopAudio();
+    setIsLoadingRandom(true);
+    setRandomError('');
+    try {
+      const target = pickRandomGlobalAyahTarget();
+      const payload = await fetchSurahWithFallback(target.surahNumber);
+      const match =
+        payload.ayahs.find((a) => a.ayahNumber === target.ayahNumber) ?? payload.ayahs[0];
+      if (!match) throw new Error('Ayə tapılmadı');
+      const surahMeta = getSurahByNumber(target.surahNumber);
+      const surahName = surahMeta?.name ?? `Surə ${target.surahNumber}`;
+      setRandomVerse({
+        surahNumber: match.surahNumber,
+        ayahNumber: match.ayahNumber,
+        pageNumber: match.pageNumber,
+        surahRef: `${surahName} surəsi · ${match.ayahNumber}-ci ayə`,
+        arabicText: match.arabicText,
+        azerbaijaniTranslation: `«${match.translation}»`,
+        commentary: match.footnotes
+          ? match.footnotes
+          : `Əlixan Musayev tərcüməsi · Qurani-Kərimin ${match.surahNumber}:${match.ayahNumber} ayəsi üzərində gündəlik təfəkkür.`,
+      });
+    } catch {
+      setRandomError('Təsadüfi ayə hazırda yüklənə bilmədi. Zəhmət olmasa yenidən yoxlayın.');
+    } finally {
+      setIsLoadingRandom(false);
+    }
+  }
+
+  async function handleCopyVerse() {
+    const text = `${activeVerse.arabicText}\n\n${activeVerse.azerbaijaniTranslation}\n(${activeVerse.surahRef} — Əlixan Musayev tərcüməsi)`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore clipboard errors
+    }
+  }
+
+  const surahInfo = getSurahByNumber(activeVerse.surahNumber);
+  const targetMuhaffizPage = activeVerse.pageNumber ?? surahInfo?.startPage ?? 1;
+  const verseBookmarked = isSaved(activeVerse.surahNumber, activeVerse.ayahNumber);
 
   return (
     <section
@@ -46,24 +202,57 @@ export function VerseOfTheDaySection({ onPlayVideoById, onNavigate }: VerseSecti
         </h1>
 
         <div className="mt-7 flex flex-wrap justify-center gap-2">
-          {CURATED_VERSES.map((verse, idx) => (
-            <button
-              key={verse.surahRef}
-              type="button"
-              onClick={() => setVerseIdx(idx)}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-medium whitespace-nowrap shrink-0 transition-colors duration-150 min-h-[36px] ${
-                verseIdx === idx
-                  ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
-                  : 'border border-stone-200 bg-white text-stone-700 hover:border-stone-300 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-300'
-              }`}
-            >
-              {verse.surahRef.split('·')[0].trim()}
-            </button>
-          ))}
+          {CURATED_VERSES.map((verse, idx) => {
+            const isSelected = !randomVerse && verseIdx === idx;
+            return (
+              <button
+                key={verse.surahRef}
+                type="button"
+                onClick={() => {
+                  stopAudio();
+                  setRandomVerse(null);
+                  setRandomError('');
+                  setVerseIdx(idx);
+                }}
+                className={`rounded-md px-3.5 py-1.5 text-xs font-medium whitespace-nowrap shrink-0 transition-colors duration-150 min-h-[36px] ${
+                  isSelected
+                    ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                    : 'border border-stone-200 bg-white text-stone-700 hover:border-stone-300 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-300'
+                }`}
+              >
+                {verse.surahRef.split('·')[0].trim()}
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={handlePickRandomVerse}
+            disabled={isLoadingRandom}
+            data-testid="daily-random-verse-btn"
+            className={`inline-flex items-center gap-1.5 rounded-md border px-3.5 py-1.5 text-xs font-medium whitespace-nowrap shrink-0 transition-colors duration-150 min-h-[36px] ${
+              randomVerse
+                ? 'border-[#0F4C3A] bg-[#0F4C3A] text-white dark:border-[#196B52] dark:bg-[#196B52]'
+                : 'border-stone-300 bg-white text-stone-800 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200'
+            }`}
+          >
+            <Shuffle className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{isLoadingRandom ? 'Seçilir...' : 'Qurandan təsadüfi ayə'}</span>
+          </button>
         </div>
 
-        <blockquote className="mt-10 border-y border-stone-200 py-10 dark:border-stone-800">
+        {randomError && (
+          <p role="alert" className="mt-4 text-xs font-medium text-red-700 dark:text-red-400">
+            {randomError}
+          </p>
+        )}
+
+        <blockquote
+          data-testid="daily-verse-blockquote"
+          className="mt-8 border-y border-stone-200 py-10 dark:border-stone-800"
+        >
           <p
+            dir="rtl"
             lang="ar"
             className="font-arabic text-2xl leading-[2.1] text-stone-900 sm:text-3xl lg:text-4xl dark:text-stone-100"
           >
@@ -72,7 +261,7 @@ export function VerseOfTheDaySection({ onPlayVideoById, onNavigate }: VerseSecti
           <p className="font-display mx-auto mt-6 max-w-2xl text-xl leading-relaxed italic text-stone-800 sm:text-2xl dark:text-stone-200">
             {activeVerse.azerbaijaniTranslation}
           </p>
-          <footer className="mt-5 text-xs font-medium text-stone-500 dark:text-stone-400">
+          <footer className="mt-5 font-mono-tabular text-xs font-medium text-stone-500 dark:text-stone-400">
             {activeVerse.surahRef}
           </footer>
         </blockquote>
@@ -81,28 +270,163 @@ export function VerseOfTheDaySection({ onPlayVideoById, onNavigate }: VerseSecti
           {activeVerse.commentary}
         </p>
 
-        <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+        {/* Audio reciter & utility strip */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
+          <div className="flex items-center gap-1.5">
+            <Volume2 className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
+            <label htmlFor="daily-reciter-select" className="sr-only">
+              Qari seçimi
+            </label>
+            <select
+              id="daily-reciter-select"
+              value={reciter}
+              onChange={(e) => {
+                stopAudio();
+                setReciter(e.target.value as MuhaffizReciterId);
+              }}
+              className="rounded-lg border border-stone-200 bg-white px-2.5 py-2 text-xs text-stone-800 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100"
+            >
+              {MUHAFFIZ_RECITERS.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             type="button"
-            onClick={() => onPlayVideoById(activeVerse.relatedVideoId)}
-            className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-5 py-2.5 text-xs font-medium text-stone-900 whitespace-nowrap shrink-0 transition-colors duration-150 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100 dark:hover:border-[#86C7AE] dark:hover:text-[#86C7AE] min-h-[42px]"
+            onClick={handleTogglePlay}
+            data-testid="daily-verse-play-btn"
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors min-h-[38px] ${
+              isPlaying
+                ? 'border-[#0F4C3A] bg-[#0F4C3A] text-white dark:border-[#196B52] dark:bg-[#196B52]'
+                : 'border-stone-300 bg-white text-stone-800 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200'
+            }`}
           >
-            <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
-            <span>Bu surənin qiraətini dinlə</span>
+            {isPlaying ? (
+              <>
+                <Square className="h-3 w-3 fill-current" aria-hidden="true" />
+                <span>Dayandır</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Ayəni dinlə</span>
+              </>
+            )}
           </button>
 
-          {onNavigate && (
-            <a
-              href={`/quran/sure/${activeVerse.surahNumber}#ayah-${activeVerse.ayahNumber}`}
-              onClick={(e) => {
-                e.preventDefault();
-                onNavigate(`/quran/sure/${activeVerse.surahNumber}#ayah-${activeVerse.ayahNumber}`);
-              }}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#0F4C3A] px-5 py-2.5 text-xs font-medium text-white whitespace-nowrap shrink-0 transition-colors duration-150 hover:bg-[#0B3A2C] dark:bg-[#196B52] min-h-[42px]"
+          <button
+            type="button"
+            onClick={() =>
+              toggleAyahBookmark({
+                surahNumber: activeVerse.surahNumber,
+                ayahNumber: activeVerse.ayahNumber,
+                surahName: surahInfo?.name ?? `Surə ${activeVerse.surahNumber}`,
+                pageNumber: targetMuhaffizPage,
+                arabicText: activeVerse.arabicText,
+                translation: activeVerse.azerbaijaniTranslation.replace(/^[«"]|[»"]$/g, ''),
+              })
+            }
+            data-testid="daily-verse-bookmark-btn"
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors min-h-[38px] ${
+              verseBookmarked
+                ? 'border-[#0F4C3A] bg-[#0F4C3A]/10 text-[#0F4C3A] dark:border-[#86C7AE] dark:bg-[#86C7AE]/15 dark:text-[#86C7AE]'
+                : 'border-stone-300 bg-white text-stone-700 hover:border-stone-400 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200'
+            }`}
+          >
+            <Bookmark className={`h-3.5 w-3.5 ${verseBookmarked ? 'fill-current' : ''}`} aria-hidden="true" />
+            <span>{verseBookmarked ? 'Saxlanılıb' : 'Saxla'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCopyVerse}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-4 py-2 text-xs font-medium text-stone-700 whitespace-nowrap transition-colors hover:border-stone-400 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200 min-h-[38px]"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
+                <span>Köçürüldü</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Köçür</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            disabled={downloadingImage}
+            onClick={async () => {
+              setDownloadingImage(true);
+              try {
+                await downloadVerseImageCard({
+                  surahName: surahInfo?.name ?? `Surə ${activeVerse.surahNumber}`,
+                  surahNumber: activeVerse.surahNumber,
+                  ayahNumber: activeVerse.ayahNumber,
+                  arabicText: activeVerse.arabicText,
+                  translation: activeVerse.azerbaijaniTranslation.replace(/^[«"]|[»"]$/g, ''),
+                  theme: document.documentElement.classList.contains('dark') ? 'emerald' : 'parchment',
+                });
+              } finally {
+                setDownloadingImage(false);
+              }
+            }}
+            data-testid="daily-verse-image-btn"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-4 py-2 text-xs font-medium text-stone-700 whitespace-nowrap transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] disabled:opacity-60 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200 min-h-[38px]"
+          >
+            <ImageDown className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Şəkil</span>
+          </button>
+        </div>
+
+        {audioError && (
+          <p role="status" className="mt-3 text-xs text-amber-800 dark:text-amber-300">
+            {audioError}
+          </p>
+        )}
+
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+          {activeVerse.relatedVideoId && (
+            <button
+              type="button"
+              onClick={() => onPlayVideoById(activeVerse.relatedVideoId!)}
+              className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-5 py-2.5 text-xs font-medium text-stone-900 whitespace-nowrap shrink-0 transition-colors duration-150 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100 dark:hover:border-[#86C7AE] dark:hover:text-[#86C7AE] min-h-[42px]"
             >
-              <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Ayəni surədə oxu</span>
-            </a>
+              <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+              <span>Bu surənin video qiraətini dinlə</span>
+            </button>
+          )}
+
+          {onNavigate && (
+            <>
+              <a
+                href={`/quran/sure/${activeVerse.surahNumber}#ayah-${activeVerse.ayahNumber}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigate(`/quran/sure/${activeVerse.surahNumber}#ayah-${activeVerse.ayahNumber}`);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#0F4C3A] px-5 py-2.5 text-xs font-medium text-white whitespace-nowrap shrink-0 transition-colors duration-150 hover:bg-[#0B3A2C] dark:bg-[#196B52] min-h-[42px]"
+              >
+                <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Ayəni surədə oxu</span>
+              </a>
+
+              <a
+                href={`/muhaffiz/${targetMuhaffizPage}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigate(`/muhaffiz/${targetMuhaffizPage}`);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-5 py-2.5 text-xs font-medium text-stone-700 whitespace-nowrap shrink-0 transition-colors duration-150 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200 min-h-[42px]"
+              >
+                <span>Mühafizdə əzbərlə (Səh. {targetMuhaffizPage})</span>
+              </a>
+            </>
           )}
         </div>
       </div>

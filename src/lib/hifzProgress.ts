@@ -1,5 +1,5 @@
 import { clampMuhaffizPage } from './muhaffiz';
-import { TOTAL_QURAN_PAGES } from './quran';
+import { JUZ_PAGE_RANGES, TOTAL_QURAN_PAGES } from './quran';
 
 export type HifzPageStatus = 'none' | 'learning' | 'memorized';
 
@@ -7,6 +7,16 @@ export interface HifzProgressState {
   pages: Record<number, Exclude<HifzPageStatus, 'none'>>;
   bookmarkedPage: number | null;
   updatedAt: string | null;
+}
+
+export interface JuzHifzSummary {
+  juz: number;
+  startPage: number;
+  endPage: number;
+  totalPages: number;
+  memorizedPages: number;
+  learningPages: number;
+  memorizedPercent: number;
 }
 
 export const EMPTY_HIFZ_PROGRESS: HifzProgressState = {
@@ -111,4 +121,29 @@ export function summarizeHifzProgress(state: HifzProgressState): {
     learningCount,
     memorizedPercent,
   };
+}
+
+export function summarizeJuzHifzProgress(
+  state: HifzProgressState,
+  ranges: typeof JUZ_PAGE_RANGES = JUZ_PAGE_RANGES
+): JuzHifzSummary[] {
+  return ranges.map((range) => {
+    const totalPages = Math.max(1, range.endPage - range.startPage + 1);
+    let memorizedPages = 0;
+    let learningPages = 0;
+    for (let p = range.startPage; p <= range.endPage; p++) {
+      const status = state.pages[p];
+      if (status === 'memorized') memorizedPages++;
+      else if (status === 'learning') learningPages++;
+    }
+    return {
+      juz: range.juz,
+      startPage: range.startPage,
+      endPage: range.endPage,
+      totalPages,
+      memorizedPages,
+      learningPages,
+      memorizedPercent: Math.round((memorizedPages / totalPages) * 100),
+    };
+  });
 }

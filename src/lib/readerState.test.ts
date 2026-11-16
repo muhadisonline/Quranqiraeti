@@ -2,13 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildLastReadRecord,
+  formatSavedAyahsForExport,
   isAyahBookmarked,
   parseAlQuranSearchPayload,
   parseQuickQuranTarget,
+  pickDailyCuratedIndex,
+  pickRandomGlobalAyahTarget,
   removeSavedAyahItem,
   sanitizeLastRead,
   sanitizeSavedAyahs,
   toggleSavedAyahItem,
+  updateSavedAyahNoteItem,
 } from './readerState';
 
 test('toggleSavedAyahItem adds and removes ayahs cleanly and deduplicates sanitizeSavedAyahs', () => {
@@ -44,6 +48,28 @@ test('toggleSavedAyahItem adds and removes ayahs cleanly and deduplicates saniti
 
   const removed = removeSavedAyahItem(first.next, 2, 255);
   assert.equal(removed.length, 0);
+});
+
+test('updateSavedAyahNoteItem and formatSavedAyahsForExport handle personal reflection notes', () => {
+  const base = toggleSavedAyahItem([], {
+    surahNumber: 94,
+    ayahNumber: 5,
+    surahName: 'İnşirah',
+    pageNumber: 596,
+    arabicText: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا',
+    translation: 'Həqiqətən, çətinliklə yanaşı asanlıq da vardır!',
+  }, '2026-11-16T10:00:00Z').next;
+
+  const withNote = updateSavedAyahNoteItem(base, 94, 5, '  Səbir və ümid ayəsi  ');
+  assert.equal(withNote[0].note, 'Səbir və ümid ayəsi');
+
+  const exported = formatSavedAyahsForExport(withNote);
+  assert.match(exported, /İnşirah surəsi · 94:5/);
+  assert.match(exported, /Mədinə səhifəsi 596/);
+  assert.match(exported, /Şəxsi qeyd: Səbir və ümid ayəsi/);
+
+  const clearedNote = updateSavedAyahNoteItem(withNote, 94, 5, '   ');
+  assert.equal(clearedNote[0].note, undefined);
 });
 
 test('buildLastReadRecord and sanitizeLastRead validate page and surah bounds', () => {
@@ -120,4 +146,18 @@ test('parseAlQuranSearchPayload maps search matches cleanly with Azerbaijani sur
     snippet: 'Həqiqətən, çətinliklə yanaşı asanlıq da vardır!',
   });
   assert.equal(parsed[1].surahName, 'Bəqərə');
+});
+
+test('pickDailyCuratedIndex and pickRandomGlobalAyahTarget select valid Quran targets', () => {
+  const idxA = pickDailyCuratedIndex(6, new Date('2026-11-16T10:00:00Z'));
+  const idxB = pickDailyCuratedIndex(6, new Date('2026-11-17T10:00:00Z'));
+  assert.ok(idxA >= 0 && idxA < 6);
+  assert.ok(idxB >= 0 && idxB < 6);
+  assert.notEqual(idxA, idxB);
+
+  const firstAyah = pickRandomGlobalAyahTarget(undefined, () => 0);
+  assert.deepEqual(firstAyah, { surahNumber: 1, ayahNumber: 1 });
+
+  const lastAyah = pickRandomGlobalAyahTarget(undefined, () => 0.999999);
+  assert.deepEqual(lastAyah, { surahNumber: 114, ayahNumber: 6 });
 });

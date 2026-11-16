@@ -277,6 +277,7 @@ export function buildCoreSitemapXml(
     { loc: `${baseUrl}/`, lastmod: todayIsoDate, changefreq: 'daily', priority: '1.0' },
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.9' },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
+    { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.85' },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.8' },
     { loc: `${baseUrl}/haqqinda`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.7' },
@@ -393,6 +394,7 @@ export function buildSitemapXml(
     { loc: `${baseUrl}/`, lastmod: todayIsoDate, changefreq: 'daily', priority: '1.0' },
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.9' },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
+    { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.85' },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.8' },
     { loc: `${baseUrl}/haqqinda`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.7' },
@@ -592,6 +594,26 @@ export function resolveRouteSeoMetadata(
       ],
       noscriptHtml:
         '<h1>Tam Qurani-Kərim — Mədinə Çapı (604 Səhifə) və 114 Surə</h1><p>Ərəbcə mətn və Əlixan Musayevin Azərbaycan dilinə tərcüməsi.</p>',
+    };
+  }
+
+  if (cleanPath === '/dualar') {
+    return {
+      httpStatus: 200,
+      robots: robotsIndex,
+      title: 'Qurandakı Dualar (Rəbbənə Duaları) | Quran Qiraeti',
+      description:
+        'Qurani-Kərimdən seçilmiş 20 səhih Rəbbənə və peyğəmbər duası — ərəbcə mətn, Əlixan Musayevin Azərbaycan tərcüməsi, səsli tilavət və şəkil kartı yükləmə.',
+      canonicalUrl: `${baseUrl}/dualar`,
+      ogImage: defaultOg,
+      ogType: 'website',
+      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
+        { name: 'Ana səhifə', path: '/' },
+        { name: 'Qurani-Kərim', path: '/quran' },
+        { name: 'Qurandakı Dualar', path: '/dualar' },
+      ]),
+      noscriptHtml:
+        '<h1>Qurandakı Dualar (Rəbbənə Duaları)</h1><p>Hidayət, bağışlanma, ailə, elm və səbir mövzularında Qurandan seçilmiş 20 dua.</p>',
     };
   }
 

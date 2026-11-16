@@ -1,8 +1,32 @@
-import { ArrowRight, BookOpen, Bookmark, Check, Copy, Moon, Search, Sun, Trash2, X } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import {
+  ArrowRight,
+  BookOpen,
+  Bookmark,
+  Check,
+  Copy,
+  Download,
+  Flame,
+  ImageDown,
+  Moon,
+  Pencil,
+  RotateCcw,
+  Search,
+  Square,
+  Sun,
+  Trash2,
+  Volume2,
+  X,
+} from 'lucide-react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SeoHead } from '../components/SeoHead';
-import { useLastRead, useSavedAyahs } from '../hooks/useReaderPreferences';
-import { EMPTY_HIFZ_PROGRESS, HifzProgressState, sanitizeHifzProgress, summarizeHifzProgress } from '../lib/hifzProgress';
+import { DUA_CATEGORIES, DuaCategory, QURAN_DUAS } from '../data/quranDuas';
+import { useLastRead, useReadingGoal, useSavedAyahs } from '../hooks/useReaderPreferences';
+import { EMPTY_HIFZ_PROGRESS, HifzProgressState, sanitizeHifzProgress, summarizeHifzProgress, summarizeJuzHifzProgress } from '../lib/hifzProgress';
+import {
+  MUHAFFIZ_RECITERS,
+  MuhaffizReciterId,
+  getEveryAyahAudioUrl,
+} from '../lib/muhaffiz';
 import {
   JUZ_PAGE_RANGES,
   SURAH_CATALOG,
@@ -14,21 +38,29 @@ import {
   getPagesForJuz,
 } from '../lib/quran';
 import { searchQuranVersesWithFallback } from '../lib/quranClient';
-import { QuranSearchMatch, parseQuickQuranTarget } from '../lib/readerState';
+import { QuranSearchMatch, formatSavedAyahsForExport, parseQuickQuranTarget } from '../lib/readerState';
+import { DailyGoalPages } from '../lib/readingGoal';
 import { POPULAR_QURAN_TOPICS, buildBreadcrumbJsonLd } from '../lib/seo';
+import { downloadVerseImageCard } from '../lib/verseCard';
+
+type DirectoryBrowseMode = 'pages' | 'surahs' | 'search' | 'duas' | 'saved';
+
+const DAILY_GOAL_OPTIONS: DailyGoalPages[] = [2, 4, 10, 20];
 
 interface QuranDirectoryPageProps {
+  initialTab?: DirectoryBrowseMode;
   isDark: boolean;
   onNavigate: (path: string) => void;
   onToggleTheme: () => void;
 }
 
 export function QuranDirectoryPage({
+  initialTab = 'pages',
   isDark,
   onNavigate,
   onToggleTheme,
 }: QuranDirectoryPageProps) {
-  const [browseMode, setBrowseMode] = useState<'pages' | 'surahs' | 'search' | 'saved'>('pages');
+  const [browseMode, setBrowseMode] = useState<DirectoryBrowseMode>(initialTab);
   const [surahQuery, setSurahQuery] = useState('');
   const [selectedJuz, setSelectedJuz] = useState<number | 'all'>('all');
   const [jumpPageInput, setJumpPageInput] = useState('');
@@ -40,9 +72,93 @@ export function QuranDirectoryPage({
   const [isSearchingVerses, setIsSearchingVerses] = useState(false);
   const [verseSearchError, setVerseSearchError] = useState('');
   const [copiedSavedKey, setCopiedSavedKey] = useState<string | null>(null);
+  const [copiedAllSaved, setCopiedAllSaved] = useState(false);
+  const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [showHifzMap, setShowHifzMap] = useState(false);
+  const [showReadingGoal, setShowReadingGoal] = useState(false);
+
+  const [duaCategory, setDuaCategory] = useState<DuaCategory>('all');
+  const [duaReciter, setDuaReciter] = useState<MuhaffizReciterId>('Alafasy_128kbps');
+  const [playingDuaId, setPlayingDuaId] = useState<string | null>(null);
+  const [copiedDuaId, setCopiedDuaId] = useState<string | null>(null);
+  const [duaAudioError, setDuaAudioError] = useState('');
+  const duaAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const lastRead = useLastRead();
-  const { savedAyahs, removeAyahBookmark } = useSavedAyahs();
+  const { savedAyahs, toggleAyahBookmark, removeAyahBookmark, updateAyahNote, isSaved } = useSavedAyahs();
+  const {
+    summary: readingGoalSummary,
+    setDailyGoalPages,
+    resetKhatm,
+  } = useReadingGoal();
+
+  useEffect(() => {
+    setBrowseMode(initialTab);
+  }, [initialTab]);
+
+  const stopDuaAudio = useCallback(() => {
+    if (duaAudioRef.current) {
+      duaAudioRef.current.pause();
+      duaAudioRef.current.onended = null;
+      duaAudioRef.current.onerror = null;
+      duaAudioRef.current = null;
+    }
+    setPlayingDuaId(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopDuaAudio();
+    };
+  }, [stopDuaAudio]);
+
+  const filteredDuas = useMemo(
+    () =>
+      duaCategory === 'all'
+        ? QURAN_DUAS
+        : QURAN_DUAS.filter((d) => d.category === duaCategory),
+    [duaCategory]
+  );
+
+  function handleToggleDuaAudio(dua: (typeof QURAN_DUAS)[number]) {
+    if (playingDuaId === dua.id) {
+      stopDuaAudio();
+      return;
+    }
+    stopDuaAudio();
+    setDuaAudioError('');
+    const audio = new Audio(getEveryAyahAudioUrl(dua.surahNumber, dua.ayahNumber, duaReciter));
+    duaAudioRef.current = audio;
+    setPlayingDuaId(dua.id);
+    audio.onended = () => {
+      if (duaAudioRef.current !== audio) return;
+      stopDuaAudio();
+    };
+    audio.onerror = () => {
+      if (duaAudioRef.current !== audio) return;
+      stopDuaAudio();
+      setDuaAudioError('Duanın səsi hazırda oxudula bilmədi.');
+    };
+    audio.play().catch(() => {
+      if (duaAudioRef.current !== audio) return;
+      stopDuaAudio();
+      setDuaAudioError('Audio oxutma brauzer tərəfindən dayandırıldı.');
+    });
+  }
+
+  async function handleCopyDua(dua: (typeof QURAN_DUAS)[number]) {
+    const text = `${dua.arabicText}\n\n"${dua.translation}"\n(${dua.surahName} surəsi, ${dua.ayahLabel} — Əlixan Musayev tərcüməsi)`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedDuaId(dua.id);
+      window.setTimeout(() => {
+        setCopiedDuaId((cur) => (cur === dua.id ? null : cur));
+      }, 2000);
+    } catch {
+      // ignore clipboard error
+    }
+  }
 
   const [hifzProgress, setHifzProgress] = useState<HifzProgressState>(EMPTY_HIFZ_PROGRESS);
   useEffect(() => {
@@ -54,6 +170,7 @@ export function QuranDirectoryPage({
     }
   }, []);
   const hifzSummary = useMemo(() => summarizeHifzProgress(hifzProgress), [hifzProgress]);
+  const juzHifzSummary = useMemo(() => summarizeJuzHifzProgress(hifzProgress), [hifzProgress]);
 
   const filteredSurahs = useMemo(
     () =>
@@ -149,12 +266,48 @@ export function QuranDirectoryPage({
     }
   }
 
+  async function handleCopyAllSavedAyahs() {
+    const payload = formatSavedAyahsForExport(savedAyahs);
+    if (!payload) return;
+    try {
+      await navigator.clipboard.writeText(payload);
+      setCopiedAllSaved(true);
+      window.setTimeout(() => setCopiedAllSaved(false), 2000);
+    } catch {
+      // ignore clipboard error
+    }
+  }
+
+  function handleDownloadSavedTxt() {
+    const payload = formatSavedAyahsForExport(savedAyahs);
+    if (!payload) return;
+    const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'quran-qiraeti-saxlanilan-ayeler.txt';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const isDuasRoute = initialTab === 'duas';
+
   return (
     <section className="py-14 lg:py-16">
       <SeoHead
-        title="Tam Qurani-Kərim — Mədinə Çapı (604 Səhifə) və 114 Surə | Quran Qiraeti"
-        description="Mədinə çapı üzrə Qurani-Kərimin 604 səhifəsi və 114 surəsi: hər səhifədə Mədinə müshəfindəki dəqiq ayə sayı, ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi (v1.0.4)."
-        path="/quran"
+        title={
+          isDuasRoute
+            ? 'Qurandakı Dualar (Rəbbənə Duaları) | Quran Qiraeti'
+            : 'Tam Qurani-Kərim — Mədinə Çapı (604 Səhifə) və 114 Surə | Quran Qiraeti'
+        }
+        description={
+          isDuasRoute
+            ? 'Qurani-Kərimdən seçilmiş 20 səhih Rəbbənə və peyğəmbər duası — ərəbcə mətn, Əlixan Musayevin Azərbaycan tərcüməsi, səsli tilavət və şəkil kartı.'
+            : 'Mədinə çapı üzrə Qurani-Kərimin 604 səhifəsi və 114 surəsi: hər səhifədə Mədinə müshəfindəki dəqiq ayə sayı, ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi (v1.0.4).'
+        }
+        path={isDuasRoute ? '/dualar' : '/quran'}
         ogImage="/og-default.png"
         jsonLd={jsonLd}
       />
@@ -172,7 +325,24 @@ export function QuranDirectoryPage({
             Ana səhifə
           </a>
           <span aria-hidden="true">›</span>
-          <span className="font-medium text-stone-900 dark:text-stone-200">Qurani-Kərim</span>
+          {isDuasRoute ? (
+            <>
+              <a
+                href="/quran"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigate('/quran');
+                }}
+                className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]"
+              >
+                Qurani-Kərim
+              </a>
+              <span aria-hidden="true">›</span>
+              <span className="font-medium text-stone-900 dark:text-stone-200">Qurandakı Dualar</span>
+            </>
+          ) : (
+            <span className="font-medium text-stone-900 dark:text-stone-200">Qurani-Kərim</span>
+          )}
         </nav>
 
         {/* Header */}
@@ -227,13 +397,13 @@ export function QuranDirectoryPage({
           </div>
         </div>
 
-        {(lastRead || hifzSummary.memorizedCount > 0 || hifzProgress.bookmarkedPage !== null) && (
-          <div
-            data-testid="quran-resume-bar"
-            className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-stone-200 bg-[#F7F5F0] px-5 py-3.5 text-xs dark:border-stone-800 dark:bg-[#141916]"
-          >
-            {lastRead ? (
-              <div className="flex flex-wrap items-center gap-2 text-stone-700 dark:text-stone-300">
+        <div
+          data-testid="quran-resume-bar"
+          className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-stone-200 bg-[#F7F5F0] px-5 py-3.5 text-xs dark:border-stone-800 dark:bg-[#141916]"
+        >
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-stone-700 dark:text-stone-300">
+            {lastRead && (
+              <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-stone-500 dark:text-stone-400">Son oxunan:</span>
                 <span className="font-semibold text-stone-900 dark:text-stone-100">{lastRead.label}</span>
                 <a
@@ -247,34 +417,228 @@ export function QuranDirectoryPage({
                   Davam et →
                 </a>
               </div>
-            ) : (
-              <div />
             )}
 
-            {(hifzSummary.memorizedCount > 0 || hifzProgress.bookmarkedPage !== null) && (
-              <div className="flex flex-wrap items-center gap-3 text-stone-600 dark:text-stone-400">
-                {hifzSummary.memorizedCount > 0 && (
-                  <span>
-                    Əzbər:{' '}
-                    <span className="font-mono-tabular font-semibold text-stone-900 dark:text-stone-100">
-                      {hifzSummary.memorizedCount} / 604
-                    </span>
-                  </span>
-                )}
-                {hifzProgress.bookmarkedPage !== null && (
-                  <a
-                    href={`/muhaffiz/${hifzProgress.bookmarkedPage}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onNavigate(`/muhaffiz/${hifzProgress.bookmarkedPage}`);
-                    }}
-                    className="font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
-                  >
-                    Mühafiz əlfəcini: Səh. {hifzProgress.bookmarkedPage} →
-                  </a>
-                )}
-              </div>
+            <div className="flex flex-wrap items-center gap-3 text-stone-600 dark:text-stone-400">
+              <span>
+                Bu gün:{' '}
+                <span className="font-mono-tabular font-semibold text-stone-900 dark:text-stone-100">
+                  {readingGoalSummary.todayCount}/{readingGoalSummary.goalPages}
+                </span>{' '}
+                səh
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1">
+                <Flame className="h-3.5 w-3.5 text-[#C6A769]" aria-hidden="true" />
+                Ardıcıl:{' '}
+                <span className="font-mono-tabular font-semibold text-stone-900 dark:text-stone-100">
+                  {readingGoalSummary.streakDays} gün
+                </span>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>
+                Xətm:{' '}
+                <span className="font-mono-tabular font-semibold text-stone-900 dark:text-stone-100">
+                  {readingGoalSummary.khatmCount}/604
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 text-stone-600 dark:text-stone-400">
+            <button
+              type="button"
+              onClick={() => setShowReadingGoal((prev) => !prev)}
+              aria-expanded={showReadingGoal}
+              data-testid="toggle-reading-goal"
+              className="rounded-md border border-stone-200 bg-white px-2.5 py-1 font-medium text-stone-700 transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200 dark:hover:border-[#86C7AE]"
+            >
+              {showReadingGoal ? 'Virdi gizlət' : 'Vird və Xətm'}
+            </button>
+
+            {hifzSummary.memorizedCount > 0 && (
+              <span>
+                Əzbər:{' '}
+                <span className="font-mono-tabular font-semibold text-stone-900 dark:text-stone-100">
+                  {hifzSummary.memorizedCount} / 604
+                </span>
+              </span>
             )}
+            {hifzProgress.bookmarkedPage !== null && (
+              <a
+                href={`/muhaffiz/${hifzProgress.bookmarkedPage}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigate(`/muhaffiz/${hifzProgress.bookmarkedPage}`);
+                }}
+                className="font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+              >
+                Mühafiz əlfəcini: Səh. {hifzProgress.bookmarkedPage} →
+              </a>
+            )}
+            {(hifzSummary.memorizedCount > 0 || hifzProgress.bookmarkedPage !== null) && (
+              <button
+                type="button"
+                onClick={() => setShowHifzMap((prev) => !prev)}
+                aria-expanded={showHifzMap}
+                data-testid="toggle-juz-hifz-map"
+                className="rounded-md border border-stone-200 bg-white px-2.5 py-1 font-medium text-stone-700 transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200 dark:hover:border-[#86C7AE]"
+              >
+                {showHifzMap ? '30 Cüz xəritəsini gizlət' : '30 Cüz xəritəsi'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {showReadingGoal && (
+          <div
+            data-testid="reading-goal-panel"
+            className="mt-4 rounded-xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-[#141916]"
+          >
+            <div className="flex flex-col gap-4 border-b border-stone-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-stone-800">
+              <div>
+                <h2 className="font-display text-base font-semibold text-stone-900 dark:text-stone-100">
+                  Gündəlik Vird və 604 Səhifəlik Xətm İzləyicisi
+                </h2>
+                <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+                  Hər Mushaf və ya Mühafiz səhifəsini oxuduqca gündəlik hədəf və xətm faizi avtomatik hesablanır.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-xs text-stone-500 dark:text-stone-400">Gündəlik hədəf:</span>
+                {DAILY_GOAL_OPTIONS.map((goal) => (
+                  <button
+                    key={goal}
+                    type="button"
+                    onClick={() => setDailyGoalPages(goal)}
+                    data-testid={`goal-option-${goal}`}
+                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                      readingGoalSummary.goalPages === goal
+                        ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                        : 'border border-stone-200 bg-[#F7F5F0] text-stone-700 hover:border-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200'
+                    }`}
+                  >
+                    <span className="font-mono-tabular">{goal}</span> səh/gün
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-stone-200 bg-[#F7F5F0] p-4 dark:border-stone-800 dark:bg-[#181E1B]">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-stone-500 dark:text-stone-400">Bugünkü tilavət</span>
+                  <span className="font-mono-tabular font-semibold text-[#0F4C3A] dark:text-[#86C7AE]">
+                    {readingGoalSummary.todayCount} / {readingGoalSummary.goalPages} səhifə
+                  </span>
+                </div>
+                <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-stone-200 dark:bg-stone-800">
+                  <div
+                    style={{ width: `${readingGoalSummary.todayPercent}%` }}
+                    className="h-full bg-[#0F4C3A] transition-all duration-300 dark:bg-[#86C7AE]"
+                  />
+                </div>
+                <p className="mt-2 text-[11px] text-stone-500 dark:text-stone-400">
+                  Gündəlik virdin <span className="font-mono-tabular font-medium">{readingGoalSummary.todayPercent}%</span>-i tamamlanıb
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-stone-200 bg-[#F7F5F0] p-4 dark:border-stone-800 dark:bg-[#181E1B]">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-stone-500 dark:text-stone-400">Ardıcıllıq</span>
+                  <Flame className="h-4 w-4 text-[#C6A769]" aria-hidden="true" />
+                </div>
+                <p className="font-mono-tabular mt-2 text-2xl font-semibold text-stone-900 dark:text-stone-100">
+                  {readingGoalSummary.streakDays} gün
+                </p>
+                <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
+                  Fasiləsiz gündəlik Quran oxuma zənciri
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-stone-200 bg-[#F7F5F0] p-4 dark:border-stone-800 dark:bg-[#181E1B]">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-stone-500 dark:text-stone-400">Ümumi Xətm</span>
+                  <span className="font-mono-tabular font-semibold text-[#0F4C3A] dark:text-[#86C7AE]">
+                    {readingGoalSummary.khatmCount} / 604 ({readingGoalSummary.khatmPercent}%)
+                  </span>
+                </div>
+                <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-stone-200 dark:bg-stone-800">
+                  <div
+                    style={{ width: `${Math.min(100, readingGoalSummary.khatmPercent)}%` }}
+                    className="h-full bg-[#C6A769] transition-all duration-300"
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-stone-500 dark:text-stone-400">
+                  <span data-testid="reading-goal-eta">
+                    {readingGoalSummary.remainingPages === 0
+                      ? 'Xətm tamamlandı!'
+                      : `Təxmini bitmə: ${readingGoalSummary.estimatedDaysLeft} gün`}
+                  </span>
+                  {readingGoalSummary.khatmCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={resetKhatm}
+                      className="inline-flex items-center gap-1 font-medium text-stone-600 hover:text-red-700 dark:text-stone-400 dark:hover:text-red-400"
+                    >
+                      <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                      <span>Sıfırla</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showHifzMap && (hifzSummary.memorizedCount > 0 || hifzProgress.bookmarkedPage !== null) && (
+          <div
+            data-testid="quran-juz-hifz-map"
+            className="mt-4 rounded-xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-[#141916]"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-stone-100 dark:border-stone-800">
+              <div>
+                <h2 className="font-display text-base font-semibold text-stone-900 dark:text-stone-100">
+                  30 Cüz üzrə Hifz xəritəsi
+                </h2>
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  Hər hansı cüzə klikləyərək birbaşa Mühafizdə həmin cüzün ilk səhifəsini açın.
+                </p>
+              </div>
+              <span className="font-mono-tabular text-xs font-medium text-[#0F4C3A] dark:text-[#86C7AE]">
+                Cəmi: {hifzSummary.memorizedCount} / 604 səhifə ({hifzSummary.memorizedPercent}%)
+              </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-5 lg:grid-cols-6">
+              {juzHifzSummary.map((item) => (
+                <a
+                  key={item.juz}
+                  href={`/muhaffiz/${item.startPage}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onNavigate(`/muhaffiz/${item.startPage}`);
+                  }}
+                  className="group rounded-lg border border-stone-200 bg-[#F7F5F0] p-2.5 transition-colors hover:border-[#0F4C3A] dark:border-stone-800 dark:bg-[#181E1B] dark:hover:border-[#86C7AE]"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-stone-900 group-hover:text-[#0F4C3A] dark:text-stone-100 dark:group-hover:text-[#86C7AE]">
+                      {item.juz}. Cüz
+                    </span>
+                    <span className="font-mono-tabular text-[11px] text-stone-500 dark:text-stone-400">
+                      {item.memorizedPages}/{item.totalPages}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-stone-200 dark:bg-stone-800">
+                    <div
+                      style={{ width: `${Math.min(100, item.memorizedPercent)}%` }}
+                      className="h-full bg-[#0F4C3A] transition-all duration-300 dark:bg-[#86C7AE]"
+                    />
+                  </div>
+                </a>
+              ))}
+            </div>
           </div>
         )}
 
@@ -410,6 +774,20 @@ export function QuranDirectoryPage({
               }`}
             >
               Ayə axtarışı
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={browseMode === 'duas'}
+              onClick={() => setBrowseMode('duas')}
+              data-testid="tab-quran-duas"
+              className={`rounded-md px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                browseMode === 'duas'
+                  ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
+                  : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+              }`}
+            >
+              Qurandan Dualar (<span className="font-mono-tabular">{QURAN_DUAS.length}</span>)
             </button>
             <button
               type="button"
@@ -747,6 +1125,206 @@ export function QuranDirectoryPage({
               </div>
             )}
           </div>
+        ) : browseMode === 'duas' ? (
+          /* Curated Quranic Duas Tab */
+          <div className="mt-6" data-testid="quran-duas-panel">
+            <div className="flex flex-col gap-4 rounded-xl border border-stone-200 bg-[#F7F5F0] p-4 sm:flex-row sm:items-center sm:justify-between dark:border-stone-800 dark:bg-[#141916]">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {DUA_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setDuaCategory(cat.id)}
+                    data-testid={`dua-cat-${cat.id}`}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      duaCategory === cat.id
+                        ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                        : 'border border-stone-200 bg-white text-stone-700 hover:border-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label htmlFor="dua-reciter-select" className="text-xs text-stone-500 dark:text-stone-400 whitespace-nowrap">
+                  Qari:
+                </label>
+                <select
+                  id="dua-reciter-select"
+                  value={duaReciter}
+                  onChange={(e) => {
+                    stopDuaAudio();
+                    setDuaReciter(e.target.value as MuhaffizReciterId);
+                  }}
+                  className="rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100"
+                >
+                  {MUHAFFIZ_RECITERS.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {duaAudioError && (
+              <p role="alert" className="mt-3 text-xs font-medium text-amber-700 dark:text-amber-300">
+                {duaAudioError}
+              </p>
+            )}
+
+            <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {filteredDuas.map((dua) => {
+                const isPlaying = playingDuaId === dua.id;
+                const isCopied = copiedDuaId === dua.id;
+                const saved = isSaved(dua.surahNumber, dua.ayahNumber);
+                return (
+                  <article
+                    key={dua.id}
+                    data-testid={`dua-card-${dua.id}`}
+                    className={`flex flex-col justify-between rounded-xl border p-6 transition-colors ${
+                      isPlaying
+                        ? 'border-[#0F4C3A] bg-[#F1F6F3] dark:border-[#86C7AE] dark:bg-[#13221C]'
+                        : 'border-stone-200 bg-white dark:border-stone-800 dark:bg-[#141916]'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h2 className="font-display text-lg font-semibold text-stone-900 dark:text-stone-100">
+                          {dua.title}
+                        </h2>
+                        <span className="font-mono-tabular text-xs font-medium text-[#0F4C3A] dark:text-[#86C7AE]">
+                          {dua.surahName} · {dua.ayahLabel} · Səh. {dua.pageNumber}
+                        </span>
+                      </div>
+
+                      <p
+                        dir="rtl"
+                        lang="ar"
+                        className="font-arabic mt-4 text-right text-2xl leading-[2.2] text-stone-900 dark:text-stone-100"
+                      >
+                        {dua.arabicText}
+                      </p>
+
+                      <p lang="az" className="mt-3 text-sm leading-relaxed text-stone-700 dark:text-stone-300">
+                        «{dua.translation}»
+                      </p>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-stone-100 pt-3.5 text-xs dark:border-stone-800">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleDuaAudio(dua)}
+                          className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                            isPlaying
+                              ? 'border-[#0F4C3A] bg-[#0F4C3A] text-white dark:border-[#86C7AE] dark:bg-[#196B52]'
+                              : 'border-stone-200 text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:text-stone-300'
+                          }`}
+                        >
+                          {isPlaying ? (
+                            <>
+                              <Square className="h-3 w-3" aria-hidden="true" />
+                              <span>Dayandır</span>
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
+                              <span>Dinlə</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            toggleAyahBookmark({
+                              surahNumber: dua.surahNumber,
+                              surahName: dua.surahName,
+                              ayahNumber: dua.ayahNumber,
+                              pageNumber: dua.pageNumber,
+                              arabicText: dua.arabicText,
+                              translation: dua.translation,
+                            })
+                          }
+                          className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                            saved
+                              ? 'border-[#C6A769] bg-[#FAF6EC] text-[#7D6127] dark:border-[#C6A769]/60 dark:bg-[#231F14] dark:text-[#E2CA93]'
+                              : 'border-stone-200 text-stone-600 hover:border-stone-300 dark:border-stone-700 dark:text-stone-300'
+                          }`}
+                        >
+                          <Bookmark className="h-3 w-3" aria-hidden="true" />
+                          <span>{saved ? 'Saxlanılıb' : 'Saxla'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCopyDua(dua)}
+                          className="inline-flex items-center gap-1 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 hover:border-stone-300 dark:border-stone-700 dark:text-stone-300"
+                        >
+                          {isCopied ? (
+                            <>
+                              <Check className="h-3 w-3 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
+                              <span>Köçürüldü</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3 w-3" aria-hidden="true" />
+                              <span>Köçür</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void downloadVerseImageCard({
+                              surahName: dua.surahName,
+                              surahNumber: dua.surahNumber,
+                              ayahNumber: dua.ayahNumber,
+                              arabicText: dua.arabicText,
+                              translation: dua.translation,
+                              theme: isDark ? 'emerald' : 'parchment',
+                            })
+                          }
+                          aria-label={`${dua.title} üçün şəkil kartı yüklə`}
+                          className="inline-flex items-center gap-1 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:text-stone-300"
+                        >
+                          <ImageDown className="h-3 w-3" aria-hidden="true" />
+                          <span>Şəkil</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <a
+                          href={`/quran/sure/${dua.surahNumber}#ayah-${dua.ayahNumber}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onNavigate(`/quran/sure/${dua.surahNumber}#ayah-${dua.ayahNumber}`);
+                          }}
+                          className="text-stone-500 hover:text-[#0F4C3A] hover:underline dark:text-stone-400 dark:hover:text-[#86C7AE]"
+                        >
+                          Surədə aç
+                        </a>
+                        <a
+                          href={`/muhaffiz/${dua.pageNumber}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onNavigate(`/muhaffiz/${dua.pageNumber}`);
+                          }}
+                          className="font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                        >
+                          Əzbərlə
+                        </a>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
         ) : (
           /* Saved Favorite Ayahs Tab */
           <div className="mt-6" data-testid="saved-ayahs-panel">
@@ -783,98 +1361,221 @@ export function QuranDirectoryPage({
                 </div>
               </div>
             ) : (
-              <div className="divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-[#141916]">
-                {savedAyahs.map((item) => {
-                  const key = `${item.surahNumber}:${item.ayahNumber}`;
-                  const isCopied = copiedSavedKey === key;
-                  return (
-                    <div key={key} className="p-6">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="font-mono-tabular font-semibold text-[#0F4C3A] dark:text-[#86C7AE]">
-                            {item.surahName} · {key}
-                          </span>
-                          <a
-                            href={`/quran/sure/${item.surahNumber}#ayah-${item.ayahNumber}`}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onNavigate(`/quran/sure/${item.surahNumber}#ayah-${item.ayahNumber}`);
-                            }}
-                            className="text-stone-500 hover:text-[#0F4C3A] hover:underline dark:text-stone-400 dark:hover:text-[#86C7AE]"
-                          >
-                            Surədə aç
-                          </a>
-                          {item.pageNumber && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-[#F7F5F0] px-5 py-3 dark:border-stone-800 dark:bg-[#141916]">
+                  <p className="text-xs text-stone-600 dark:text-stone-300">
+                    <span className="font-mono-tabular font-semibold text-stone-900 dark:text-stone-100">
+                      {savedAyahs.length}
+                    </span>{' '}
+                    saxlanılan ayə və şəxsi qeydlər
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyAllSavedAyahs}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
+                    >
+                      {copiedAllSaved ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
+                          <span>Hamısı köçürüldü</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span>Hamısını köçür</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadSavedTxt}
+                      data-testid="export-saved-ayahs-txt"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-[#0F4C3A] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0B3A2C] dark:bg-[#196B52]"
+                    >
+                      <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>.txt kimi endir</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-[#141916]">
+                  {savedAyahs.map((item) => {
+                    const key = `${item.surahNumber}:${item.ayahNumber}`;
+                    const isCopied = copiedSavedKey === key;
+                    const isEditingNote = editingNoteKey === key;
+                    return (
+                      <div key={key} className="p-6">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="font-mono-tabular font-semibold text-[#0F4C3A] dark:text-[#86C7AE]">
+                              {item.surahName} · {key}
+                            </span>
                             <a
-                              href={`/quran/sehife/${item.pageNumber}#ayah-${item.surahNumber}-${item.ayahNumber}`}
+                              href={`/quran/sure/${item.surahNumber}#ayah-${item.ayahNumber}`}
                               onClick={(e) => {
                                 e.preventDefault();
-                                onNavigate(
-                                  `/quran/sehife/${item.pageNumber}#ayah-${item.surahNumber}-${item.ayahNumber}`
-                                );
+                                onNavigate(`/quran/sure/${item.surahNumber}#ayah-${item.ayahNumber}`);
                               }}
                               className="text-stone-500 hover:text-[#0F4C3A] hover:underline dark:text-stone-400 dark:hover:text-[#86C7AE]"
                             >
-                              · Səh. {item.pageNumber}
+                              Surədə aç
                             </a>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopySavedAyah(
-                                item.surahNumber,
-                                item.surahName,
-                                item.ayahNumber,
-                                item.arabicText,
-                                item.translation
-                              )
-                            }
-                            className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 hover:border-stone-300 dark:border-stone-700 dark:text-stone-300"
-                          >
-                            {isCopied ? (
-                              <>
-                                <Check className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
-                                <span>Köçürüldü</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                                <span>Köçür</span>
-                              </>
+                            {item.pageNumber && (
+                              <a
+                                href={`/quran/sehife/${item.pageNumber}#ayah-${item.surahNumber}-${item.ayahNumber}`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  onNavigate(
+                                    `/quran/sehife/${item.pageNumber}#ayah-${item.surahNumber}-${item.ayahNumber}`
+                                  );
+                                }}
+                                className="text-stone-500 hover:text-[#0F4C3A] hover:underline dark:text-stone-400 dark:hover:text-[#86C7AE]"
+                              >
+                                · Səh. {item.pageNumber}
+                              </a>
                             )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeAyahBookmark(item.surahNumber, item.ayahNumber)}
-                            aria-label={`${key} ayəsini əlfəcinlərdən sil`}
-                            className="inline-flex items-center gap-1 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 hover:border-red-300 hover:text-red-700 dark:border-stone-700 dark:text-stone-400 dark:hover:text-red-400"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                            <span>Sil</span>
-                          </button>
-                        </div>
-                      </div>
+                          </div>
 
-                      {item.arabicText && (
-                        <p
-                          dir="rtl"
-                          lang="ar"
-                          className="font-arabic mt-4 text-right text-2xl leading-[2.2] text-stone-900 dark:text-stone-100"
-                        >
-                          {item.arabicText}
-                        </p>
-                      )}
-                      {item.translation && (
-                        <p lang="az" className="mt-3 text-base leading-relaxed text-stone-700 dark:text-stone-300">
-                          {item.translation}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isEditingNote) {
+                                  setEditingNoteKey(null);
+                                } else {
+                                  setEditingNoteKey(key);
+                                  setNoteDraft(item.note ?? '');
+                                }
+                              }}
+                              data-testid={`edit-note-btn-${item.surahNumber}-${item.ayahNumber}`}
+                              className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:text-stone-300"
+                            >
+                              <Pencil className="h-3 w-3" aria-hidden="true" />
+                              <span>{item.note ? 'Qeydi düzəlt' : 'Qeyd yaz'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleCopySavedAyah(
+                                  item.surahNumber,
+                                  item.surahName,
+                                  item.ayahNumber,
+                                  item.arabicText,
+                                  item.translation
+                                )
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 hover:border-stone-300 dark:border-stone-700 dark:text-stone-300"
+                            >
+                              {isCopied ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
+                                  <span>Köçürüldü</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                                  <span>Köçür</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void downloadVerseImageCard({
+                                  surahName: item.surahName,
+                                  surahNumber: item.surahNumber,
+                                  ayahNumber: item.ayahNumber,
+                                  arabicText: item.arabicText,
+                                  translation: item.translation,
+                                  theme: isDark ? 'emerald' : 'parchment',
+                                })
+                              }
+                              data-testid={`saved-image-btn-${item.surahNumber}-${item.ayahNumber}`}
+                              className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:text-stone-300"
+                            >
+                              <ImageDown className="h-3.5 w-3.5" aria-hidden="true" />
+                              <span>Şəkil</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeAyahBookmark(item.surahNumber, item.ayahNumber)}
+                              aria-label={`${key} ayəsini əlfəcinlərdən sil`}
+                              className="inline-flex items-center gap-1 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 hover:border-red-300 hover:text-red-700 dark:border-stone-700 dark:text-stone-400 dark:hover:text-red-400"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                              <span>Sil</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {item.arabicText && (
+                          <p
+                            dir="rtl"
+                            lang="ar"
+                            className="font-arabic mt-4 text-right text-2xl leading-[2.2] text-stone-900 dark:text-stone-100"
+                          >
+                            {item.arabicText}
+                          </p>
+                        )}
+                        {item.translation && (
+                          <p lang="az" className="mt-3 text-base leading-relaxed text-stone-700 dark:text-stone-300">
+                            {item.translation}
+                          </p>
+                        )}
+
+                        {item.note && !isEditingNote && (
+                          <p
+                            data-testid={`saved-note-text-${item.surahNumber}-${item.ayahNumber}`}
+                            className="mt-3 rounded-lg border border-stone-200 bg-[#FAF9F6] px-3.5 py-2 text-xs leading-relaxed text-stone-700 dark:border-stone-800 dark:bg-[#181E1B] dark:text-stone-300"
+                          >
+                            <strong className="font-medium text-[#0F4C3A] dark:text-[#86C7AE]">
+                              Şəxsi qeyd:
+                            </strong>{' '}
+                            {item.note}
+                          </p>
+                        )}
+
+                        {isEditingNote && (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              updateAyahNote(item.surahNumber, item.ayahNumber, noteDraft);
+                              setEditingNoteKey(null);
+                            }}
+                            className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center"
+                          >
+                            <input
+                              type="text"
+                              value={noteDraft}
+                              onChange={(e) => setNoteDraft(e.target.value)}
+                              maxLength={500}
+                              placeholder="Bu ayə haqqında şəxsi qeyd və ya təfəkkür yazın..."
+                              data-testid={`note-input-${item.surahNumber}-${item.ayahNumber}`}
+                              className="flex-1 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100"
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="submit"
+                                data-testid={`save-note-btn-${item.surahNumber}-${item.ayahNumber}`}
+                                className="rounded-lg bg-[#0F4C3A] px-3.5 py-1.5 text-xs font-medium text-white dark:bg-[#196B52]"
+                              >
+                                Yadda saxla
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingNoteKey(null)}
+                                className="rounded-lg border border-stone-200 px-3 py-1.5 text-xs text-stone-600 dark:border-stone-700 dark:text-stone-300"
+                              >
+                                Ləğv et
+                              </button>
+                            </div>
+                          </form>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

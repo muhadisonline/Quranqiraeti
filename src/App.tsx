@@ -337,6 +337,14 @@ function AppContent() {
           />
         ) : currentPath === '/quran' ? (
           <QuranDirectoryPage
+            initialTab="pages"
+            isDark={isDark}
+            onNavigate={navigate}
+            onToggleTheme={() => setIsDark((prev) => !prev)}
+          />
+        ) : currentPath === '/dualar' ? (
+          <QuranDirectoryPage
+            initialTab="duas"
             isDark={isDark}
             onNavigate={navigate}
             onToggleTheme={() => setIsDark((prev) => !prev)}
