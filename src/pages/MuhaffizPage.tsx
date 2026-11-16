@@ -1,10 +1,12 @@
 import {
   BookOpen,
+  Check,
   ChevronLeft,
   ChevronRight,
   Clock,
   Eye,
   EyeOff,
+  Flag,
   Menu,
   Mic,
   MicOff,
@@ -12,6 +14,7 @@ import {
   Pause,
   Play,
   Plus,
+  RotateCcw,
   Trash2,
   Volume2,
   VolumeX,
@@ -57,6 +60,7 @@ import {
   revealNextStep,
   toArabicIndicDigits,
   toggleEntireAyahTokens,
+  toggleMissedWordRecord,
   toggleWordToken,
 } from '../lib/muhaffiz';
 import { fetchMuhaffizPageWithFallback } from '../lib/quranClient';
@@ -204,6 +208,7 @@ export function MuhaffizPage({
   // Live Arabic Microphone recitation recognition
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const speechCursorRef = useRef<number>(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [isMicListening, setIsMicListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState<string>('');
 
@@ -360,16 +365,25 @@ export function MuhaffizPage({
     }
   }, [playbackSpeed]);
 
+  const prevPageRef = useRef<number>(pageNumber);
+
   useEffect(() => {
     const controller = new AbortController();
+    const isPageChange = prevPageRef.current !== pageNumber;
+    prevPageRef.current = pageNumber;
+
     stopAudio();
     stopMic();
     setIsAutoRevealing(false);
     setSpeedPopOpen(false);
     setStatusMessage(null);
     setLoadError(null);
-    setLastRevealedTokenId(null);
     speechCursorRef.current = 0;
+
+    if (isPageChange) {
+      setLastRevealedTokenId(null);
+      setRevealedTokenIds(new Set());
+    }
 
     if (pageNumber === 1) {
       setPageData(FATIHAT_PAGE_1_MUHAFFIZ_SEED);
@@ -382,18 +396,20 @@ export function MuhaffizPage({
       .then((payload) => {
         setPageData(payload);
         const tokens = orderedWordTokens(payload.rows);
-        setRevealedTokenIds(
-          prefs.silentMode ? new Set() : new Set(tokens.map((t) => t.id))
-        );
+        setRevealedTokenIds((prev) => {
+          if (!prefs.silentMode) return new Set(tokens.map((t) => t.id));
+          return isPageChange ? new Set() : prev;
+        });
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === 'AbortError') return;
         if (pageNumber === 1) {
           setPageData(FATIHAT_PAGE_1_MUHAFFIZ_SEED);
           const seedTokens = orderedWordTokens(FATIHAT_PAGE_1_MUHAFFIZ_SEED.rows);
-          setRevealedTokenIds(
-            prefs.silentMode ? new Set() : new Set(seedTokens.map((t) => t.id))
-          );
+          setRevealedTokenIds((prev) => {
+            if (!prefs.silentMode) return new Set(seedTokens.map((t) => t.id));
+            return isPageChange ? new Set() : prev;
+          });
         } else {
           setLoadError('Mushaf səhifəsi yüklənərkən xəta baş verdi. Yenidən cəhd edin.');
         }
@@ -650,15 +666,46 @@ export function MuhaffizPage({
     }
   }
 
-  function goToPage(target: number) {
+  const goToPage = useCallback((target: number) => {
     const clean = clampMuhaffizPage(target);
     setPageNumber(clean);
     setIndexOpen(false);
     setSettingsOpen(false);
     setMistakesOpen(false);
-  }
+    if (typeof window !== 'undefined') {
+      const nextPath = clean === 1 ? '/muhaffiz' : `/muhaffiz/${clean}`;
+      if (window.location.pathname !== nextPath) {
+        window.history.replaceState(null, '', nextPath);
+      }
+    }
+  }, []);
 
-  // Keyboard shortcuts (+, -, Arrows, Space, Escape)
+  const handleResetPageReveal = useCallback(() => {
+    setIsAutoRevealing(false);
+    setRevealedTokenIds(new Set());
+    setLastRevealedTokenId(null);
+    speechCursorRef.current = 0;
+  }, []);
+
+  const toggleTokenMistake = useCallback(
+    (tokenId: string) => {
+      const token = wordTokens.find((t) => t.id === tokenId);
+      if (!token) return;
+      setMissedWords((prev) =>
+        toggleMissedWordRecord(prev, {
+          tokenId: token.id,
+          ayahKey: token.ayahKey,
+          pageNumber,
+          surahName: primarySurahName,
+          stemText: token.stemText,
+          createdAt: new Date().toISOString(),
+        })
+      );
+    },
+    [wordTokens, pageNumber, primarySurahName]
+  );
+
+  // Keyboard shortcuts (+, -, Arrows, Space, R, X, Escape)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
@@ -680,6 +727,17 @@ export function MuhaffizPage({
       } else if (e.key === '-' || e.key === '_') {
         e.preventDefault();
         handleHideLast();
+      } else if (e.key === ' ' && prefs.silentMode) {
+        e.preventDefault();
+        stopAudio();
+        stopMic();
+        setIsAutoRevealing((v) => !v);
+      } else if ((e.key === 'r' || e.key === 'R') && prefs.silentMode) {
+        e.preventDefault();
+        handleResetPageReveal();
+      } else if ((e.key === 'x' || e.key === 'X') && lastRevealedTokenId) {
+        e.preventDefault();
+        toggleTokenMistake(lastRevealedTokenId);
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         if (pageNumber < TOTAL_QURAN_PAGES) goToPage(pageNumber + 1);
@@ -690,7 +748,20 @@ export function MuhaffizPage({
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleHideLast, handleRevealNext, indexOpen, settingsOpen, pageNumber]);
+  }, [
+    goToPage,
+    handleHideLast,
+    handleResetPageReveal,
+    handleRevealNext,
+    indexOpen,
+    lastRevealedTokenId,
+    pageNumber,
+    prefs.silentMode,
+    settingsOpen,
+    stopAudio,
+    stopMic,
+    toggleTokenMistake,
+  ]);
 
   const revealedAyahsForTranslation = useMemo(
     () =>
@@ -868,10 +939,25 @@ export function MuhaffizPage({
         </div>
       </header>
 
-      {/* Main 15-Line Centered Madinah Mushaf Sheet */}
+      {/* Main 15-Line Centered Madinah Mushaf Sheet (supports RTL horizontal swipe) */}
       <div
         dir="rtl"
         data-testid="muhaffiz-sheet"
+        onTouchStart={(e) => {
+          const touch = e.changedTouches[0];
+          if (touch) touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+        }}
+        onTouchEnd={(e) => {
+          const start = touchStartRef.current;
+          touchStartRef.current = null;
+          const touch = e.changedTouches[0];
+          if (!start || !touch) return;
+          const dx = touch.clientX - start.x;
+          const dy = touch.clientY - start.y;
+          if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+          if (dx > 0 && pageNumber < TOTAL_QURAN_PAGES) goToPage(pageNumber + 1);
+          else if (dx < 0 && pageNumber > 1) goToPage(pageNumber - 1);
+        }}
         className={`mx-auto flex min-h-0 w-full max-w-[920px] flex-1 flex-col overflow-hidden px-3 sm:px-6 ${
           isCenteredPage ? 'justify-center gap-y-2.5 sm:gap-y-3' : 'justify-between py-1 sm:py-2'
         }`}
@@ -1022,6 +1108,10 @@ export function MuhaffizPage({
                     <button
                       key={token.id}
                       type="button"
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        toggleTokenMistake(token.id);
+                      }}
                       onClick={() => {
                         if (prefs.silentMode) {
                           setRevealedTokenIds((prev) =>
@@ -1031,22 +1121,7 @@ export function MuhaffizPage({
                           );
                           setLastRevealedTokenId(token.id);
                         } else {
-                          // Outside silent mode: tap word to toggle it as flagged mistake for review
-                          setMissedWords((prev) => {
-                            const exists = prev.some((m) => m.tokenId === token.id);
-                            if (exists) return prev.filter((m) => m.tokenId !== token.id);
-                            return [
-                              {
-                                tokenId: token.id,
-                                ayahKey: token.ayahKey,
-                                pageNumber,
-                                surahName: primarySurahName,
-                                stemText: token.stemText,
-                                createdAt: new Date().toISOString(),
-                              },
-                              ...prev,
-                            ].slice(0, 80);
-                          });
+                          toggleTokenMistake(token.id);
                         }
                       }}
                       aria-label={token.stemText}
@@ -1118,6 +1193,90 @@ export function MuhaffizPage({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Contextual Hifz Completion / Quick Peek-Mistake Bar */}
+      {prefs.silentMode && !isLoading && (allRevealed || lastRevealedTokenId) && wordTokens.length > 0 && (
+        <div
+          dir="ltr"
+          className="mx-auto flex shrink-0 flex-wrap items-center justify-center gap-1.5 px-3 pb-1"
+        >
+          {allRevealed ? (
+            <>
+              <button
+                type="button"
+                data-testid="muhaffiz-mark-memorized-quick"
+                onClick={() =>
+                  setHifzProgress((prev) =>
+                    setHifzPageStatus(
+                      prev,
+                      pageNumber,
+                      currentPageHifzStatus === 'memorized' ? 'none' : 'memorized'
+                    )
+                  )
+                }
+                style={
+                  currentPageHifzStatus === 'memorized'
+                    ? { backgroundColor: palette.green, color: palette.paper, borderColor: palette.green }
+                    : { backgroundColor: palette.chip, color: palette.green, borderColor: palette.line }
+                }
+                className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors"
+              >
+                <Check className="h-3 w-3" aria-hidden="true" />
+                <span>
+                  {currentPageHifzStatus === 'memorized' ? 'Əzbərlənib' : 'Səhifə tamamlandı · Əzbərlədim'}
+                </span>
+              </button>
+              <button
+                type="button"
+                data-testid="muhaffiz-reset-reveal-btn"
+                onClick={handleResetPageReveal}
+                style={{ backgroundColor: palette.chip, color: palette.muted, borderColor: palette.line }}
+                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium hover:opacity-80"
+              >
+                <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                <span>Yenidən yoxla</span>
+              </button>
+            </>
+          ) : (
+            lastRevealedTokenId && (
+              <>
+                <button
+                  type="button"
+                  data-testid="muhaffiz-flag-last-btn"
+                  onClick={() => toggleTokenMistake(lastRevealedTokenId)}
+                  style={
+                    missedSet.has(lastRevealedTokenId)
+                      ? {
+                          backgroundColor: palette.isDark ? '#a85a4c' : '#7a3b2e',
+                          color: '#fffaf0',
+                          borderColor: palette.isDark ? '#a85a4c' : '#7a3b2e',
+                        }
+                      : {
+                          backgroundColor: palette.chip,
+                          color: palette.isDark ? '#e69b8d' : '#7a3b2e',
+                          borderColor: palette.line,
+                        }
+                  }
+                  className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold"
+                >
+                  <Flag className="h-3 w-3" aria-hidden="true" />
+                  <span>{missedSet.has(lastRevealedTokenId) ? 'Xəta sil' : 'Xəta qeyd et'}</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="muhaffiz-reset-reveal-btn"
+                  onClick={handleResetPageReveal}
+                  style={{ backgroundColor: palette.chip, color: palette.muted, borderColor: palette.line }}
+                  className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium hover:opacity-80"
+                >
+                  <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                  <span>Sıfırla</span>
+                </button>
+              </>
+            )
+          )}
         </div>
       )}
 
@@ -1503,6 +1662,7 @@ export function MuhaffizPage({
         paperTheme={prefs.paperTheme}
         hifzProgress={hifzProgress}
         juzSummary={juzHifzSummary}
+        missedWords={missedWords}
         onClose={() => setIndexOpen(false)}
         onSelectPage={goToPage}
         onOpenSettings={() => {

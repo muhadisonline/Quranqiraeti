@@ -1,8 +1,14 @@
-import { Bookmark, ChevronLeft, Menu, Search, X } from 'lucide-react';
+import { AlertCircle, Bookmark, CheckCircle2, ChevronLeft, Menu, RotateCcw, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { HifzProgressState, JuzHifzSummary } from '../../lib/hifzProgress';
+import {
+  HifzProgressState,
+  JuzHifzSummary,
+  buildHifzReviewQueue,
+  summarizeHifzProgress,
+} from '../../lib/hifzProgress';
 import {
   MUHAFFIZ_THEME_PALETTES,
+  MissedWordRecord,
   MuhaffizPaperTheme,
   clampMuhaffizPage,
 } from '../../lib/muhaffiz';
@@ -15,6 +21,7 @@ interface MuhaffizIndexOverlayProps {
   paperTheme: MuhaffizPaperTheme;
   hifzProgress: HifzProgressState;
   juzSummary: JuzHifzSummary[];
+  missedWords?: MissedWordRecord[];
   onClose: () => void;
   onSelectPage: (page: number) => void;
   onOpenSettings: () => void;
@@ -25,6 +32,15 @@ function getJuzForPage(page: number): number {
   return found?.juz ?? 1;
 }
 
+function getSurahForPage(page: number): string {
+  let match = SURAH_CATALOG[0]?.name ?? 'Fatihə';
+  for (const s of SURAH_CATALOG) {
+    if (s.startPage <= page) match = s.name;
+    else break;
+  }
+  return match;
+}
+
 export function MuhaffizIndexOverlay({
   isOpen,
   currentPage,
@@ -32,17 +48,23 @@ export function MuhaffizIndexOverlay({
   paperTheme,
   hifzProgress,
   juzSummary,
+  missedWords = [],
   onClose,
   onSelectPage,
   onOpenSettings,
 }: MuhaffizIndexOverlayProps) {
-  const [activeTab, setActiveTab] = useState<'surahs' | 'juz'>('surahs');
+  const [activeTab, setActiveTab] = useState<'surahs' | 'juz' | 'review'>('surahs');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [pageJumpInput, setPageJumpInput] = useState(String(currentPage));
 
   const palette = MUHAFFIZ_THEME_PALETTES[paperTheme];
   const subtleBg = palette.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(109,92,69,0.06)';
+  const reviewQueue = useMemo(
+    () => buildHifzReviewQueue(hifzProgress, missedWords),
+    [hifzProgress, missedWords]
+  );
+  const hifzTotals = useMemo(() => summarizeHifzProgress(hifzProgress), [hifzProgress]);
 
   const filteredSurahs = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -181,10 +203,10 @@ export function MuhaffizIndexOverlay({
         )}
       </div>
 
-      {/* Full-width SURƏLƏR | CÜZLƏR Tab Strip */}
+      {/* Full-width SURƏLƏR | CÜZLƏR | TƏKRAR Tab Strip */}
       <div
         style={{ borderBottom: `1px solid ${palette.line}` }}
-        className="grid shrink-0 grid-cols-2 text-xs font-bold tracking-wider uppercase"
+        className="grid shrink-0 grid-cols-3 text-xs font-bold tracking-wider uppercase"
       >
         <button
           type="button"
@@ -207,6 +229,18 @@ export function MuhaffizIndexOverlay({
           className="py-2.5 text-center transition-colors"
         >
           CÜZLƏR
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('review')}
+          data-testid="muhaffiz-index-review-tab"
+          style={{
+            borderBottom: activeTab === 'review' ? `2px solid ${palette.green}` : '2px solid transparent',
+            color: activeTab === 'review' ? palette.ink : palette.muted,
+          }}
+          className="py-2.5 text-center transition-colors"
+        >
+          TƏKRAR{reviewQueue.length > 0 ? ` (${reviewQueue.length})` : ''}
         </button>
       </div>
 
@@ -280,7 +314,7 @@ export function MuhaffizIndexOverlay({
               );
             })}
           </div>
-        ) : (
+        ) : activeTab === 'juz' ? (
           <div>
             {juzSummary.map((j) => (
               <button
@@ -314,6 +348,125 @@ export function MuhaffizIndexOverlay({
                 </span>
               </button>
             ))}
+          </div>
+        ) : (
+          <div data-testid="muhaffiz-review-list">
+            {/* Compact Hifz Khatm Progress Summary */}
+            <div
+              style={{ backgroundColor: subtleBg, borderBottom: `1px solid ${palette.line}` }}
+              className="space-y-2 px-4 py-3 sm:px-6"
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold">Ümumi Hifz irəliləyişi</span>
+                <span className="font-mono-tabular font-bold" style={{ color: palette.green }}>
+                  {hifzTotals.memorizedCount} / {TOTAL_QURAN_PAGES} səhifə ({hifzTotals.memorizedPercent}%)
+                </span>
+              </div>
+              <div
+                style={{ backgroundColor: palette.line }}
+                className="h-1.5 w-full overflow-hidden rounded-full"
+              >
+                <div
+                  style={{
+                    width: `${Math.min(100, hifzTotals.memorizedPercent)}%`,
+                    backgroundColor: palette.green,
+                  }}
+                  className="h-full rounded-full transition-all duration-300"
+                />
+              </div>
+            </div>
+
+            {reviewQueue.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <p className="text-sm font-semibold">Hələ təkrar siyahısı boşdur</p>
+                <p className="mt-1 text-xs" style={{ color: palette.muted }}>
+                  Oxuyarkən xəta qeyd etdiyiniz, "Əzbərlədim / Təkrarda" seçdiyiniz və ya əlfəcinlədiyiniz
+                  səhifələr prioritet sırası ilə burada toplanır.
+                </p>
+              </div>
+            ) : (
+              <div>
+                {reviewQueue.map((entry) => {
+                  const surahName = getSurahForPage(entry.pageNumber);
+                  return (
+                    <button
+                      key={`rev-${entry.pageNumber}`}
+                      type="button"
+                      onClick={() => onSelectPage(entry.pageNumber)}
+                      style={{ borderBottom: `1px solid ${palette.line}` }}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-black/4 sm:px-6"
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <span
+                          className="w-8 font-mono-tabular text-xs font-bold"
+                          style={{ color: palette.muted }}
+                        >
+                          {entry.pageNumber}
+                        </span>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold">{surahName}</span>
+                            {entry.mistakeCount > 0 && (
+                              <span
+                                style={{
+                                  backgroundColor: palette.isDark
+                                    ? 'rgba(168,90,76,0.2)'
+                                    : 'rgba(122,59,46,0.12)',
+                                  color: palette.isDark ? '#e69b8d' : '#7a3b2e',
+                                }}
+                                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                              >
+                                <AlertCircle className="h-3 w-3" />
+                                {entry.mistakeCount} xəta
+                              </span>
+                            )}
+                            {entry.status === 'memorized' && (
+                              <span
+                                style={{
+                                  backgroundColor: palette.chip,
+                                  color: palette.green,
+                                }}
+                                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                              >
+                                <CheckCircle2 className="h-3 w-3" />
+                                Əzbərlənib
+                              </span>
+                            )}
+                            {entry.status === 'learning' && (
+                              <span
+                                style={{
+                                  backgroundColor: palette.chip,
+                                  color: palette.gold,
+                                }}
+                                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                                Təkrarda
+                              </span>
+                            )}
+                            {entry.isBookmarked && (
+                              <Bookmark
+                                className="h-3.5 w-3.5 fill-current"
+                                style={{ color: palette.gold }}
+                              />
+                            )}
+                          </div>
+                          <p className="text-xs" style={{ color: palette.muted }}>
+                            Cüz {getJuzForPage(entry.pageNumber)} · Səhifə {entry.pageNumber}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className="font-mono-tabular text-xs font-medium"
+                        style={{ color: palette.green }}
+                      >
+                        Aç →
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

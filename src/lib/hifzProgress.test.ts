@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   EMPTY_HIFZ_PROGRESS,
+  buildHifzReviewQueue,
   getHifzPageStatus,
   sanitizeHifzProgress,
   setHifzPageStatus,
@@ -50,3 +51,26 @@ test('toggleHifzBookmark toggles bookmark and sanitizeHifzProgress discards out-
   assert.deepEqual(sanitized.pages, { 1: 'memorized', 12: 'learning' });
   assert.equal(sanitized.bookmarkedPage, 36);
 });
+
+test('buildHifzReviewQueue prioritizes mistake pages, then learning pages, then memorized pages', () => {
+  let state = EMPTY_HIFZ_PROGRESS;
+  state = setHifzPageStatus(state, 1, 'memorized', '2026-11-16T10:00:00Z');
+  state = setHifzPageStatus(state, 10, 'learning', '2026-11-16T10:01:00Z');
+  state = toggleHifzBookmark(state, 440, '2026-11-16T10:02:00Z');
+
+  const queue = buildHifzReviewQueue(state, [
+    { pageNumber: 440 },
+    { pageNumber: 440 },
+    { pageNumber: 1 },
+  ]);
+
+  assert.equal(queue.length, 3);
+  assert.equal(queue[0].pageNumber, 440);
+  assert.equal(queue[0].mistakeCount, 2);
+  assert.equal(queue[0].priority, 'mistakes');
+  assert.equal(queue[1].pageNumber, 1);
+  assert.equal(queue[1].mistakeCount, 1);
+  assert.equal(queue[2].pageNumber, 10);
+  assert.equal(queue[2].priority, 'learning');
+});
+

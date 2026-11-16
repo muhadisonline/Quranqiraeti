@@ -149,3 +149,72 @@ export function summarizeJuzHifzProgress(
     };
   });
 }
+
+export interface HifzReviewPageEntry {
+  pageNumber: number;
+  status: HifzPageStatus;
+  mistakeCount: number;
+  isBookmarked: boolean;
+  priority: 'mistakes' | 'learning' | 'memorized';
+}
+
+export function buildHifzReviewQueue(
+  state: HifzProgressState,
+  missedWords: Array<{ pageNumber: number }>
+): HifzReviewPageEntry[] {
+  const mistakesByPage = new Map<number, number>();
+  for (const m of missedWords) {
+    const p = clampMuhaffizPage(m.pageNumber);
+    mistakesByPage.set(p, (mistakesByPage.get(p) ?? 0) + 1);
+  }
+
+  const allPages = new Set<number>();
+  for (const key of Object.keys(state.pages)) {
+    const p = Number.parseInt(key, 10);
+    if (p >= 1 && p <= TOTAL_QURAN_PAGES) allPages.add(p);
+  }
+  for (const p of mistakesByPage.keys()) {
+    allPages.add(p);
+  }
+  if (state.bookmarkedPage !== null) {
+    allPages.add(state.bookmarkedPage);
+  }
+
+  const priorityRank: Record<HifzReviewPageEntry['priority'], number> = {
+    mistakes: 0,
+    learning: 1,
+    memorized: 2,
+  };
+
+  const entries: HifzReviewPageEntry[] = [];
+  for (const pageNumber of allPages) {
+    const status = getHifzPageStatus(state, pageNumber);
+    const mistakeCount = mistakesByPage.get(pageNumber) ?? 0;
+    const isBookmarked = state.bookmarkedPage === pageNumber;
+    const priority: HifzReviewPageEntry['priority'] =
+      mistakeCount > 0 ? 'mistakes' : status === 'memorized' ? 'memorized' : 'learning';
+
+    if (mistakeCount > 0 || status !== 'none' || isBookmarked) {
+      entries.push({
+        pageNumber,
+        status,
+        mistakeCount,
+        isBookmarked,
+        priority,
+      });
+    }
+  }
+
+  entries.sort((a, b) => {
+    if (priorityRank[a.priority] !== priorityRank[b.priority]) {
+      return priorityRank[a.priority] - priorityRank[b.priority];
+    }
+    if (b.mistakeCount !== a.mistakeCount) {
+      return b.mistakeCount - a.mistakeCount;
+    }
+    return a.pageNumber - b.pageNumber;
+  });
+
+  return entries;
+}
+

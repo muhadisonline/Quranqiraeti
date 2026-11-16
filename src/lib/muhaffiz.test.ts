@@ -225,3 +225,25 @@ test('normalizeArabicForSpeech and matchSpokenArabicAgainstTokens match spoken r
   assert.equal(skipped.skippedTokens[0].stemText, 'ٱلرَّحْمَـٰنِ');
 });
 
+test('toggleMissedWordRecord toggles word presence cleanly and enforces max capacity', async () => {
+  const { toggleMissedWordRecord } = await import('./muhaffiz');
+  const recA = {
+    tokenId: '1:1-0',
+    ayahKey: '1:1',
+    pageNumber: 1,
+    surahName: 'Fatihə',
+    stemText: 'بِسْمِ',
+    createdAt: '2026-11-16T10:00:00Z',
+  };
+  const recB = { ...recA, tokenId: '1:1-1', stemText: 'ٱللَّهِ' };
+
+  let list = toggleMissedWordRecord([], recA, 2);
+  assert.equal(list.length, 1);
+  list = toggleMissedWordRecord(list, recB, 2);
+  assert.equal(list.length, 2);
+  list = toggleMissedWordRecord(list, recA, 2);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].tokenId, '1:1-1');
+});
+
+

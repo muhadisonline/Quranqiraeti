@@ -930,6 +930,18 @@ export interface MissedWordRecord {
   createdAt: string;
 }
 
+export function toggleMissedWordRecord(
+  existing: MissedWordRecord[],
+  record: MissedWordRecord,
+  maxItems = 80
+): MissedWordRecord[] {
+  const found = existing.some((item) => item.tokenId === record.tokenId);
+  if (found) {
+    return existing.filter((item) => item.tokenId !== record.tokenId);
+  }
+  return [record, ...existing].slice(0, maxItems);
+}
+
 /**
  * Strips Quranic diacritics/harakat and normalizes hamza/alef/teh variants
  * for resilient browser SpeechRecognition matching against Arabic Mushaf words.
