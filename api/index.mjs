@@ -2400,6 +2400,37 @@ function buildAiIndexJson(origin, stats, longVideos, shorts) {
 // src/server/api.ts
 import express from "express";
 
+// src/lib/readerState.ts
+function parseAlQuranSearchPayload(payload, catalog = SURAH_CATALOG, limit = 24) {
+  if (!payload || typeof payload !== "object") return [];
+  const data = payload.data;
+  const rawMatches = Array.isArray(data?.matches) ? data.matches : [];
+  const seen = /* @__PURE__ */ new Set();
+  const results = [];
+  for (const item of rawMatches) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item;
+    const surahNumber = Number(raw.surah?.number);
+    const ayahNumber = Number(raw.numberInSurah);
+    const snippet = String(raw.text ?? "").replace(/\s+/g, " ").trim();
+    if (!Number.isInteger(surahNumber) || surahNumber < 1 || surahNumber > TOTAL_QURAN_SURAHS || !Number.isInteger(ayahNumber) || ayahNumber < 1 || !snippet) {
+      continue;
+    }
+    const key = `${surahNumber}:${ayahNumber}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const surah = catalog.find((s) => s.number === surahNumber) ?? getSurahByNumber(surahNumber);
+    results.push({
+      surahNumber,
+      surahName: surah?.name ?? String(raw.surah?.englishName ?? `Sur\u0259 ${surahNumber}`),
+      ayahNumber,
+      snippet
+    });
+    if (results.length >= limit) break;
+  }
+  return results;
+}
+
 // src/lib/analytics.ts
 var CONNECTED_PAGES = [
   {
@@ -3413,6 +3444,33 @@ function createApiRouter() {
       res.json(payload);
     } catch {
       res.status(502).json({ error: "M\xFChafiz s\u0259hif\u0259si y\xFCkl\u0259n\u0259rk\u0259n x\u0259ta ba\u015F verdi." });
+    }
+  });
+  router.get("/quran/search", async (req, res) => {
+    const rawQuery = String(req.query.q ?? "").trim();
+    if (rawQuery.length < 2) {
+      res.status(400).json({ error: "Axtar\u0131\u015F sor\u011Fusu \u0259n az\u0131 2 simvol olmal\u0131d\u0131r." });
+      return;
+    }
+    try {
+      const encoded = encodeURIComponent(rawQuery.slice(0, 80));
+      const upstream = await fetch(
+        `https://api.alquran.cloud/v1/search/${encoded}/all/az.mammadaliyev`,
+        {
+          signal: AbortSignal.timeout(process.env.VERCEL ? 4500 : 7500),
+          headers: { "User-Agent": "Mozilla/5.0" }
+        }
+      );
+      if (!upstream.ok) {
+        res.json({ query: rawQuery, matches: [] });
+        return;
+      }
+      const data = await upstream.json();
+      const matches = parseAlQuranSearchPayload(data);
+      res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate=86400");
+      res.json({ query: rawQuery, matches });
+    } catch {
+      res.status(502).json({ error: "Quran ay\u0259 axtar\u0131\u015F\u0131 haz\u0131rda \u0259l\xE7atan deyil." });
     }
   });
   router.get("/requests", (_req, res) => {

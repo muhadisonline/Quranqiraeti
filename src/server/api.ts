@@ -26,6 +26,7 @@ import {
   buildTokensFromQuranComVerses,
   groupTokensIntoMushafRows,
 } from '../lib/muhaffiz';
+import { parseAlQuranSearchPayload } from '../lib/readerState';
 import {
   buildAiIndexJson,
   buildCoreSitemapXml,
@@ -571,6 +572,34 @@ export function createApiRouter() {
       res.json(payload);
     } catch {
       res.status(502).json({ error: 'Mühafiz səhifəsi yüklənərkən xəta baş verdi.' });
+    }
+  });
+
+  router.get('/quran/search', async (req: Request, res: Response) => {
+    const rawQuery = String(req.query.q ?? '').trim();
+    if (rawQuery.length < 2) {
+      res.status(400).json({ error: 'Axtarış sorğusu ən azı 2 simvol olmalıdır.' });
+      return;
+    }
+    try {
+      const encoded = encodeURIComponent(rawQuery.slice(0, 80));
+      const upstream = await fetch(
+        `https://api.alquran.cloud/v1/search/${encoded}/all/az.mammadaliyev`,
+        {
+          signal: AbortSignal.timeout(process.env.VERCEL ? 4500 : 7500),
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+        }
+      );
+      if (!upstream.ok) {
+        res.json({ query: rawQuery, matches: [] });
+        return;
+      }
+      const data = await upstream.json();
+      const matches = parseAlQuranSearchPayload(data);
+      res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+      res.json({ query: rawQuery, matches });
+    } catch {
+      res.status(502).json({ error: 'Quran ayə axtarışı hazırda əlçatan deyil.' });
     }
   });
 

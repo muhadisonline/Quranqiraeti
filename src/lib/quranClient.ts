@@ -17,6 +17,7 @@ import {
   buildTokensFromQuranComVerses,
   groupTokensIntoMushafRows,
 } from './muhaffiz';
+import { QuranSearchMatch, parseAlQuranSearchPayload } from './readerState';
 
 export async function parseJsonSafely<T>(response: Response): Promise<T | null> {
   const contentType = response.headers.get('content-type') ?? '';
@@ -196,5 +197,33 @@ export async function fetchMuhaffizPageWithFallback(
     rows: buildSyntheticMuhaffizRows(pageNumber, plain.ayahs),
     centeredPage: pageNumber === 1 || pageNumber === 2,
   };
+}
+
+export async function searchQuranVersesWithFallback(
+  query: string,
+  signal?: AbortSignal
+): Promise<QuranSearchMatch[]> {
+  const clean = query.trim();
+  if (clean.length < 2) return [];
+
+  try {
+    const apiRes = await fetch(`/api/quran/search?q=${encodeURIComponent(clean)}`, { signal });
+    const apiJson = await parseJsonSafely<{ matches?: QuranSearchMatch[] }>(apiRes);
+    if (apiJson && Array.isArray(apiJson.matches)) {
+      return apiJson.matches;
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+  }
+
+  const fallbackRes = await fetch(
+    `https://api.alquran.cloud/v1/search/${encodeURIComponent(clean)}/all/az.mammadaliyev`,
+    { signal }
+  );
+  if (!fallbackRes.ok) {
+    return [];
+  }
+  const json = await fallbackRes.json();
+  return parseAlQuranSearchPayload(json);
 }
 

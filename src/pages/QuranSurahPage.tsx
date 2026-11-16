@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Bookmark,
   Check,
   Copy,
   Play,
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SeoHead } from '../components/SeoHead';
+import { useReaderTextScale, useSavedAyahs } from '../hooks/useReaderPreferences';
 import {
   RecitationVideo,
   SurahTranslationPayload,
@@ -22,6 +24,13 @@ import {
   MuhaffizReciterId,
   getEveryAyahAudioUrl,
 } from '../lib/muhaffiz';
+import {
+  READER_SCALE_CLASSES,
+  READER_SCALE_LABELS,
+  ReaderTextScale,
+  buildLastReadRecord,
+  saveLastReadToStorage,
+} from '../lib/readerState';
 import {
   TOTAL_QURAN_SURAHS,
   formatAzerbaijaniOrdinal,
@@ -81,6 +90,9 @@ export function QuranSurahPage({
   const [playingKey, setPlayingKey] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
 
+  const { isSaved, toggleAyahBookmark } = useSavedAyahs();
+  const { textScale, setTextScale } = useReaderTextScale();
+
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause();
@@ -100,6 +112,14 @@ export function QuranSurahPage({
   }, [reciter]);
 
   useEffect(() => {
+    if (surah) {
+      saveLastReadToStorage(
+        buildLastReadRecord('surah', surah.number, `${surah.number}. ${surah.name} surəsi`)
+      );
+    }
+  }, [surah]);
+
+  useEffect(() => {
     setQuery('');
     setSelectedMushafPage(null);
     setShowAllPages(false);
@@ -112,6 +132,15 @@ export function QuranSurahPage({
       stopAudio();
     };
   }, [stopAudio]);
+
+  useEffect(() => {
+    if (!playingKey) return;
+    const [, ayahStr] = playingKey.split(':');
+    const el = document.getElementById(`ayah-${ayahStr}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [playingKey]);
 
   useEffect(() => {
     if (!surah) return;
@@ -262,6 +291,22 @@ export function QuranSurahPage({
     if (idx >= 0) {
       playAyahAtIndex(idx);
     }
+  }
+
+  function handlePlayAllDisplayed() {
+    if (playingKey) {
+      stopAudio();
+      return;
+    }
+    if (displayedAyahs.length === 0) return;
+    if (highlightedAyahNumber !== null) {
+      const startIdx = displayedAyahs.findIndex((a) => a.ayahNumber === highlightedAyahNumber);
+      if (startIdx >= 0) {
+        playAyahAtIndex(startIdx);
+        return;
+      }
+    }
+    playAyahAtIndex(0);
   }
 
   const firstPage = pageGroups[0]?.pageNumber ?? surah?.startPage;
@@ -513,7 +558,7 @@ export function QuranSurahPage({
                 <div />
               )}
 
-              <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500 dark:text-stone-400">
+              <div className="flex flex-wrap items-center gap-2.5 text-xs text-stone-500 dark:text-stone-400">
                 <div className="flex items-center gap-1.5">
                   <Volume2 className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
                   <label htmlFor="surah-reciter-select" className="sr-only">
@@ -535,6 +580,54 @@ export function QuranSurahPage({
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {displayedAyahs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handlePlayAllDisplayed}
+                    data-testid="surah-play-all"
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                      playingKey
+                        ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                        : 'border border-stone-200 bg-white text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200'
+                    }`}
+                  >
+                    {playingKey ? (
+                      <>
+                        <Square className="h-3 w-3 fill-current" aria-hidden="true" />
+                        <span>Dayandır</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                        <span>Hamısını dinlə</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <div
+                  role="group"
+                  aria-label="Mətn ölçüsü"
+                  className="inline-flex items-center gap-0.5 rounded-lg border border-stone-200 bg-white p-0.5 dark:border-stone-700 dark:bg-[#141916]"
+                >
+                  {(['compact', 'normal', 'large'] as ReaderTextScale[]).map((scaleKey) => (
+                    <button
+                      key={scaleKey}
+                      type="button"
+                      onClick={() => setTextScale(scaleKey)}
+                      aria-pressed={textScale === scaleKey}
+                      title={`Mətn ölçüsü: ${READER_SCALE_LABELS[scaleKey]}`}
+                      className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                        textScale === scaleKey
+                          ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                          : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                      }`}
+                    >
+                      {scaleKey === 'compact' ? 'A-' : scaleKey === 'normal' ? 'A' : 'A+'}
+                    </button>
+                  ))}
                 </div>
 
                 {query.trim() ? (
@@ -734,6 +827,38 @@ export function QuranSurahPage({
                         <button
                           type="button"
                           onClick={() =>
+                            toggleAyahBookmark({
+                              surahNumber: ayah.surahNumber,
+                              ayahNumber: ayah.ayahNumber,
+                              surahName: surah.name,
+                              pageNumber: ayah.pageNumber,
+                              arabicText: ayah.arabicText,
+                              translation: ayah.translation,
+                            })
+                          }
+                          aria-pressed={isSaved(ayah.surahNumber, ayah.ayahNumber)}
+                          aria-label={
+                            isSaved(ayah.surahNumber, ayah.ayahNumber)
+                              ? `${key} ayəsini əlfəcindən çıxar`
+                              : `${key} ayəsini əlfəcinlərə saxla`
+                          }
+                          data-testid={`surah-bookmark-ayah-${ayah.ayahNumber}`}
+                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors ${
+                            isSaved(ayah.surahNumber, ayah.ayahNumber)
+                              ? 'border-[#0F4C3A] bg-[#0F4C3A]/10 font-medium text-[#0F4C3A] dark:border-[#86C7AE] dark:bg-[#86C7AE]/15 dark:text-[#86C7AE]'
+                              : 'border-stone-200 text-stone-600 hover:border-stone-300 hover:text-stone-900 dark:border-stone-700 dark:text-stone-400 dark:hover:text-stone-100'
+                          }`}
+                        >
+                          <Bookmark
+                            className={`h-3.5 w-3.5 ${isSaved(ayah.surahNumber, ayah.ayahNumber) ? 'fill-current' : ''}`}
+                            aria-hidden="true"
+                          />
+                          <span>{isSaved(ayah.surahNumber, ayah.ayahNumber) ? 'Saxlanılıb' : 'Saxla'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
                             handleCopyAyah(ayah.ayahNumber, ayah.arabicText, ayah.translation)
                           }
                           aria-label={`${key} ayəsini və tərcüməsini köçür`}
@@ -757,12 +882,12 @@ export function QuranSurahPage({
                     <p
                       dir="rtl"
                       lang="ar"
-                      className="font-arabic mt-4 text-right text-2xl leading-[2.25] text-stone-900 sm:text-[1.8rem] dark:text-stone-100"
+                      className={`font-arabic mt-4 text-right ${READER_SCALE_CLASSES[textScale].arabic} text-stone-900 dark:text-stone-100`}
                     >
                       {ayah.arabicText}
                     </p>
 
-                    <p lang="az" className="mt-4 text-base leading-relaxed text-stone-700 dark:text-stone-300">
+                    <p lang="az" className={`mt-4 ${READER_SCALE_CLASSES[textScale].translation} text-stone-700 dark:text-stone-300`}>
                       {ayah.translation}
                     </p>
 

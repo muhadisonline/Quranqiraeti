@@ -1,6 +1,8 @@
-import { ArrowRight, BookOpen, Moon, Search, Sun, X } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import { ArrowRight, BookOpen, Bookmark, Check, Copy, Moon, Search, Sun, Trash2, X } from 'lucide-react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { SeoHead } from '../components/SeoHead';
+import { useLastRead, useSavedAyahs } from '../hooks/useReaderPreferences';
+import { EMPTY_HIFZ_PROGRESS, HifzProgressState, sanitizeHifzProgress, summarizeHifzProgress } from '../lib/hifzProgress';
 import {
   JUZ_PAGE_RANGES,
   SURAH_CATALOG,
@@ -11,6 +13,8 @@ import {
   getJuzForPage,
   getPagesForJuz,
 } from '../lib/quran';
+import { searchQuranVersesWithFallback } from '../lib/quranClient';
+import { QuranSearchMatch, parseQuickQuranTarget } from '../lib/readerState';
 import { POPULAR_QURAN_TOPICS, buildBreadcrumbJsonLd } from '../lib/seo';
 
 interface QuranDirectoryPageProps {
@@ -24,10 +28,32 @@ export function QuranDirectoryPage({
   onNavigate,
   onToggleTheme,
 }: QuranDirectoryPageProps) {
-  const [browseMode, setBrowseMode] = useState<'pages' | 'surahs'>('pages');
+  const [browseMode, setBrowseMode] = useState<'pages' | 'surahs' | 'search' | 'saved'>('pages');
   const [surahQuery, setSurahQuery] = useState('');
   const [selectedJuz, setSelectedJuz] = useState<number | 'all'>('all');
   const [jumpPageInput, setJumpPageInput] = useState('');
+  const [jumpFeedback, setJumpFeedback] = useState('');
+
+  const [verseSearchInput, setVerseSearchInput] = useState('');
+  const [activeSearchQuery, setActiveSearchQuery] = useState('');
+  const [verseResults, setVerseResults] = useState<QuranSearchMatch[]>([]);
+  const [isSearchingVerses, setIsSearchingVerses] = useState(false);
+  const [verseSearchError, setVerseSearchError] = useState('');
+  const [copiedSavedKey, setCopiedSavedKey] = useState<string | null>(null);
+
+  const lastRead = useLastRead();
+  const { savedAyahs, removeAyahBookmark } = useSavedAyahs();
+
+  const [hifzProgress, setHifzProgress] = useState<HifzProgressState>(EMPTY_HIFZ_PROGRESS);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('quranqiraeti_hifz_progress_v1');
+      if (raw) setHifzProgress(sanitizeHifzProgress(JSON.parse(raw)));
+    } catch {
+      // ignore storage error
+    }
+  }, []);
+  const hifzSummary = useMemo(() => summarizeHifzProgress(hifzProgress), [hifzProgress]);
 
   const filteredSurahs = useMemo(
     () =>
@@ -73,10 +99,54 @@ export function QuranDirectoryPage({
 
   function handleJumpSubmit(e: FormEvent) {
     e.preventDefault();
-    const num = Number.parseInt(jumpPageInput.trim(), 10);
-    if (Number.isNaN(num)) return;
-    const clamped = Math.min(TOTAL_QURAN_PAGES, Math.max(1, num));
-    onNavigate(`/quran/sehife/${clamped}`);
+    const target = parseQuickQuranTarget(jumpPageInput);
+    if (!target) {
+      setJumpFeedback('Səhifə (1–604), surə:ayə (məs. 2:255) və ya surə adı yazın.');
+      return;
+    }
+    setJumpFeedback('');
+    onNavigate(target.path);
+  }
+
+  async function runVerseSearch(queryToRun: string) {
+    const clean = queryToRun.trim();
+    if (clean.length < 2) return;
+    setActiveSearchQuery(clean);
+    setIsSearchingVerses(true);
+    setVerseSearchError('');
+    try {
+      const matches = await searchQuranVersesWithFallback(clean);
+      setVerseResults(matches);
+    } catch {
+      setVerseSearchError('Ayə axtarışı hazırda yerinə yetirilə bilmədi. Zəhmət olmasa yenidən yoxlayın.');
+    } finally {
+      setIsSearchingVerses(false);
+    }
+  }
+
+  function handleVerseSearchSubmit(e: FormEvent) {
+    e.preventDefault();
+    void runVerseSearch(verseSearchInput);
+  }
+
+  async function handleCopySavedAyah(
+    surahNum: number,
+    surahName: string,
+    ayahNum: number,
+    arabic: string,
+    translation: string
+  ) {
+    const key = `${surahNum}:${ayahNum}`;
+    const text = `${arabic}\n\n"${translation}"\n(${surahName} surəsi, ${key} — Əlixan Musayev tərcüməsi)`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedSavedKey(key);
+      window.setTimeout(() => {
+        setCopiedSavedKey((cur) => (cur === key ? null : cur));
+      }, 2000);
+    } catch {
+      // ignore clipboard error
+    }
   }
 
   return (
@@ -156,6 +226,57 @@ export function QuranDirectoryPage({
             </button>
           </div>
         </div>
+
+        {(lastRead || hifzSummary.memorizedCount > 0 || hifzProgress.bookmarkedPage !== null) && (
+          <div
+            data-testid="quran-resume-bar"
+            className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-stone-200 bg-[#F7F5F0] px-5 py-3.5 text-xs dark:border-stone-800 dark:bg-[#141916]"
+          >
+            {lastRead ? (
+              <div className="flex flex-wrap items-center gap-2 text-stone-700 dark:text-stone-300">
+                <span className="text-stone-500 dark:text-stone-400">Son oxunan:</span>
+                <span className="font-semibold text-stone-900 dark:text-stone-100">{lastRead.label}</span>
+                <a
+                  href={lastRead.path}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onNavigate(lastRead.path);
+                  }}
+                  className="ml-1 font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                >
+                  Davam et →
+                </a>
+              </div>
+            ) : (
+              <div />
+            )}
+
+            {(hifzSummary.memorizedCount > 0 || hifzProgress.bookmarkedPage !== null) && (
+              <div className="flex flex-wrap items-center gap-3 text-stone-600 dark:text-stone-400">
+                {hifzSummary.memorizedCount > 0 && (
+                  <span>
+                    Əzbər:{' '}
+                    <span className="font-mono-tabular font-semibold text-stone-900 dark:text-stone-100">
+                      {hifzSummary.memorizedCount} / 604
+                    </span>
+                  </span>
+                )}
+                {hifzProgress.bookmarkedPage !== null && (
+                  <a
+                    href={`/muhaffiz/${hifzProgress.bookmarkedPage}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onNavigate(`/muhaffiz/${hifzProgress.bookmarkedPage}`);
+                    }}
+                    className="font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                  >
+                    Mühafiz əlfəcini: Səh. {hifzProgress.bookmarkedPage} →
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Popular Verses & Surahs Quick Links (SEO Internal Linking) */}
         <section
@@ -243,64 +364,100 @@ export function QuranDirectoryPage({
           </div>
         </section>
 
-        {/* Mode Switcher: Mədinə çapı səhifələri (604) vs Surələr (114) */}
-        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {/* Mode Switcher: Mədinə çapı səhifələri (604) vs Surələr (114) vs Ayə axtarışı vs Saxlanılan ayələr */}
+        <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div
             role="tablist"
             aria-label="Quran bölmə rejimi"
-            className="inline-flex items-center gap-1 self-start rounded-lg bg-[#F1EFE9] p-1 dark:bg-[#181E1B]"
+            className="flex flex-wrap items-center gap-1 self-start rounded-lg bg-[#F1EFE9] p-1 dark:bg-[#181E1B]"
           >
             <button
               type="button"
               role="tab"
               aria-selected={browseMode === 'pages'}
               onClick={() => setBrowseMode('pages')}
-              className={`rounded-md px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+              className={`rounded-md px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
                 browseMode === 'pages'
                   ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
                   : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
               }`}
             >
-              Mədinə çapı səhifələri (<span className="font-mono-tabular">604</span>)
+              Mədinə səhifələri (<span className="font-mono-tabular">604</span>)
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={browseMode === 'surahs'}
               onClick={() => setBrowseMode('surahs')}
-              className={`rounded-md px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+              className={`rounded-md px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
                 browseMode === 'surahs'
                   ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
                   : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
               }`}
             >
-              Surələr üzrə (<span className="font-mono-tabular">114</span>)
+              Surələr (<span className="font-mono-tabular">114</span>)
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={browseMode === 'search'}
+              onClick={() => setBrowseMode('search')}
+              data-testid="tab-verse-search"
+              className={`rounded-md px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                browseMode === 'search'
+                  ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
+                  : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+              }`}
+            >
+              Ayə axtarışı
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={browseMode === 'saved'}
+              onClick={() => setBrowseMode('saved')}
+              data-testid="tab-saved-ayahs"
+              className={`rounded-md px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                browseMode === 'saved'
+                  ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
+                  : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+              }`}
+            >
+              Saxlanılan ayələr (<span className="font-mono-tabular">{savedAyahs.length}</span>)
             </button>
           </div>
 
-          {/* Direct Page Jump Form */}
-          <form onSubmit={handleJumpSubmit} className="flex items-center gap-2">
-            <label htmlFor="quick-page-jump" className="sr-only">
-              Quran səhifə nömrəsi (1–604)
-            </label>
-            <input
-              id="quick-page-jump"
-              type="number"
-              min={1}
-              max={TOTAL_QURAN_PAGES}
-              value={jumpPageInput}
-              onChange={(e) => setJumpPageInput(e.target.value)}
-              placeholder="Səhifə (1–604)"
-              className="w-36 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-mono-tabular text-stone-900 placeholder:font-sans placeholder:text-stone-400 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#141916] dark:text-stone-100"
-            />
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3.5 py-2 text-xs font-medium text-stone-800 whitespace-nowrap transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
-            >
-              <span>Səhifəyə keç</span>
-              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-          </form>
+          {/* Direct Smart Jump Form (Page 1-604, Surah:Ayah 2:255, or Surah name) */}
+          <div className="flex flex-col items-start lg:items-end">
+            <form onSubmit={handleJumpSubmit} className="flex items-center gap-2">
+              <label htmlFor="quick-page-jump" className="sr-only">
+                Səhifə (1–604), surə:ayə (məs. 2:255) və ya surə adı
+              </label>
+              <input
+                id="quick-page-jump"
+                type="text"
+                value={jumpPageInput}
+                onChange={(e) => {
+                  setJumpPageInput(e.target.value);
+                  if (jumpFeedback) setJumpFeedback('');
+                }}
+                placeholder="Səhifə, 2:255 və ya surə..."
+                className="w-48 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#141916] dark:text-stone-100"
+              />
+              <button
+                type="submit"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3.5 py-2 text-xs font-medium text-stone-800 whitespace-nowrap transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
+              >
+                <span>Keçid et</span>
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </form>
+            {jumpFeedback && (
+              <p role="status" className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                {jumpFeedback}
+              </p>
+            )}
+          </div>
         </div>
 
         {browseMode === 'surahs' ? (
@@ -425,7 +582,7 @@ export function QuranDirectoryPage({
               </div>
             )}
           </>
-        ) : (
+        ) : browseMode === 'pages' ? (
           /* 604 Mushaf Pages View */
           <div className="mt-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -487,6 +644,239 @@ export function QuranDirectoryPage({
                 );
               })}
             </div>
+          </div>
+        ) : browseMode === 'search' ? (
+          /* Full-Quran Keyword Search View */
+          <div className="mt-6" data-testid="verse-search-panel">
+            <form onSubmit={handleVerseSearchSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative flex-1 sm:max-w-lg">
+                <label htmlFor="full-quran-verse-search" className="sr-only">
+                  Bütün Qurani-Kərimdə ayə axtar
+                </label>
+                <Search
+                  className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-stone-400"
+                  aria-hidden="true"
+                />
+                <input
+                  id="full-quran-verse-search"
+                  type="search"
+                  value={verseSearchInput}
+                  onChange={(e) => setVerseSearchInput(e.target.value)}
+                  placeholder="Bütün Quranda söz axtar (məs. səbir, rəhmət, şükür, dua)..."
+                  className="w-full rounded-lg border border-stone-200 bg-white py-2.5 pr-9 pl-10 text-sm text-stone-900 placeholder:text-stone-400 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#141916] dark:text-stone-100"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSearchingVerses || verseSearchInput.trim().length < 2}
+                className="rounded-lg bg-[#0F4C3A] px-5 py-2.5 text-xs font-medium text-white whitespace-nowrap transition-colors hover:bg-[#0B3A2C] disabled:opacity-60 dark:bg-[#196B52]"
+              >
+                {isSearchingVerses ? 'Axtarılır...' : 'Ayələri axtar'}
+              </button>
+            </form>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+              <span>Nümunə mövzular:</span>
+              {['rəhmət', 'səbir', 'şükür', 'dua', 'təqva'].map((word) => (
+                <button
+                  key={word}
+                  type="button"
+                  onClick={() => {
+                    setVerseSearchInput(word);
+                    void runVerseSearch(word);
+                  }}
+                  className="rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-300"
+                >
+                  {word}
+                </button>
+              ))}
+            </div>
+
+            {verseSearchError && (
+              <p role="alert" className="mt-4 text-xs font-medium text-red-700 dark:text-red-400">
+                {verseSearchError}
+              </p>
+            )}
+
+            {isSearchingVerses ? (
+              <div className="mt-6 space-y-3">
+                {[1, 2, 3].map((row) => (
+                  <div
+                    key={row}
+                    className="h-24 animate-pulse rounded-xl border border-stone-200 bg-white dark:border-stone-800 dark:bg-[#141916]"
+                  />
+                ))}
+              </div>
+            ) : activeSearchQuery && verseResults.length === 0 ? (
+              <div className="mt-6 rounded-xl border border-stone-200 bg-[#F3F1EC] p-8 text-center dark:border-stone-800 dark:bg-[#141916]">
+                <p className="font-display text-xl font-medium text-stone-900 dark:text-stone-100">
+                  «{activeSearchQuery}» üzrə ayə tapılmadı
+                </p>
+                <p className="mt-1.5 text-xs text-stone-600 dark:text-stone-400">
+                  Fərqli açar söz sınayın və ya birbaşa surə nömrəsi:ayə (məs. 2:255) ilə keçid edin.
+                </p>
+              </div>
+            ) : verseResults.length > 0 ? (
+              <div className="mt-6 divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-[#141916]">
+                {verseResults.map((match) => (
+                  <div key={`${match.surahNumber}:${match.ayahNumber}`} className="p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-mono-tabular text-xs font-semibold text-[#0F4C3A] dark:text-[#86C7AE]">
+                        {match.surahName} · {match.surahNumber}:{match.ayahNumber}
+                      </span>
+                      <a
+                        href={`/quran/sure/${match.surahNumber}#ayah-${match.ayahNumber}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onNavigate(`/quran/sure/${match.surahNumber}#ayah-${match.ayahNumber}`);
+                        }}
+                        className="text-xs font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                      >
+                        Əlixan Musayev tərcüməsində aç →
+                      </a>
+                    </div>
+                    <p lang="az" className="mt-2 text-sm leading-relaxed text-stone-700 dark:text-stone-300">
+                      {match.snippet}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-6 rounded-xl border border-stone-200 bg-[#F7F5F0] p-6 text-xs text-stone-600 dark:border-stone-800 dark:bg-[#141916] dark:text-stone-400">
+                Qurani-Kərimin 6236 ayəsi arasında Azərbaycan dilində açar sözə görə axtarış aparın və tapılan ayəni dərhal tam surə kontekstində açın.
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Saved Favorite Ayahs Tab */
+          <div className="mt-6" data-testid="saved-ayahs-panel">
+            {savedAyahs.length === 0 ? (
+              <div className="rounded-xl border border-stone-200 bg-[#F3F1EC] p-8 text-center dark:border-stone-800 dark:bg-[#141916]">
+                <Bookmark className="mx-auto h-6 w-6 text-stone-400" aria-hidden="true" />
+                <p className="font-display mt-3 text-2xl font-medium text-stone-900 dark:text-stone-100">
+                  Hələ saxlanılmış ayəniz yoxdur
+                </p>
+                <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-stone-600 dark:text-stone-400">
+                  Surə və ya Mushaf səhifələrini oxuyarkən istənilən ayənin üzərindəki «Saxla» düyməsinə toxunaraq şəxsi kolleksiyanızı yarada bilərsiniz.
+                </p>
+                <div className="mt-5 flex flex-wrap justify-center gap-2.5">
+                  <a
+                    href="/quran/sure/2#ayah-255"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onNavigate('/quran/sure/2#ayah-255');
+                    }}
+                    className="rounded-lg bg-[#0F4C3A] px-4 py-2 text-xs font-medium text-white dark:bg-[#196B52]"
+                  >
+                    Ayətül-Kürsi (2:255) aç
+                  </a>
+                  <a
+                    href="/quran/sure/94#ayah-5"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onNavigate('/quran/sure/94#ayah-5');
+                    }}
+                    className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-xs font-medium text-stone-800 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
+                  >
+                    İnşirah 94:5–6 aç
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-[#141916]">
+                {savedAyahs.map((item) => {
+                  const key = `${item.surahNumber}:${item.ayahNumber}`;
+                  const isCopied = copiedSavedKey === key;
+                  return (
+                    <div key={key} className="p-6">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="font-mono-tabular font-semibold text-[#0F4C3A] dark:text-[#86C7AE]">
+                            {item.surahName} · {key}
+                          </span>
+                          <a
+                            href={`/quran/sure/${item.surahNumber}#ayah-${item.ayahNumber}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              onNavigate(`/quran/sure/${item.surahNumber}#ayah-${item.ayahNumber}`);
+                            }}
+                            className="text-stone-500 hover:text-[#0F4C3A] hover:underline dark:text-stone-400 dark:hover:text-[#86C7AE]"
+                          >
+                            Surədə aç
+                          </a>
+                          {item.pageNumber && (
+                            <a
+                              href={`/quran/sehife/${item.pageNumber}#ayah-${item.surahNumber}-${item.ayahNumber}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                onNavigate(
+                                  `/quran/sehife/${item.pageNumber}#ayah-${item.surahNumber}-${item.ayahNumber}`
+                                );
+                              }}
+                              className="text-stone-500 hover:text-[#0F4C3A] hover:underline dark:text-stone-400 dark:hover:text-[#86C7AE]"
+                            >
+                              · Səh. {item.pageNumber}
+                            </a>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCopySavedAyah(
+                                item.surahNumber,
+                                item.surahName,
+                                item.ayahNumber,
+                                item.arabicText,
+                                item.translation
+                              )
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 hover:border-stone-300 dark:border-stone-700 dark:text-stone-300"
+                          >
+                            {isCopied ? (
+                              <>
+                                <Check className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
+                                <span>Köçürüldü</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                                <span>Köçür</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeAyahBookmark(item.surahNumber, item.ayahNumber)}
+                            aria-label={`${key} ayəsini əlfəcinlərdən sil`}
+                            className="inline-flex items-center gap-1 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 hover:border-red-300 hover:text-red-700 dark:border-stone-700 dark:text-stone-400 dark:hover:text-red-400"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Sil</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {item.arabicText && (
+                        <p
+                          dir="rtl"
+                          lang="ar"
+                          className="font-arabic mt-4 text-right text-2xl leading-[2.2] text-stone-900 dark:text-stone-100"
+                        >
+                          {item.arabicText}
+                        </p>
+                      )}
+                      {item.translation && (
+                        <p lang="az" className="mt-3 text-base leading-relaxed text-stone-700 dark:text-stone-300">
+                          {item.translation}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

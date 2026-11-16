@@ -1,6 +1,7 @@
-import { ArrowLeft, ArrowRight, Check, Copy, Square, Volume2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bookmark, Check, Copy, Play, Square, Volume2 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SeoHead } from '../components/SeoHead';
+import { useReaderTextScale, useSavedAyahs } from '../hooks/useReaderPreferences';
 import {
   MUHAFFIZ_RECITERS,
   MuhaffizReciterId,
@@ -14,6 +15,13 @@ import {
   getJuzForPage,
 } from '../lib/quran';
 import { fetchMushafPageWithFallback } from '../lib/quranClient';
+import {
+  READER_SCALE_CLASSES,
+  READER_SCALE_LABELS,
+  ReaderTextScale,
+  buildLastReadRecord,
+  saveLastReadToStorage,
+} from '../lib/readerState';
 
 const READER_RECITER_KEY = 'quranqiraeti_reader_reciter_v1';
 
@@ -46,6 +54,8 @@ export function QuranMushafPage({ pageNumber, activeHash, onNavigate }: QuranMus
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingKey, setPlayingKey] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const { isSaved: isAyahSaved, toggleAyahBookmark } = useSavedAyahs();
+  const { textScale, setTextScale } = useReaderTextScale();
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -69,7 +79,47 @@ export function QuranMushafPage({ pageNumber, activeHash, onNavigate }: QuranMus
     setJumpInput(String(pageNumber));
     setAudioError(null);
     stopAudio();
-  }, [pageNumber, stopAudio]);
+    if (isValidPage) {
+      saveLastReadToStorage(
+        buildLastReadRecord('page', pageNumber, `Mədinə səhifəsi ${pageNumber}`)
+      );
+    }
+  }, [pageNumber, isValidPage, stopAudio]);
+
+  useEffect(() => {
+    if (!isValidPage) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key === 'ArrowRight' && pageNumber < TOTAL_QURAN_PAGES) {
+        e.preventDefault();
+        onNavigate(`/quran/sehife/${pageNumber + 1}`);
+      } else if (e.key === 'ArrowLeft' && pageNumber > 1) {
+        e.preventDefault();
+        onNavigate(`/quran/sehife/${pageNumber - 1}`);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isValidPage, pageNumber, onNavigate]);
+
+  useEffect(() => {
+    if (!playingKey) return;
+    const [sStr, aStr] = playingKey.split(':');
+    const el = document.querySelector(`[data-ayah-anchor="${sStr}-${aStr}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [playingKey]);
 
   useEffect(() => {
     return () => {
@@ -195,6 +245,25 @@ export function QuranMushafPage({ pageNumber, activeHash, onNavigate }: QuranMus
     if (idx >= 0) {
       playAyahAtIndex(idx);
     }
+  }
+
+  function handlePlayAllPage() {
+    if (playingKey) {
+      stopAudio();
+      return;
+    }
+    const list = payload?.ayahs ?? [];
+    if (list.length === 0) return;
+    if (highlightedAnchorId) {
+      const startIdx = list.findIndex(
+        (a) => `ayah-${a.surahNumber}-${a.ayahNumber}` === highlightedAnchorId
+      );
+      if (startIdx >= 0) {
+        playAyahAtIndex(startIdx);
+        return;
+      }
+    }
+    playAyahAtIndex(0);
   }
 
   if (!isValidPage) {
@@ -376,7 +445,7 @@ export function QuranMushafPage({ pageNumber, activeHash, onNavigate }: QuranMus
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center gap-1.5">
               <Volume2 className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
               <label htmlFor="mushaf-reciter-select" className="sr-only">
@@ -398,6 +467,54 @@ export function QuranMushafPage({ pageNumber, activeHash, onNavigate }: QuranMus
                   </option>
                 ))}
               </select>
+            </div>
+
+            {payload && payload.ayahs.length > 0 && (
+              <button
+                type="button"
+                onClick={handlePlayAllPage}
+                data-testid="mushaf-play-all"
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                  playingKey
+                    ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                    : 'border border-stone-200 bg-white text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200'
+                }`}
+              >
+                {playingKey ? (
+                  <>
+                    <Square className="h-3 w-3 fill-current" aria-hidden="true" />
+                    <span>Dayandır</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                    <span>Hamısını dinlə</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            <div
+              role="group"
+              aria-label="Mətn ölçüsü"
+              className="inline-flex items-center gap-0.5 rounded-lg border border-stone-200 bg-white p-0.5 dark:border-stone-700 dark:bg-[#141916]"
+            >
+              {(['compact', 'normal', 'large'] as ReaderTextScale[]).map((scaleKey) => (
+                <button
+                  key={scaleKey}
+                  type="button"
+                  onClick={() => setTextScale(scaleKey)}
+                  aria-pressed={textScale === scaleKey}
+                  title={`Mətn ölçüsü: ${READER_SCALE_LABELS[scaleKey]}`}
+                  className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                    textScale === scaleKey
+                      ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                      : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                  }`}
+                >
+                  {scaleKey === 'compact' ? 'A-' : scaleKey === 'normal' ? 'A' : 'A+'}
+                </button>
+              ))}
             </div>
 
             {payload && payload.surahsOnPage.length > 0 && (
@@ -549,6 +666,38 @@ export function QuranMushafPage({ pageNumber, activeHash, onNavigate }: QuranMus
                       <button
                         type="button"
                         onClick={() =>
+                          toggleAyahBookmark({
+                            surahNumber: ayah.surahNumber,
+                            ayahNumber: ayah.ayahNumber,
+                            surahName: ayah.surahName,
+                            pageNumber,
+                            arabicText: ayah.arabicText,
+                            translation: ayah.translation,
+                          })
+                        }
+                        aria-pressed={isAyahSaved(ayah.surahNumber, ayah.ayahNumber)}
+                        aria-label={
+                          isAyahSaved(ayah.surahNumber, ayah.ayahNumber)
+                            ? `${key} ayəsini əlfəcindən çıxar`
+                            : `${key} ayəsini əlfəcinlərə saxla`
+                        }
+                        data-testid={`mushaf-bookmark-ayah-${ayah.surahNumber}-${ayah.ayahNumber}`}
+                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors ${
+                          isAyahSaved(ayah.surahNumber, ayah.ayahNumber)
+                            ? 'border-[#0F4C3A] bg-[#0F4C3A]/10 font-medium text-[#0F4C3A] dark:border-[#86C7AE] dark:bg-[#86C7AE]/15 dark:text-[#86C7AE]'
+                            : 'border-stone-200 text-stone-600 hover:border-stone-300 hover:text-stone-900 dark:border-stone-700 dark:text-stone-400 dark:hover:text-stone-100'
+                        }`}
+                      >
+                        <Bookmark
+                          className={`h-3.5 w-3.5 ${isAyahSaved(ayah.surahNumber, ayah.ayahNumber) ? 'fill-current' : ''}`}
+                          aria-hidden="true"
+                        />
+                        <span>{isAyahSaved(ayah.surahNumber, ayah.ayahNumber) ? 'Saxlanılıb' : 'Saxla'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
                           handleCopyAyah(
                             ayah.surahNumber,
                             ayah.surahName,
@@ -578,12 +727,12 @@ export function QuranMushafPage({ pageNumber, activeHash, onNavigate }: QuranMus
                   <p
                     dir="rtl"
                     lang="ar"
-                    className="font-arabic mt-4 text-right text-2xl leading-[2.25] text-stone-900 sm:text-[1.8rem] dark:text-stone-100"
+                    className={`font-arabic mt-4 text-right ${READER_SCALE_CLASSES[textScale].arabic} text-stone-900 dark:text-stone-100`}
                   >
                     {ayah.arabicText}
                   </p>
 
-                  <p lang="az" className="mt-4 text-base leading-relaxed text-stone-700 dark:text-stone-300">
+                  <p lang="az" className={`mt-4 ${READER_SCALE_CLASSES[textScale].translation} text-stone-700 dark:text-stone-300`}>
                     {ayah.translation}
                   </p>
 
