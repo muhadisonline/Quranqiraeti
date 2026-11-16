@@ -49,6 +49,8 @@ const DAILY_GOAL_OPTIONS: DailyGoalPages[] = [2, 4, 10, 20];
 
 interface QuranDirectoryPageProps {
   initialTab?: DirectoryBrowseMode;
+  initialJuz?: number;
+  initialSearchQuery?: string;
   isDark: boolean;
   onNavigate: (path: string) => void;
   onToggleTheme: () => void;
@@ -56,13 +58,17 @@ interface QuranDirectoryPageProps {
 
 export function QuranDirectoryPage({
   initialTab = 'pages',
+  initialJuz,
+  initialSearchQuery,
   isDark,
   onNavigate,
   onToggleTheme,
 }: QuranDirectoryPageProps) {
-  const [browseMode, setBrowseMode] = useState<DirectoryBrowseMode>(initialTab);
+  const [browseMode, setBrowseMode] = useState<DirectoryBrowseMode>(
+    initialSearchQuery && initialSearchQuery.trim().length >= 2 ? 'search' : initialTab
+  );
   const [surahQuery, setSurahQuery] = useState('');
-  const [selectedJuz, setSelectedJuz] = useState<number | 'all'>('all');
+  const [selectedJuz, setSelectedJuz] = useState<number | 'all'>(initialJuz ?? 'all');
   const [jumpPageInput, setJumpPageInput] = useState('');
   const [jumpFeedback, setJumpFeedback] = useState('');
 
@@ -93,9 +99,21 @@ export function QuranDirectoryPage({
     resetKhatm,
   } = useReadingGoal();
 
+  const prevInitialJuzRef = useRef<number | undefined>(initialJuz);
   useEffect(() => {
-    setBrowseMode(initialTab);
-  }, [initialTab]);
+    if (initialJuz !== undefined) {
+      setSelectedJuz(initialJuz);
+      setBrowseMode('pages');
+    } else {
+      if (prevInitialJuzRef.current !== undefined) {
+        setSelectedJuz('all');
+      }
+      if (!initialSearchQuery || initialSearchQuery.trim().length < 2) {
+        setBrowseMode(initialTab);
+      }
+    }
+    prevInitialJuzRef.current = initialJuz;
+  }, [initialTab, initialJuz, initialSearchQuery]);
 
   const stopDuaAudio = useCallback(() => {
     if (duaAudioRef.current) {
@@ -192,8 +210,50 @@ export function QuranDirectoryPage({
     return map;
   }, []);
 
-  const jsonLd = useMemo(
-    () => [
+  const activeJuzRange = useMemo(
+    () => (initialJuz ? JUZ_PAGE_RANGES.find((j) => j.juz === initialJuz) : undefined),
+    [initialJuz]
+  );
+
+  const isDuasRoute = initialTab === 'duas';
+
+  const jsonLd = useMemo(() => {
+    if (activeJuzRange) {
+      const ordinal = formatAzerbaijaniOrdinal(activeJuzRange.juz);
+      return [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: `${ordinal} Cüz — Qurani-Kərim (Səhifə ${activeJuzRange.startPage}–${activeJuzRange.endPage})`,
+          inLanguage: ['ar', 'az'],
+          url: `${window.location.origin}/quran/cuz/${activeJuzRange.juz}`,
+        },
+        buildBreadcrumbJsonLd(window.location.origin, [
+          { name: 'Ana səhifə', path: '/' },
+          { name: 'Qurani-Kərim', path: '/quran' },
+          { name: `${ordinal} Cüz`, path: `/quran/cuz/${activeJuzRange.juz}` },
+        ]),
+      ];
+    }
+
+    if (isDuasRoute) {
+      return [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: 'Qurandakı Dualar (Rəbbənə Duaları)',
+          inLanguage: ['az', 'ar'],
+          url: `${window.location.origin}/dualar`,
+        },
+        buildBreadcrumbJsonLd(window.location.origin, [
+          { name: 'Ana səhifə', path: '/' },
+          { name: 'Qurani-Kərim', path: '/quran' },
+          { name: 'Qurandakı Dualar', path: '/dualar' },
+        ]),
+      ];
+    }
+
+    return [
       {
         '@context': 'https://schema.org',
         '@type': 'Book',
@@ -210,9 +270,8 @@ export function QuranDirectoryPage({
         { name: 'Ana səhifə', path: '/' },
         { name: 'Qurani-Kərim', path: '/quran' },
       ]),
-    ],
-    []
-  );
+    ];
+  }, [activeJuzRange, isDuasRoute]);
 
   function handleJumpSubmit(e: FormEvent) {
     e.preventDefault();
@@ -225,7 +284,7 @@ export function QuranDirectoryPage({
     onNavigate(target.path);
   }
 
-  async function runVerseSearch(queryToRun: string) {
+  const runVerseSearch = useCallback(async (queryToRun: string) => {
     const clean = queryToRun.trim();
     if (clean.length < 2) return;
     setActiveSearchQuery(clean);
@@ -239,7 +298,18 @@ export function QuranDirectoryPage({
     } finally {
       setIsSearchingVerses(false);
     }
-  }
+  }, []);
+
+  const lastAppliedQueryRef = useRef('');
+  useEffect(() => {
+    const clean = (initialSearchQuery ?? '').trim();
+    if (clean.length >= 2 && clean !== lastAppliedQueryRef.current) {
+      lastAppliedQueryRef.current = clean;
+      setBrowseMode('search');
+      setVerseSearchInput(clean);
+      void runVerseSearch(clean);
+    }
+  }, [initialSearchQuery, runVerseSearch]);
 
   function handleVerseSearchSubmit(e: FormEvent) {
     e.preventDefault();
@@ -292,23 +362,37 @@ export function QuranDirectoryPage({
     URL.revokeObjectURL(url);
   }
 
-  const isDuasRoute = initialTab === 'duas';
+  const seoTitle = activeJuzRange
+    ? `${formatAzerbaijaniOrdinal(activeJuzRange.juz)} Cüz (Səhifə ${activeJuzRange.startPage}–${activeJuzRange.endPage}) | Quran Qiraeti`
+    : isDuasRoute
+      ? 'Qurandakı Dualar (Rəbbənə Duaları) | Quran Qiraeti'
+      : 'Tam Qurani-Kərim — Mədinə Çapı (604 Səhifə) və 114 Surə | Quran Qiraeti';
+
+  const seoDescription = activeJuzRange
+    ? `Mədinə Mushafının ${formatAzerbaijaniOrdinal(activeJuzRange.juz)} Cüzü (Səhifə ${activeJuzRange.startPage}–${activeJuzRange.endPage}): ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi.`
+    : isDuasRoute
+      ? 'Qurani-Kərimdən seçilmiş 20 səhih Rəbbənə və peyğəmbər duası — ərəbcə mətn, Əlixan Musayevin Azərbaycan tərcüməsi, səsli tilavət və şəkil kartı.'
+      : 'Mədinə çapı üzrə Qurani-Kərimin 604 səhifəsi və 114 surəsi: hər səhifədə Mədinə müshəfindəki dəqiq ayə sayı, ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi (v1.0.4).';
+
+  const seoPath = activeJuzRange
+    ? `/quran/cuz/${activeJuzRange.juz}`
+    : isDuasRoute
+      ? '/dualar'
+      : '/quran';
 
   return (
     <section className="py-14 lg:py-16">
       <SeoHead
-        title={
-          isDuasRoute
-            ? 'Qurandakı Dualar (Rəbbənə Duaları) | Quran Qiraeti'
-            : 'Tam Qurani-Kərim — Mədinə Çapı (604 Səhifə) və 114 Surə | Quran Qiraeti'
-        }
-        description={
-          isDuasRoute
-            ? 'Qurani-Kərimdən seçilmiş 20 səhih Rəbbənə və peyğəmbər duası — ərəbcə mətn, Əlixan Musayevin Azərbaycan tərcüməsi, səsli tilavət və şəkil kartı.'
-            : 'Mədinə çapı üzrə Qurani-Kərimin 604 səhifəsi və 114 surəsi: hər səhifədə Mədinə müshəfindəki dəqiq ayə sayı, ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi (v1.0.4).'
-        }
-        path={isDuasRoute ? '/dualar' : '/quran'}
+        title={seoTitle}
+        description={seoDescription}
+        path={seoPath}
         ogImage="/og-default.png"
+        prevPath={
+          activeJuzRange && activeJuzRange.juz > 1 ? `/quran/cuz/${activeJuzRange.juz - 1}` : undefined
+        }
+        nextPath={
+          activeJuzRange && activeJuzRange.juz < 30 ? `/quran/cuz/${activeJuzRange.juz + 1}` : undefined
+        }
         jsonLd={jsonLd}
       />
 
@@ -325,7 +409,24 @@ export function QuranDirectoryPage({
             Ana səhifə
           </a>
           <span aria-hidden="true">›</span>
-          {isDuasRoute ? (
+          {activeJuzRange ? (
+            <>
+              <a
+                href="/quran"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigate('/quran');
+                }}
+                className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]"
+              >
+                Qurani-Kərim
+              </a>
+              <span aria-hidden="true">›</span>
+              <span className="font-medium text-stone-900 dark:text-stone-200">
+                {formatAzerbaijaniOrdinal(activeJuzRange.juz)} Cüz
+              </span>
+            </>
+          ) : isDuasRoute ? (
             <>
               <a
                 href="/quran"
@@ -352,28 +453,36 @@ export function QuranDirectoryPage({
               Tam Qurani-Kərim · Mədinə çapı (<span className="font-mono-tabular">604</span> səhifə) · Əlixan Musayev (v1.0.4)
             </p>
             <h1 className="font-display mt-2 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl text-balance dark:text-stone-100">
-              Qurani-Kərim: Mədinə çapı üzrə səhifələr və surələr
+              {activeJuzRange
+                ? `${formatAzerbaijaniOrdinal(activeJuzRange.juz)} Cüz — Səhifə ${activeJuzRange.startPage}–${activeJuzRange.endPage}`
+                : isDuasRoute
+                  ? 'Qurandakı Dualar (Rəbbənə və Peyğəmbər Duaları)'
+                  : 'Qurani-Kərim: Mədinə çapı üzrə səhifələr və surələr'}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-stone-600 dark:text-stone-300">
-              Mədinə çapına uyğun olaraq bütün{' '}
-              <span className="font-mono-tabular">{TOTAL_QURAN_PAGES}</span> səhifə və{' '}
-              <span className="font-mono-tabular">{TOTAL_QURAN_SURAHS}</span> surə ayrıca SEO
-              ünvanlarına bölünmüşdür. Hər səhifədə Mədinə çapındakı dəqiq ayə sayı ərəbcə mətn
-              və Əlixan Musayevin son nəşr tərcüməsi ilə göstərilir.
+              {activeJuzRange
+                ? `Mədinə Mushafının ${formatAzerbaijaniOrdinal(activeJuzRange.juz)} Cüzünə daxil olan ${activeJuzRange.startPage}–${activeJuzRange.endPage} arası səhifələri oxuyun və Mühafizdə əzbərləyin.`
+                : isDuasRoute
+                  ? 'Qurani-Kərimdən seçilmiş səhih duaları mövzulara görə süzün, ərəbcə tilavəti dinləyin və şəkil kartı kimi paylaşın.'
+                  : `Mədinə çapına uyğun olaraq bütün ${TOTAL_QURAN_PAGES} səhifə və ${TOTAL_QURAN_SURAHS} surə ayrıca SEO ünvanlarına bölünmüşdür. Hər səhifədə Mədinə çapındakı dəqiq ayə sayı ərəbcə mətn və Əlixan Musayevin son nəşr tərcüməsi ilə göstərilir.`}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
             <a
-              href="/quran/sehife/1"
+              href={activeJuzRange ? `/quran/sehife/${activeJuzRange.startPage}` : '/quran/sehife/1'}
               onClick={(e) => {
                 e.preventDefault();
-                onNavigate('/quran/sehife/1');
+                onNavigate(activeJuzRange ? `/quran/sehife/${activeJuzRange.startPage}` : '/quran/sehife/1');
               }}
               className="inline-flex items-center gap-2 rounded-lg bg-[#0F4C3A] px-4 py-2.5 text-xs font-medium text-white whitespace-nowrap transition-colors hover:bg-[#0B3A2C] dark:bg-[#196B52]"
             >
               <BookOpen className="h-4 w-4" aria-hidden="true" />
-              <span>1-ci səhifədən oxu</span>
+              <span>
+                {activeJuzRange
+                  ? `${activeJuzRange.startPage}-ci səhifədən oxu`
+                  : '1-ci səhifədən oxu'}
+              </span>
             </a>
 
             <button
@@ -976,7 +1085,14 @@ export function QuranDirectoryPage({
                   value={selectedJuz}
                   onChange={(e) => {
                     const val = e.target.value;
-                    setSelectedJuz(val === 'all' ? 'all' : Number.parseInt(val, 10));
+                    if (val === 'all') {
+                      setSelectedJuz('all');
+                      onNavigate('/quran');
+                    } else {
+                      const nextJuz = Number.parseInt(val, 10);
+                      setSelectedJuz(nextJuz);
+                      onNavigate(`/quran/cuz/${nextJuz}`);
+                    }
                   }}
                   className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#141916] dark:text-stone-100"
                 >
@@ -994,6 +1110,46 @@ export function QuranDirectoryPage({
                 səhifə ayrıca oxu səhifəsində açılır
               </p>
             </div>
+
+            <nav
+              aria-label="30 Cüz indeksi"
+              data-testid="juz-links-nav"
+              className="mt-4 flex flex-wrap items-center gap-1.5"
+            >
+              <a
+                href="/quran"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedJuz('all');
+                  onNavigate('/quran');
+                }}
+                className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  selectedJuz === 'all'
+                    ? 'border-[#0F4C3A] bg-[#0F4C3A] text-white dark:border-[#86C7AE] dark:bg-[#196B52]'
+                    : 'border-stone-200 bg-white text-stone-700 hover:border-[#0F4C3A] dark:border-stone-800 dark:bg-[#141916] dark:text-stone-300'
+                }`}
+              >
+                Hamısı
+              </a>
+              {JUZ_PAGE_RANGES.map((range) => (
+                <a
+                  key={range.juz}
+                  href={`/quran/cuz/${range.juz}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setSelectedJuz(range.juz);
+                    onNavigate(`/quran/cuz/${range.juz}`);
+                  }}
+                  className={`font-mono-tabular rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    selectedJuz === range.juz
+                      ? 'border-[#0F4C3A] bg-[#0F4C3A] text-white dark:border-[#86C7AE] dark:bg-[#196B52]'
+                      : 'border-stone-200 bg-white text-stone-700 hover:border-[#0F4C3A] dark:border-stone-800 dark:bg-[#141916] dark:text-stone-300'
+                  }`}
+                >
+                  {range.juz}. Cüz
+                </a>
+              ))}
+            </nav>
 
             <div
               data-testid="mushaf-pages-grid"

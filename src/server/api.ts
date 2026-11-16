@@ -36,6 +36,7 @@ import {
   buildMuhaffizSitemapXml,
   buildMushafSitemapXml,
   buildRobotsTxt,
+  buildRssFeedXml,
   buildSitemapIndexXml,
   buildSitemapXml,
   buildSurahsSitemapXml,
@@ -829,6 +830,7 @@ export function createSeoRouter() {
         `${origin}/`,
         `${origin}/shorts`,
         `${origin}/quran`,
+        `${origin}/dualar`,
         `${origin}/muhaffiz`,
         ...longVideos.slice(0, 10).map((v) => `${origin}/video/${v.videoId}`),
         ...shorts.slice(0, 10).map((v) => `${origin}/video/${v.videoId}`),
@@ -838,6 +840,14 @@ export function createSeoRouter() {
     } catch {
       res.status(502).json({ configured: true, submitted: false });
     }
+  });
+
+  router.get(['/rss.xml', '/feed.xml'], async (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    const { stats, longVideos, shorts } = await getChannelDataForSeo();
+    res.setHeader('Content-Type', 'application/rss+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    res.send(buildRssFeedXml(origin, stats, [...longVideos, ...shorts]));
   });
 
   router.get('/:keyFile.txt', (req: Request, res: Response, next) => {

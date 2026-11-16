@@ -66,7 +66,15 @@
       "destination": "/api/index.mjs"
     },
     {
-      "source": "/((?!assets/|manifest\\.webmanifest$|sw\\.js$|registerSW\\.js$|workbox-.*\\.js$|pwa-.*\\.png$|apple-touch-icon\\.png$|favicon\\.ico$|favicon-32x32\\.png$|icon\\.svg$|og-default\\.png$|sitemap.*\\.xml$|robots\\.txt$|llms\\.txt$|llms-full\\.txt$|\\.well-known/llms\\.txt$|ai-index\\.json$).*)",
+      "source": "/rss.xml",
+      "destination": "/api/index.mjs"
+    },
+    {
+      "source": "/feed.xml",
+      "destination": "/api/index.mjs"
+    },
+    {
+      "source": "/((?!assets/|manifest\\.webmanifest$|sw\\.js$|registerSW\\.js$|workbox-.*\\.js$|pwa-.*\\.png$|apple-touch-icon\\.png$|favicon\\.ico$|favicon-32x32\\.png$|icon\\.svg$|og-default\\.png$|sitemap.*\\.xml$|rss\\.xml$|feed\\.xml$|robots\\.txt$|llms\\.txt$|llms-full\\.txt$|\\.well-known/llms\\.txt$|ai-index\\.json$).*)",
       "destination": "/api/index.mjs"
     }
   ]

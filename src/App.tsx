@@ -93,6 +93,7 @@ function AppContent() {
   const [currentPath, setCurrentPath] = useState<string>(() => {
     return normalizeRoutePath(window.location.pathname || '/');
   });
+  const [routeSearch, setRouteSearch] = useState<string>(() => window.location.search || '');
   const [routeHash, setRouteHash] = useState<string>(() => window.location.hash || '');
 
   const [stats, setStats] = useState<ChannelStats>(DEFAULT_CHANNEL_STATS);
@@ -127,6 +128,7 @@ function AppContent() {
   useEffect(() => {
     function handlePopState() {
       setCurrentPath(normalizeRoutePath(window.location.pathname || '/'));
+      setRouteSearch(window.location.search || '');
       setRouteHash(window.location.hash || '');
     }
     window.addEventListener('popstate', handlePopState);
@@ -140,16 +142,20 @@ function AppContent() {
   function navigate(path: string) {
     const hashIdx = path.indexOf('#');
     const nextHash = hashIdx >= 0 ? path.slice(hashIdx) : '';
-    const normalized = normalizeRoutePath(path);
-    const historyTarget = nextHash ? `${normalized}${nextHash}` : normalized;
-    if (normalized === currentPath && !nextHash) {
+    const beforeHash = hashIdx >= 0 ? path.slice(0, hashIdx) : path;
+    const qIdx = beforeHash.indexOf('?');
+    const nextSearch = qIdx >= 0 ? beforeHash.slice(qIdx) : '';
+    const normalized = normalizeRoutePath(beforeHash);
+    const historyTarget = `${normalized}${nextSearch}${nextHash}`;
+    if (normalized === currentPath && nextSearch === routeSearch && !nextHash) {
       setRouteHash('');
-      window.history.pushState({}, '', normalized);
+      window.history.pushState({}, '', `${normalized}${nextSearch}`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     window.history.pushState({}, '', historyTarget);
     setCurrentPath(normalized);
+    setRouteSearch(nextSearch);
     setRouteHash(nextHash);
     if (!nextHash) {
       window.scrollTo({ top: 0 });
@@ -280,6 +286,16 @@ function AppContent() {
   const quranSurahNumber = quranSurahMatch ? Number.parseInt(quranSurahMatch[1], 10) : undefined;
   const quranPageMatch = currentPath.match(/^\/quran\/sehife\/(\d+)$/);
   const quranPageNumber = quranPageMatch ? Number.parseInt(quranPageMatch[1], 10) : undefined;
+  const quranCuzMatch = currentPath.match(/^\/quran\/cuz\/(\d+)$/);
+  const rawQuranCuzNumber = quranCuzMatch ? Number.parseInt(quranCuzMatch[1], 10) : undefined;
+  const quranCuzNumber =
+    rawQuranCuzNumber !== undefined && rawQuranCuzNumber >= 1 && rawQuranCuzNumber <= 30
+      ? rawQuranCuzNumber
+      : undefined;
+  const quranSearchQuery = useMemo(
+    () => new URLSearchParams(routeSearch).get('q')?.trim() || '',
+    [routeSearch]
+  );
   const muhaffizPageMatch = currentPath.match(/^\/(?:muhaffiz|ezber)(?:\/(\d+))?$/);
   const muhaffizInitialPage = muhaffizPageMatch?.[1]
     ? Number.parseInt(muhaffizPageMatch[1], 10)
@@ -335,9 +351,11 @@ function AppContent() {
             activeHash={routeHash}
             onNavigate={navigate}
           />
-        ) : currentPath === '/quran' ? (
+        ) : currentPath === '/quran' || quranCuzNumber !== undefined ? (
           <QuranDirectoryPage
             initialTab="pages"
+            initialJuz={quranCuzNumber}
+            initialSearchQuery={currentPath === '/quran' ? quranSearchQuery : undefined}
             isDark={isDark}
             onNavigate={navigate}
             onToggleTheme={() => setIsDark((prev) => !prev)}
@@ -404,17 +422,36 @@ function AppContent() {
         ) : currentPath === '/' ? (
           <>
             <SeoHead
-              title="Quran Qiraeti — Uzun Tilavətlər və Azərbaycan Tərcüməsi"
-              description="Quran Qiraeti rəsmi arxivi. Tam surə uzun tilavətləri, Azərbaycan dilində mənaca tərcümələr və Shorts arxivi."
+              title="Quran Qiraeti — Uzun Tilavətlər, Shorts və Azərbaycan Tərcüməsi"
+              description="Quran Qiraeti rəsmi arxivi. Tam surə uzun tilavətləri, Shorts qiraətləri, 114 surə və 604 səhifə Mədinə çapı Əlixan Musayev tərcüməsi ilə."
               path="/"
-              jsonLd={{
-                '@context': 'https://schema.org',
-                '@type': 'WebSite',
-                name: 'Quran Qiraeti',
-                url: window.location.origin,
-                description: stats.description,
-                inLanguage: 'az',
-              }}
+              jsonLd={[
+                {
+                  '@context': 'https://schema.org',
+                  '@type': 'Organization',
+                  name: 'Quran Qiraeti',
+                  url: `${window.location.origin}/`,
+                  logo: `${window.location.origin}/og-default.png`,
+                  sameAs: [
+                    'https://youtube.com/@quranqiraeti',
+                    'https://www.youtube.com/channel/UCp9AvvdTxAXDZfnnVjNF1Yg',
+                  ],
+                  description: stats.description,
+                },
+                {
+                  '@context': 'https://schema.org',
+                  '@type': 'WebSite',
+                  name: 'Quran Qiraeti',
+                  url: `${window.location.origin}/`,
+                  description: stats.description,
+                  inLanguage: ['az', 'ar'],
+                  potentialAction: {
+                    '@type': 'SearchAction',
+                    target: `${window.location.origin}/quran?q={search_term_string}`,
+                    'query-input': 'required name=search_term_string',
+                  },
+                },
+              ]}
             />
             <HeroSection
               stats={stats}

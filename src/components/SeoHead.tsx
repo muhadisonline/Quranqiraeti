@@ -6,6 +6,7 @@ interface SeoHeadProps {
   path: string;
   robots?: string;
   ogImage?: string;
+  ogImageAlt?: string;
   ogType?: string;
   prevPath?: string;
   nextPath?: string;
@@ -58,6 +59,7 @@ export function SeoHead({
   path,
   robots = DEFAULT_ROBOTS,
   ogImage,
+  ogImageAlt,
   ogType = 'website',
   prevPath,
   nextPath,
@@ -71,16 +73,22 @@ export function SeoHead({
         ? ogImage
         : `${origin}${ogImage}`
       : `${origin}/og-default.png`;
+    const resolvedAlt = ogImageAlt || title;
 
     document.title = title;
     upsertMeta('meta[name="description"]', 'name', 'description', description);
     upsertMeta('meta[name="robots"]', 'name', 'robots', robots);
     upsertMeta('meta[name="googlebot"]', 'name', 'googlebot', robots);
+    upsertMeta('meta[property="og:site_name"]', 'property', 'og:site_name', 'Quran Qiraeti');
+    upsertMeta('meta[property="og:locale"]', 'property', 'og:locale', 'az_AZ');
     upsertMeta('meta[property="og:title"]', 'property', 'og:title', title);
     upsertMeta('meta[property="og:description"]', 'property', 'og:description', description);
     upsertMeta('meta[property="og:type"]', 'property', 'og:type', ogType);
     upsertMeta('meta[property="og:url"]', 'property', 'og:url', canonicalUrl);
     upsertMeta('meta[property="og:image"]', 'property', 'og:image', resolvedOgImage);
+    upsertMeta('meta[property="og:image:alt"]', 'property', 'og:image:alt', resolvedAlt);
+    upsertMeta('meta[name="twitter:card"]', 'name', 'twitter:card', 'summary_large_image');
+    upsertMeta('meta[name="twitter:site"]', 'name', 'twitter:site', '@quranqiraeti');
     upsertMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
     upsertMeta('meta[name="twitter:description"]', 'name', 'twitter:description', description);
     upsertMeta('meta[name="twitter:image"]', 'name', 'twitter:image', resolvedOgImage);
@@ -90,6 +98,11 @@ export function SeoHead({
     syncRelLink('next', nextPath ? `${origin}${nextPath}` : undefined);
     syncHreflangLink('az', canonicalUrl);
     syncHreflangLink('x-default', canonicalUrl);
+
+    const ssrScript = document.getElementById('quran-qiraeti-ssr-jsonld');
+    if (ssrScript) {
+      ssrScript.remove();
+    }
 
     const scriptId = 'quran-qiraeti-jsonld';
     let script = document.getElementById(scriptId) as HTMLScriptElement | null;
@@ -104,7 +117,7 @@ export function SeoHead({
     } else if (script) {
       script.remove();
     }
-  }, [title, description, path, robots, ogImage, ogType, prevPath, nextPath, jsonLd]);
+  }, [title, description, path, robots, ogImage, ogImageAlt, ogType, prevPath, nextPath, jsonLd]);
 
   return null;
 }

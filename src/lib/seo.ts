@@ -10,6 +10,7 @@ import {
   getSurahByNumber,
 } from './quran';
 import { clampMuhaffizPage } from './muhaffiz';
+import { QURAN_DUAS } from '../data/quranDuas';
 
 function escapeXml(value: string): string {
   return value
@@ -282,6 +283,12 @@ export function buildCoreSitemapXml(
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.8' },
     { loc: `${baseUrl}/haqqinda`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.7' },
     { loc: `${baseUrl}/istek`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.6' },
+    ...JUZ_PAGE_RANGES.map((j) => ({
+      loc: `${baseUrl}/quran/cuz/${j.juz}`,
+      lastmod: todayIsoDate,
+      changefreq: 'monthly',
+      priority: '0.80',
+    })),
   ]);
 }
 
@@ -401,6 +408,16 @@ export function buildSitemapXml(
     { loc: `${baseUrl}/istek`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.6' },
   ];
 
+  // All 30 Juz landing pages
+  for (const juz of JUZ_PAGE_RANGES) {
+    urls.push({
+      loc: `${baseUrl}/quran/cuz/${juz.juz}`,
+      lastmod: todayIsoDate,
+      changefreq: 'monthly',
+      priority: '0.80',
+    });
+  }
+
   // All 114 Surah pages
   for (const surah of SURAH_CATALOG) {
     urls.push({
@@ -438,6 +455,69 @@ export function buildSitemapXml(
   }
 
   return renderUrlSetXml(urls);
+}
+
+function toRfc822Date(raw: string): string {
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toUTCString();
+  }
+  return new Date().toUTCString();
+}
+
+export function buildRssFeedXml(
+  origin: string,
+  stats: ChannelStats,
+  videos: RecitationVideo[]
+): string {
+  const baseUrl = normalizeBaseUrl(origin);
+  const seen = new Set<string>();
+  const items: string[] = [];
+
+  for (const video of videos) {
+    if (!video.videoId || seen.has(video.videoId)) continue;
+    seen.add(video.videoId);
+    const link = `${baseUrl}/video/${video.videoId}`;
+    const thumb = video.thumbnailUrl || `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`;
+    const desc =
+      video.seoDescription ||
+      `${video.surahName} (${video.ayahRange}) — ${video.reciter} tilavəti və Əlixan Musayev tərcüməsi.`;
+    const pubDate = /^\d{4}-\d{2}-\d{2}/.test(video.published)
+      ? toRfc822Date(video.published)
+      : new Date().toUTCString();
+
+    items.push(
+      [
+        '    <item>',
+        `      <title>${escapeXml(video.title)}</title>`,
+        `      <link>${escapeXml(link)}</link>`,
+        `      <guid isPermaLink="true">${escapeXml(link)}</guid>`,
+        `      <pubDate>${escapeXml(pubDate)}</pubDate>`,
+        `      <category>${escapeXml(video.surahName)}</category>`,
+        `      <description>${escapeXml(desc)}</description>`,
+        `      <media:thumbnail url="${escapeXml(thumb)}" />`,
+        '    </item>',
+      ].join('\n')
+    );
+
+    if (items.length >= 40) break;
+  }
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">',
+    '  <channel>',
+    `    <title>${escapeXml(stats.name)} — Quran Tilavətləri RSS</title>`,
+    `    <link>${escapeXml(`${baseUrl}/`)}</link>`,
+    `    <description>${escapeXml(stats.description)}</description>`,
+    '    <language>az</language>',
+    `    <lastBuildDate>${escapeXml(new Date().toUTCString())}</lastBuildDate>`,
+    `    <atom:link href="${escapeXml(`${baseUrl}/rss.xml`)}" rel="self" type="application/rss+xml" />`,
+    ...items,
+    '  </channel>',
+    '</rss>',
+    '',
+  ].join('\n');
 }
 
 export function buildDynamicOgSvg(kind: 'site' | 'sure' | 'sehife' | 'muhaffiz', id = 1): string {
@@ -527,6 +607,21 @@ export function resolveRouteSeoMetadata(
   }
 
   if (cleanPath === '/') {
+    const featuredItems = videos.slice(0, 10).map((video, idx) => ({
+      '@type': 'ListItem',
+      position: idx + 1,
+      item: {
+        '@type': 'VideoObject',
+        name: video.title,
+        description: video.seoDescription || `${video.surahName} (${video.ayahRange}) — ${video.reciter}`,
+        thumbnailUrl: [video.thumbnailUrl || `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`],
+        uploadDate: /^\d{4}-\d{2}-\d{2}/.test(video.published) ? video.published : undefined,
+        contentUrl: `${baseUrl}/video/${video.videoId}`,
+        embedUrl: `https://www.youtube-nocookie.com/embed/${video.videoId}`,
+        inLanguage: ['ar', 'az'],
+      },
+    }));
+
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -536,21 +631,53 @@ export function resolveRouteSeoMetadata(
       canonicalUrl: `${baseUrl}/`,
       ogImage: defaultOg,
       ogType: 'website',
-      jsonLd: {
-        '@context': 'https://schema.org',
-        '@type': 'WebSite',
-        name: 'Quran Qiraeti',
-        url: `${baseUrl}/`,
-        inLanguage: ['az', 'ar'],
-        description:
-          'Tam Qurani-Kərim (114 surə, 604 Mədinə səhifəsi), Mühafiz əzbər aləti və uzun tilavət arxivi.',
-      },
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'Quran Qiraeti',
+          url: `${baseUrl}/`,
+          logo: defaultOg,
+          sameAs: [
+            'https://youtube.com/@quranqiraeti',
+            'https://www.youtube.com/channel/UCp9AvvdTxAXDZfnnVjNF1Yg',
+          ],
+          description:
+            'Quran Qiraeti YouTube kanalı — Ərəbcə Quran tilavətləri və Əlixan Musayevin Azərbaycan tərcüməsi arxivi.',
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: 'Quran Qiraeti',
+          url: `${baseUrl}/`,
+          inLanguage: ['az', 'ar'],
+          description:
+            'Tam Qurani-Kərim (114 surə, 604 Mədinə səhifəsi), Mühafiz əzbər aləti və uzun tilavət arxivi.',
+          potentialAction: {
+            '@type': 'SearchAction',
+            target: `${baseUrl}/quran?q={search_term_string}`,
+            'query-input': 'required name=search_term_string',
+          },
+        },
+        ...(featuredItems.length > 0
+          ? [
+              {
+                '@context': 'https://schema.org',
+                '@type': 'ItemList',
+                name: 'Seçilmiş Quran Tilavətləri',
+                numberOfItems: featuredItems.length,
+                itemListElement: featuredItems,
+              },
+            ]
+          : []),
+      ],
       noscriptHtml:
-        '<h1>Quran Qiraeti — Uzun Tilavətlər və Tam Qurani-Kərim</h1><p>Azərbaycan dilində mənaca tərcümə, 114 surə, 604 Mədinə Mushafı səhifəsi və Mühafiz əzbər aləti.</p>',
+        '<h1>Quran Qiraeti — Uzun Tilavətlər və Tam Qurani-Kərim</h1><p>Azərbaycan dilində mənaca tərcümə, 114 surə, 604 Mədinə Mushafı səhifəsi və Mühafiz əzbər aləti.</p><nav><a href="/quran">Qurani-Kərim (114 Surə)</a> · <a href="/dualar">Qurandakı Dualar</a> · <a href="/muhaffiz">Mühafiz Əzbər</a> · <a href="/shorts">Shorts</a> · <a href="/quran/cuz/1">1-ci Cüz</a> · <a href="/quran/cuz/30">30-cu Cüz</a></nav>',
     };
   }
 
   if (cleanPath === '/shorts') {
+    const shortVideos = videos.filter((v) => v.format === 'short').slice(0, 12);
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -560,15 +687,63 @@ export function resolveRouteSeoMetadata(
       canonicalUrl: `${baseUrl}/shorts`,
       ogImage: defaultOg,
       ogType: 'website',
-      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
-        { name: 'Ana səhifə', path: '/' },
-        { name: 'Shorts', path: '/shorts' },
-      ]),
-      noscriptHtml: '<h1>Quran Shorts Tilavətləri</h1>',
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: 'Quran Shorts Tilavətləri',
+          url: `${baseUrl}/shorts`,
+          inLanguage: ['ar', 'az'],
+          description: 'Qısa Quran tilavətləri, ayə aralıqları və Azərbaycan dilində tərcümə arxivi.',
+        },
+        buildBreadcrumbJsonLd(baseUrl, [
+          { name: 'Ana səhifə', path: '/' },
+          { name: 'Shorts', path: '/shorts' },
+        ]),
+        ...(shortVideos.length > 0
+          ? [
+              {
+                '@context': 'https://schema.org',
+                '@type': 'ItemList',
+                name: 'Quran Shorts Video Siyahısı',
+                numberOfItems: shortVideos.length,
+                itemListElement: shortVideos.map((v, idx) => ({
+                  '@type': 'ListItem',
+                  position: idx + 1,
+                  item: {
+                    '@type': 'VideoObject',
+                    name: v.title,
+                    description: v.seoDescription || v.title,
+                    thumbnailUrl: [v.thumbnailUrl || `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`],
+                    contentUrl: `${baseUrl}/video/${v.videoId}`,
+                    embedUrl: `https://www.youtube-nocookie.com/embed/${v.videoId}`,
+                  },
+                })),
+              },
+            ]
+          : []),
+      ],
+      noscriptHtml: `<h1>Quran Shorts Tilavətləri</h1><ul>${shortVideos
+        .map((v) => `<li><a href="/video/${escapeHtmlAttr(v.videoId)}">${escapeHtmlText(v.title)}</a></li>`)
+        .join('')}</ul>`,
     };
   }
 
   if (cleanPath === '/quran') {
+    const quranFaq = [
+      {
+        question: 'Saytdakı Qurani-Kərim tərcüməsi kimə aiddir?',
+        answer: 'Bütün 114 surə və 604 səhifə Əlixan Musayevin son nəşr (v1.0.4) Azərbaycan dilinə mənaca tərcüməsi ilə təqdim olunur.',
+      },
+      {
+        question: 'Mədinə Mushafı neçə səhifə və neçə cüzdən ibarətdir?',
+        answer: 'Standart Mədinə Mushafı 604 səhifə, 30 cüz və 114 surədən ibarətdir. Hər səhifə və cüz ayrıca ünvanda açılır.',
+      },
+      {
+        question: 'Quran ayələrini sözbə-söz necə əzbərləmək olar?',
+        answer: 'Mühafiz bölməsində istənilən Mədinə səhifəsini (1–604) açaraq sözləri və ayələri gizlədib-açmaqla hifz təkrarı edə bilərsiniz.',
+      },
+    ];
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -583,6 +758,9 @@ export function resolveRouteSeoMetadata(
           '@context': 'https://schema.org',
           '@type': 'Book',
           name: 'Qurani-Kərim (Mədinə çapı, 604 səhifə)',
+          author: { '@type': 'Person', name: 'Qurani-Kərim' },
+          translator: { '@type': 'Person', name: 'Əlixan Musayev' },
+          bookFormat: 'https://schema.org/EBook',
           inLanguage: ['ar', 'az'],
           numberOfPages: TOTAL_QURAN_PAGES,
           url: `${baseUrl}/quran`,
@@ -591,13 +769,27 @@ export function resolveRouteSeoMetadata(
           { name: 'Ana səhifə', path: '/' },
           { name: 'Qurani-Kərim', path: '/quran' },
         ]),
+        buildFaqPageJsonLd(quranFaq),
       ],
-      noscriptHtml:
-        '<h1>Tam Qurani-Kərim — Mədinə Çapı (604 Səhifə) və 114 Surə</h1><p>Ərəbcə mətn və Əlixan Musayevin Azərbaycan dilinə tərcüməsi.</p>',
+      noscriptHtml: `<h1>Tam Qurani-Kərim — Mədinə Çapı (604 Səhifə) və 114 Surə</h1><p>Ərəbcə mətn və Əlixan Musayevin Azərbaycan dilinə tərcüməsi.</p><nav>${JUZ_PAGE_RANGES.map((j) => `<a href="/quran/cuz/${j.juz}">${j.juz}. Cüz</a>`).join(' · ')} · <a href="/dualar">Qurandakı Dualar</a></nav>`,
     };
   }
 
   if (cleanPath === '/dualar') {
+    const duaFaq = [
+      {
+        question: 'Qurandakı Dualar bölməsində hansı dualar toplanıb?',
+        answer: `Qurani-Kərimdən seçilmiş ${QURAN_DUAS.length} səhih Rəbbənə və peyğəmbər duası — hidayət, bağışlanma, ailə, elm və səbir mövzuları üzrə təqdim olunur.`,
+      },
+      {
+        question: 'Duaların ərəbcə tilavətini dinləmək mümkündürmü?',
+        answer: 'Bəli, hər dua kartında seçilmiş qari ilə ayənin ərəbcə səsli tilavətini birbaşa dinləmək və mətni köçürmək olar.',
+      },
+      {
+        question: 'Dua ayələrini şəkil kartı kimi yükləmək olurmu?',
+        answer: 'Bəli, istənilən dua və ya ayəni yüksək keyfiyyətli 1080×1350 PNG şəkil kartı kimi endirib paylaşa bilərsiniz.',
+      },
+    ];
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -607,13 +799,27 @@ export function resolveRouteSeoMetadata(
       canonicalUrl: `${baseUrl}/dualar`,
       ogImage: defaultOg,
       ogType: 'website',
-      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
-        { name: 'Ana səhifə', path: '/' },
-        { name: 'Qurani-Kərim', path: '/quran' },
-        { name: 'Qurandakı Dualar', path: '/dualar' },
-      ]),
-      noscriptHtml:
-        '<h1>Qurandakı Dualar (Rəbbənə Duaları)</h1><p>Hidayət, bağışlanma, ailə, elm və səbir mövzularında Qurandan seçilmiş 20 dua.</p>',
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: 'Qurandakı Dualar (Rəbbənə Duaları)',
+          url: `${baseUrl}/dualar`,
+          inLanguage: ['az', 'ar'],
+          description:
+            'Qurani-Kərimdən seçilmiş 20 səhih Rəbbənə və peyğəmbər duası — ərəbcə mətn, tərcümə və səsli tilavət.',
+        },
+        buildBreadcrumbJsonLd(baseUrl, [
+          { name: 'Ana səhifə', path: '/' },
+          { name: 'Qurani-Kərim', path: '/quran' },
+          { name: 'Qurandakı Dualar', path: '/dualar' },
+        ]),
+        buildFaqPageJsonLd(duaFaq),
+      ],
+      noscriptHtml: `<h1>Qurandakı Dualar (Rəbbənə Duaları)</h1><p>Hidayət, bağışlanma, ailə, elm və səbir mövzularında Qurandan seçilmiş ${QURAN_DUAS.length} dua.</p><ul>${QURAN_DUAS.map(
+        (d) =>
+          `<li><a href="/quran/sure/${d.surahNumber}#ayah-${d.ayahNumber}">${escapeHtmlText(d.title)} (${escapeHtmlText(d.surahName)} ${escapeHtmlText(d.ayahLabel)})</a>: ${escapeHtmlText(d.translation)}</li>`
+      ).join('')}</ul>`,
     };
   }
 
@@ -627,11 +833,27 @@ export function resolveRouteSeoMetadata(
       canonicalUrl: `${baseUrl}/gunun-ayesi`,
       ogImage: defaultOg,
       ogType: 'article',
-      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
-        { name: 'Ana səhifə', path: '/' },
-        { name: 'Günün Ayəsi', path: '/gunun-ayesi' },
-      ]),
-      noscriptHtml: '<h1>Günün Ayəsi və Təfəkkür</h1>',
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline: 'Günün Ayəsi və Təfəkkür',
+          description:
+            'Seçilmiş Quran ayələri, ərəbcə mətn və Azərbaycan dilində mənaca tərcüməsi ilə gündəlik təfəkkür.',
+          url: `${baseUrl}/gunun-ayesi`,
+          inLanguage: ['az', 'ar'],
+          publisher: {
+            '@type': 'Organization',
+            name: 'Quran Qiraeti',
+            url: `${baseUrl}/`,
+          },
+        },
+        buildBreadcrumbJsonLd(baseUrl, [
+          { name: 'Ana səhifə', path: '/' },
+          { name: 'Günün Ayəsi', path: '/gunun-ayesi' },
+        ]),
+      ],
+      noscriptHtml: '<h1>Günün Ayəsi və Təfəkkür</h1><p>Gündəlik seçilmiş Quran ayələri, ərəbcə mətn və tərcümə.</p>',
     };
   }
 
@@ -688,6 +910,7 @@ export function resolveRouteSeoMetadata(
       };
     }
     const faq = buildSurahFaqEntries(surah);
+    const startJuz = getJuzForPage(surah.startPage);
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -706,6 +929,10 @@ export function resolveRouteSeoMetadata(
           name: `${surah.number}. ${surah.name} surəsi`,
           position: surah.number,
           inLanguage: ['ar', 'az'],
+          translator: {
+            '@type': 'Person',
+            name: 'Əlixan Musayev',
+          },
           url: `${baseUrl}/quran/sure/${surah.number}`,
         },
         buildBreadcrumbJsonLd(baseUrl, [
@@ -715,7 +942,65 @@ export function resolveRouteSeoMetadata(
         ]),
         buildFaqPageJsonLd(faq),
       ],
-      noscriptHtml: `<h1>${escapeHtmlText(`${surah.number}. ${surah.name} surəsi (${surah.arabicName})`)}</h1><p>${escapeHtmlText(`${surah.ayahCount} ayə · ${surah.revelationPlace} · Mədinə çapı Səhifə ${surah.startPage} · Əlixan Musayev tərcüməsi`)}</p>`,
+      noscriptHtml: `<h1>${escapeHtmlText(`${surah.number}. ${surah.name} surəsi (${surah.arabicName})`)}</h1><p>${escapeHtmlText(`${surah.ayahCount} ayə · ${surah.revelationPlace} · ${startJuz}-ci Cüz · Mədinə çapı Səhifə ${surah.startPage} · Əlixan Musayev tərcüməsi`)}</p><nav><a href="/quran/sehife/${surah.startPage}">Mədinə səhifəsi ${surah.startPage}</a> · <a href="/muhaffiz/${surah.startPage}">Mühafizdə əzbərlə</a> · <a href="/quran/cuz/${startJuz}">${startJuz}-ci Cüz</a></nav>`,
+    };
+  }
+
+  const cuzMatch = cleanPath.match(/^\/quran\/cuz\/(\d+)$/);
+  if (cuzMatch) {
+    const juzNum = Number.parseInt(cuzMatch[1], 10);
+    const range = JUZ_PAGE_RANGES.find((j) => j.juz === juzNum);
+    if (!range) {
+      return {
+        httpStatus: 404,
+        robots: robotsNoIndex,
+        title: 'Cüz tapılmadı (404) | Quran Qiraeti',
+        description: 'Qurani-Kərimdə cüz nömrəsi 1 ilə 30 arasında olmalıdır.',
+        canonicalUrl: `${baseUrl}/quran`,
+        ogImage: defaultOg,
+        ogType: 'website',
+        noscriptHtml: '<h1>Cüz tapılmadı</h1>',
+      };
+    }
+    const ordinalJuz = formatAzerbaijaniOrdinal(juzNum);
+    const matchingSurahs = SURAH_CATALOG.filter((s, idx) => {
+      const nextStart = SURAH_CATALOG[idx + 1]?.startPage ?? TOTAL_QURAN_PAGES;
+      const surahEndPage = Math.max(s.startPage, nextStart);
+      return s.startPage <= range.endPage && surahEndPage >= range.startPage;
+    });
+    const surahNamesPreview = matchingSurahs
+      .slice(0, 4)
+      .map((s) => s.name)
+      .join(', ');
+    const description = `Mədinə Mushafının ${ordinalJuz} Cüzü (Səhifə ${range.startPage}–${range.endPage}): ${surahNamesPreview} surələri — ərəbcə mətn və Əlixan Musayev tərcüməsi.`;
+    return {
+      httpStatus: 200,
+      robots: robotsIndex,
+      title: `${ordinalJuz} Cüz (Səhifə ${range.startPage}–${range.endPage}) | Quran Qiraeti`,
+      description,
+      canonicalUrl: `${baseUrl}/quran/cuz/${juzNum}`,
+      ogImage: defaultOg,
+      ogType: 'website',
+      prevUrl: juzNum > 1 ? `${baseUrl}/quran/cuz/${juzNum - 1}` : undefined,
+      nextUrl: juzNum < 30 ? `${baseUrl}/quran/cuz/${juzNum + 1}` : undefined,
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: `${ordinalJuz} Cüz — Qurani-Kərim (Səhifə ${range.startPage}–${range.endPage})`,
+          description,
+          inLanguage: ['ar', 'az'],
+          url: `${baseUrl}/quran/cuz/${juzNum}`,
+        },
+        buildBreadcrumbJsonLd(baseUrl, [
+          { name: 'Ana səhifə', path: '/' },
+          { name: 'Qurani-Kərim', path: '/quran' },
+          { name: `${ordinalJuz} Cüz`, path: `/quran/cuz/${juzNum}` },
+        ]),
+      ],
+      noscriptHtml: `<h1>${escapeHtmlText(`${ordinalJuz} Cüz (Səhifə ${range.startPage}–${range.endPage})`)}</h1><p>${escapeHtmlText(description)}</p><nav><a href="/quran/sehife/${range.startPage}">Səhifə ${range.startPage}-dən oxu</a> · <a href="/muhaffiz/${range.startPage}">Mühafizdə əzbərlə</a></nav><ul>${matchingSurahs
+        .map((s) => `<li><a href="/quran/sure/${s.number}">${escapeHtmlText(`${s.number}. ${s.name} surəsi`)}</a></li>`)
+        .join('')}</ul>`,
     };
   }
 
@@ -781,6 +1066,16 @@ export function resolveRouteSeoMetadata(
     }
     const pageNum = clampMuhaffizPage(rawPage);
     const canonicalPath = muhaffizMatch[1] ? `/muhaffiz/${pageNum}` : '/muhaffiz';
+    const muhaffizFaq = [
+      {
+        question: 'Mühafiz əzbər aləti necə işləyir?',
+        answer: 'Orijinal 15 sətirlik Mədinə Mushafı səhifələrində sözləri və ya bütöv ayələri gizlədib toxunuşla açaraq özünüzü sınaya bilərsiniz.',
+      },
+      {
+        question: 'Mühafizdə neçə qari ilə səsli təkrar mümkündür?',
+        answer: 'Hər səhifə və ayə üzrə seçilmiş 5 fərqli qari ilə səsli oxutma və fərdi ayə təkrarı funksiyası mövcuddur.',
+      },
+    ];
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -798,7 +1093,13 @@ export function resolveRouteSeoMetadata(
           '@type': 'WebApplication',
           name: 'Mühafiz — Quran Əzbər Mushafı',
           applicationCategory: 'EducationalApplication',
+          operatingSystem: 'All',
           inLanguage: ['az', 'ar'],
+          offers: {
+            '@type': 'Offer',
+            price: '0',
+            priceCurrency: 'USD',
+          },
           url: `${baseUrl}${canonicalPath}`,
         },
         buildBreadcrumbJsonLd(baseUrl, [
@@ -808,6 +1109,7 @@ export function resolveRouteSeoMetadata(
             ? [{ name: `Səhifə ${pageNum}`, path: `/muhaffiz/${pageNum}` }]
             : []),
         ]),
+        ...(!muhaffizMatch[1] ? [buildFaqPageJsonLd(muhaffizFaq)] : []),
       ],
       noscriptHtml: `<h1>Mühafiz — Mədinə Mushafı Səhifə ${pageNum}</h1><p>Sözbə-söz və ayə-ayə Quran əzbərləmə aləti.</p>`,
     };
@@ -908,11 +1210,17 @@ export function injectRouteSeoIntoHtml(html: string, meta: RouteSeoMetadata): st
     .replace(
       /<meta\s+name="twitter:image"\s+content="[^"]*"\s*\/?>/i,
       `<meta name="twitter:image" content="${safeOgImage}" />`
-    );
+    )
+    .replace(/<meta\s+property="og:(?:url|image:alt)"\s+content="[^"]*"\s*\/?>\s*/gi, '')
+    .replace(/<meta\s+name="twitter:(?:title|description)"\s+content="[^"]*"\s*\/?>\s*/gi, '')
+    .replace(/<link\s+rel="(?:canonical|prev|next)"\s+href="[^"]*"\s*\/?>\s*/gi, '')
+    .replace(/<link\s+rel="alternate"\s+hreflang="(?:az|x-default)"\s+href="[^"]*"\s*\/?>\s*/gi, '')
+    .replace(/<script\s+id="quran-qiraeti-ssr-jsonld"\s+type="application\/ld\+json">[\s\S]*?<\/script>\s*/gi, '');
 
   const extraHeadTags = [
     `<link rel="canonical" href="${safeCanonical}" />`,
     `<meta property="og:url" content="${safeCanonical}" />`,
+    `<meta property="og:image:alt" content="${escapeHtmlAttr(meta.title)}" />`,
     `<meta name="twitter:title" content="${escapeHtmlAttr(meta.title)}" />`,
     `<meta name="twitter:description" content="${safeDesc}" />`,
     `<link rel="alternate" hreflang="az" href="${safeCanonical}" />`,
@@ -977,22 +1285,25 @@ export function buildLlmsTxt(
     `- [Uzun Videolar (Ana səhifə)](${baseUrl}/): Tam surə və uzun Quran tilavətləri arxivi.`,
     `- [Shorts Bölməsi](${baseUrl}/shorts): Kanaldakı bütün qısa Quran tilavətləri (${shorts.length} video) və SEO məlumatları.`,
     `- [Tam Qurani-Kərim](${baseUrl}/quran): Bütün 114 surə və 604 Mushaf səhifəsi üzrə ərəbcə mətn və Əlixan Musayev tərcüməsi.`,
+    `- [Qurandakı Dualar](${baseUrl}/dualar): Qurandan seçilmiş ${QURAN_DUAS.length} Rəbbənə və peyğəmbər duası — səsli tilavət və tərcümə.`,
     `- [Mühafiz — Əzbər Mushafı](${baseUrl}/muhaffiz): 604 Mushaf səhifəsində ayələri sözbə-söz və ayə-ayə gizlədib-açaraq hifz və təkrar aləti.`,
     `- [Günün Ayəsi](${baseUrl}/gunun-ayesi): Seçilmiş ayələr, ərəbcə mətn və təfəkkür izahı.`,
     `- [Kanal Haqqında](${baseUrl}/haqqinda): Kanalın məqsədi, qarilər və tərcümə prinsipləri.`,
     `- [Surə İstəyi](${baseUrl}/istek): Dinləyicilər üçün surə və qari təklifi formu.`,
     '',
     '## Machine-Readable Endpoints for AI & Search Crawlers',
-    `- [XML Sitemap](${baseUrl}/sitemap.xml): Complete URL index (core routes, 114 surahs, 604 Mushaf pages, all channel videos).`,
+    `- [XML Sitemap](${baseUrl}/sitemap.xml): Complete URL index (core routes, 30 Juz, 114 surahs, 604 Mushaf pages, all channel videos).`,
     `- [XML Sitemap Index](${baseUrl}/sitemap-index.xml): Split sitemaps (core, surahs, mushaf, muhaffiz 1..604, Google video sitemap).`,
     `- [Google Video Sitemap](${baseUrl}/sitemap-videos.xml): Structured Video Sitemap with duration and thumbnails.`,
+    `- [RSS 2.0 Feed](${baseUrl}/rss.xml): Syndicated XML feed of Quran Qiraeti long recitations and Shorts.`,
     `- [Full LLM Reference](${baseUrl}/llms-full.txt): Expanded catalog of all 114 surahs, 30 Juz page ranges, and channel videos.`,
     `- [AI Structured JSON Index](${baseUrl}/ai-index.json): Structured JSON feed of channel stats, surahs, and video metadata.`,
     `- [Channel Feed JSON](${baseUrl}/api/channel): Live long videos and Shorts metadata JSON.`,
     `- [Surah Translation JSON Pattern](${baseUrl}/api/quran/surah/{1..114}): Arabic text, Əlixan Musayev Azerbaijani translation (v1.0.4), and footnotes per surah.`,
     `- [Mushaf Page JSON Pattern](${baseUrl}/api/quran/page/{1..604}): Exact ayahs per Mushaf page with Arabic Uthmani text and Əlixan Musayev translation.`,
     '',
-    '## Complete Quran Index (114 Surahs & 604 Pages)',
+    '## Complete Quran Index (114 Surahs, 30 Juz & 604 Pages)',
+    `- Individual Juz Pages: ${baseUrl}/quran/cuz/{1..30}`,
     `- Individual Surah Pages: ${baseUrl}/quran/sure/{1..114}`,
     `- Individual Mushaf Pages: ${baseUrl}/quran/sehife/{1..604}`,
     `- Individual Muhaffiz Memorization Pages: ${baseUrl}/muhaffiz/{1..604}`,
@@ -1039,7 +1350,13 @@ export function buildLlmsFullTxt(
     '',
     '## 30 Juz & 604 Mushaf Page Ranges',
     ...JUZ_PAGE_RANGES.map(
-      (j) => `- Cüz ${j.juz}: ${baseUrl}/quran/sehife/${j.startPage} — Səhifə ${j.startPage}–${j.endPage}`
+      (j) => `- Cüz ${j.juz}: ${baseUrl}/quran/cuz/${j.juz} | Start Page: ${baseUrl}/quran/sehife/${j.startPage} — Səhifə ${j.startPage}–${j.endPage}`
+    ),
+    '',
+    `## Qurandakı Dualar (${QURAN_DUAS.length})`,
+    ...QURAN_DUAS.map(
+      (d) =>
+        `- ${d.title} (${d.surahName} ${d.ayahLabel}) | URL: ${baseUrl}/quran/sure/${d.surahNumber}#ayah-${d.ayahNumber} | ${d.translation}`
     ),
     '',
     '## All 114 Surahs',
@@ -1099,6 +1416,7 @@ export function buildAiIndexJson(
       sitemapXml: `${baseUrl}/sitemap.xml`,
       sitemapIndexXml: `${baseUrl}/sitemap-index.xml`,
       videoSitemapXml: `${baseUrl}/sitemap-videos.xml`,
+      rssXml: `${baseUrl}/rss.xml`,
       robotsTxt: `${baseUrl}/robots.txt`,
       llmsTxt: `${baseUrl}/llms.txt`,
       llmsFullTxt: `${baseUrl}/llms-full.txt`,
@@ -1108,6 +1426,22 @@ export function buildAiIndexJson(
       surahTemplate: `${baseUrl}/api/quran/surah/{surahNumber}`,
       mushafPageTemplate: `${baseUrl}/api/quran/page/{pageNumber}`,
     },
+    juzIndex: JUZ_PAGE_RANGES.map((j) => ({
+      ...j,
+      url: `${baseUrl}/quran/cuz/${j.juz}`,
+      startPageUrl: `${baseUrl}/quran/sehife/${j.startPage}`,
+      muhaffizUrl: `${baseUrl}/muhaffiz/${j.startPage}`,
+    })),
+    duas: QURAN_DUAS.map((d) => ({
+      id: d.id,
+      title: d.title,
+      category: d.category,
+      surahNumber: d.surahNumber,
+      surahName: d.surahName,
+      ayahNumber: d.ayahNumber,
+      url: `${baseUrl}/quran/sure/${d.surahNumber}#ayah-${d.ayahNumber}`,
+      duasPageUrl: `${baseUrl}/dualar`,
+    })),
     popularTopics: POPULAR_QURAN_TOPICS.map((t) => ({
       ...t,
       url: `${baseUrl}/quran/sehife/${t.pageNumber}`,

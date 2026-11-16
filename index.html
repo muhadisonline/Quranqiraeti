@@ -16,21 +16,26 @@
     <meta name="description" content="Quran Qiraeti rəsmi arxivi. Tam surə uzun tilavətləri, qısa Quran Shorts videoları və Azərbaycan dilində mənaca tərcümələr." />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="googlebot" content="index, follow" />
-    <meta property="og:title" content="Quran Qiraeti — Uzun Tilavətlər və Shorts Arxivi" />
-    <meta property="og:description" content="Quran Qiraeti YouTube kanalının rəsmi arxivi. Uzun Quran tilavətləri, Shorts bölməsi və hər video üçün ətraflı SEO məlumatı." />
+    <meta property="og:title" content="Quran Qiraeti — Uzun Tilavətlər və Azərbaycan Tərcüməsi" />
+    <meta property="og:description" content="Quran Qiraeti YouTube kanalının rəsmi arxivi. Tam Qurani-Kərim (604 səhifə), 114 surə, Mühafiz əzbər aləti və Azərbaycan tərcüməsi." />
     <meta property="og:site_name" content="Quran Qiraeti" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="az_AZ" />
     <meta property="og:image" content="/og-default.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Quran Qiraeti — Ərəbcə Quran Tilavəti, Mədinə Çapı və Azərbaycan Tərcüməsi" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@quranqiraeti" />
+    <meta name="twitter:title" content="Quran Qiraeti — Uzun Tilavətlər və Azərbaycan Tərcüməsi" />
+    <meta name="twitter:description" content="Tam Qurani-Kərim (604 Mədinə səhifəsi, 114 surə), Mühafiz əzbər aləti və uzun tilavət arxivi." />
     <meta name="twitter:image" content="/og-default.png" />
     <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap-index.xml" />
+    <link rel="alternate" type="application/rss+xml" title="Quran Qiraeti RSS Arxivi" href="/rss.xml" />
     <link rel="alternate" type="text/plain" title="LLMs Context" href="/llms.txt" />
     <link rel="alternate" type="text/plain" title="Full LLMs Reference" href="/llms-full.txt" />
     <link rel="alternate" type="application/json" title="AI Structured Index" href="/ai-index.json" />
-    <script type="application/ld+json">
+    <script id="quran-qiraeti-ssr-jsonld" type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@graph": [
@@ -48,7 +53,12 @@
             "@type": "WebSite",
             "name": "Quran Qiraeti",
             "inLanguage": ["az", "ar"],
-            "description": "Tam Qurani-Kərim (114 surə, 604 səhifə), uzun surə tilavətləri və Quran Shorts arxivi."
+            "description": "Tam Qurani-Kərim (114 surə, 604 səhifə), uzun surə tilavətləri və Quran Shorts arxivi.",
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": "/quran?q={search_term_string}",
+              "query-input": "required name=search_term_string"
+            }
           }
         ]
       }
