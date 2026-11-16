@@ -70,7 +70,7 @@ export function SeoHead({
       ? ogImage.startsWith('http')
         ? ogImage
         : `${origin}${ogImage}`
-      : `${origin}/og/site.svg`;
+      : `${origin}/og-default.png`;
 
     document.title = title;
     upsertMeta('meta[name="description"]', 'name', 'description', description);

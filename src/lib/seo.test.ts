@@ -59,7 +59,7 @@ test('resolveRouteSeoMetadata & injectRouteSeoIntoHtml handle Surah, Video, Admi
   const surahMeta = resolveRouteSeoMetadata('/quran/sure/36', 'https://quranqiraeti.vercel.app', []);
   assert.equal(surahMeta.httpStatus, 200);
   assert.ok(surahMeta.title.includes('Yasin'));
-  assert.ok(surahMeta.ogImage.endsWith('/og/sure/36.svg'));
+  assert.ok(surahMeta.ogImage.endsWith('/og-default.png'));
 
   const adminMeta = resolveRouteSeoMetadata('/admin', 'https://quranqiraeti.vercel.app', []);
   assert.equal(adminMeta.httpStatus, 200);

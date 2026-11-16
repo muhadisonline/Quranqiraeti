@@ -15,6 +15,7 @@ interface ShortsPageProps {
   onPlay: (video: RecitationVideo) => void;
   onToggleSave: (videoId: string) => void;
   onOpenDetail: (videoId: string) => void;
+  onNavigate: (path: string) => void;
   onToggleTheme: () => void;
 }
 
@@ -28,6 +29,7 @@ export function ShortsPage({
   onPlay,
   onToggleSave,
   onOpenDetail,
+  onNavigate,
   onToggleTheme,
 }: ShortsPageProps) {
   const [query, setQuery] = useState('');
@@ -264,8 +266,22 @@ export function ShortsPage({
                               {shortVideo.reciter}
                             </dd>
                           </div>
-                          <div className="col-span-2 mt-0.5 text-stone-500 dark:text-stone-400">
-                            {shortVideo.seoKeywords.join(' · ')}
+                          <div className="col-span-2 mt-0.5 flex flex-wrap items-center justify-between gap-2 text-stone-500 dark:text-stone-400">
+                            <span>{shortVideo.seoKeywords.join(' · ')}</span>
+                            {shortVideo.surahNumber >= 1 && (
+                              <a
+                                href={`/quran/sure/${shortVideo.surahNumber}${shortVideo.ayahStart ? `#ayah-${shortVideo.ayahStart}` : ''}`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  onNavigate(
+                                    `/quran/sure/${shortVideo.surahNumber}${shortVideo.ayahStart ? `#ayah-${shortVideo.ayahStart}` : ''}`
+                                  );
+                                }}
+                                className="font-medium text-[#0F4C3A] hover:underline whitespace-nowrap dark:text-[#86C7AE]"
+                              >
+                                Surəni oxu →
+                              </a>
+                            )}
                           </div>
                         </dl>
                       </div>

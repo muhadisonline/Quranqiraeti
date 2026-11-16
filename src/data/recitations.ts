@@ -299,6 +299,8 @@ export const SEED_SHORTS: RecitationVideo[] = [
 ];
 
 export interface CuratedVerse {
+  surahNumber: number;
+  ayahNumber: number;
   surahRef: string;
   arabicText: string;
   azerbaijaniTranslation: string;
@@ -308,6 +310,8 @@ export interface CuratedVerse {
 
 export const CURATED_VERSES: CuratedVerse[] = [
   {
+    surahNumber: 50,
+    ayahNumber: 16,
     surahRef: 'Qaf surəsi · 16-cı ayə',
     arabicText:
       'وَلَقَدْ خَلَقْنَا الْإِنسَانَ وَنَعْلَمُ مَا تُوَسْوِسُ بِهِ نَفْسُهُ ۖ وَنَحْنُ أَقْرَبُ إِلَيْهِ مِنْ حَبْلِ الْوَرِيدِ',
@@ -318,6 +322,8 @@ export const CURATED_VERSES: CuratedVerse[] = [
     relatedVideoId: 'j6vTpF8YKmc',
   },
   {
+    surahNumber: 55,
+    ayahNumber: 26,
     surahRef: 'Rəhman surəsi · 26–27-ci ayələr',
     arabicText: 'كُلُّ مَنْ عَلَيْهَا فَانٍ ۝ وَيَبْقَىٰ وَجْهُ رَبِّكَ ذُو الْجَلَالِ وَالْإِكْرَامِ',
     azerbaijaniTranslation:
@@ -327,6 +333,8 @@ export const CURATED_VERSES: CuratedVerse[] = [
     relatedVideoId: 'qDMrS01Gzgw',
   },
   {
+    surahNumber: 18,
+    ayahNumber: 10,
     surahRef: 'Kəhf surəsi · 10-cu ayə',
     arabicText: 'رَبَّنَا آتِنَا مِن لَّدُنكَ رَحْمَةً وَهَيِّئْ لَنَا مِنْ أَمْرِنَا رَشَدًا',
     azerbaijaniTranslation:

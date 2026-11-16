@@ -3,66 +3,71 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/index.mjs": {
+      "includeFiles": "dist/index.html"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/sitemap.xml",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/sitemap-index.xml",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/sitemap-core.xml",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/sitemap-surahs.xml",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/sitemap-mushaf.xml",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/sitemap-muhaffiz.xml",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/sitemap-videos.xml",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/og/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/robots.txt",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/llms.txt",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/llms-full.txt",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/.well-known/llms.txt",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
       "source": "/ai-index.json",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.mjs"
     },
     {
-      "source": "/((?!api/|assets/|og/|sitemap.*\\.xml$|robots\\.txt$|llms\\.txt$|llms-full\\.txt$|\\.well-known/llms\\.txt$|ai-index\\.json$).*)",
-      "destination": "/index.html"
+      "source": "/((?!assets/|manifest\\.webmanifest$|sw\\.js$|registerSW\\.js$|workbox-.*\\.js$|pwa-.*\\.png$|apple-touch-icon\\.png$|favicon\\.ico$|favicon-32x32\\.png$|icon\\.svg$|og-default\\.png$|sitemap.*\\.xml$|robots\\.txt$|llms\\.txt$|llms-full\\.txt$|\\.well-known/llms\\.txt$|ai-index\\.json$).*)",
+      "destination": "/api/index.mjs"
     }
   ]
 }

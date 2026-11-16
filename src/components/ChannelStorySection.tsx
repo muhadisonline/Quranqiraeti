@@ -1,10 +1,11 @@
-import { Play } from 'lucide-react';
+import { BookOpen, Play } from 'lucide-react';
 import { useState } from 'react';
 import studioEditorialImage from '../assets/images/recitation_studio_editorial_1794730602469.jpg';
 import { CURATED_VERSES } from '../data/recitations';
 
 interface VerseSectionProps {
   onPlayVideoById: (videoId: string) => void;
+  onNavigate?: (path: string) => void;
 }
 
 const STUDIO_IMAGE_PATH = studioEditorialImage;
@@ -27,7 +28,7 @@ const PRINCIPLES = [
   },
 ];
 
-export function VerseOfTheDaySection({ onPlayVideoById }: VerseSectionProps) {
+export function VerseOfTheDaySection({ onPlayVideoById, onNavigate }: VerseSectionProps) {
   const [verseIdx, setVerseIdx] = useState(0);
   const activeVerse = CURATED_VERSES[verseIdx] ?? CURATED_VERSES[0];
 
@@ -80,7 +81,7 @@ export function VerseOfTheDaySection({ onPlayVideoById }: VerseSectionProps) {
           {activeVerse.commentary}
         </p>
 
-        <div className="mt-7">
+        <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"
             onClick={() => onPlayVideoById(activeVerse.relatedVideoId)}
@@ -89,6 +90,20 @@ export function VerseOfTheDaySection({ onPlayVideoById }: VerseSectionProps) {
             <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
             <span>Bu surənin qiraətini dinlə</span>
           </button>
+
+          {onNavigate && (
+            <a
+              href={`/quran/sure/${activeVerse.surahNumber}#ayah-${activeVerse.ayahNumber}`}
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate(`/quran/sure/${activeVerse.surahNumber}#ayah-${activeVerse.ayahNumber}`);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#0F4C3A] px-5 py-2.5 text-xs font-medium text-white whitespace-nowrap shrink-0 transition-colors duration-150 hover:bg-[#0B3A2C] dark:bg-[#196B52] min-h-[42px]"
+            >
+              <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Ayəni surədə oxu</span>
+            </a>
+          )}
         </div>
       </div>
     </section>

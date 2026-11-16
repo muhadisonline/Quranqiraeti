@@ -1,5 +1,5 @@
-import { ArrowLeft, BookOpen, Bookmark, Check, Copy, ExternalLink, Search, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, BookOpen, Bookmark, Check, Copy, ExternalLink, Search, Square, Volume2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SeoHead } from '../components/SeoHead';
 import {
   RecitationVideo,
@@ -10,15 +10,23 @@ import {
   formatViewCount,
   getMentionedSurahs,
 } from '../lib/channel';
+import {
+  MUHAFFIZ_RECITERS,
+  MuhaffizReciterId,
+  getEveryAyahAudioUrl,
+} from '../lib/muhaffiz';
 import { getSurahByNumber } from '../lib/quran';
 import { fetchSurahWithFallback } from '../lib/quranClient';
 import { buildBreadcrumbJsonLd } from '../lib/seo';
+
+const READER_RECITER_KEY = 'quranqiraeti_reader_reciter_v1';
 
 interface VideoDetailPageProps {
   video: RecitationVideo | undefined;
   relatedVideos: RecitationVideo[];
   isSaved: boolean;
   isChannelLoading?: boolean;
+  activeHash?: string;
   onNavigate: (path: string) => void;
   onToggleSave: (videoId: string) => void;
 }
@@ -30,6 +38,7 @@ export function VideoDetailPage({
   relatedVideos,
   isSaved,
   isChannelLoading = false,
+  activeHash,
   onNavigate,
   onToggleSave,
 }: VideoDetailPageProps) {
@@ -60,13 +69,54 @@ export function VideoDetailPage({
   const [visibleLimit, setVisibleLimit] = useState<number>(INITIAL_AYAH_LIMIT);
   const [copiedAyahKey, setCopiedAyahKey] = useState<string | null>(null);
 
+  const [reciter, setReciter] = useState<MuhaffizReciterId>(() => {
+    try {
+      const saved = localStorage.getItem(READER_RECITER_KEY);
+      if (saved && MUHAFFIZ_RECITERS.some((r) => r.id === saved)) {
+        return saved as MuhaffizReciterId;
+      }
+    } catch {
+      // ignore storage error
+    }
+    return 'Alafasy_128kbps';
+  });
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playingKey, setPlayingKey] = useState<string | null>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
+
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current = null;
+    }
+    setPlayingKey(null);
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(READER_RECITER_KEY, reciter);
+    } catch {
+      // ignore storage error
+    }
+  }, [reciter]);
+
+  useEffect(() => {
+    return () => {
+      stopAudio();
+    };
+  }, [stopAudio]);
+
   useEffect(() => {
     if (!video) return;
     setSelectedSurahNumber(video.surahNumber);
     setViewMode(video.ayahStart && video.ayahEnd ? 'excerpt' : 'full');
     setAyahQuery('');
     setVisibleLimit(INITIAL_AYAH_LIMIT);
-  }, [video?.videoId, video?.surahNumber, video?.ayahStart, video?.ayahEnd]);
+    setAudioError(null);
+    stopAudio();
+  }, [video?.videoId, video?.surahNumber, video?.ayahStart, video?.ayahEnd, stopAudio]);
 
   useEffect(() => {
     if (!video) return;
@@ -141,6 +191,89 @@ export function VideoDetailPage({
     if (ayahQuery.trim()) return filteredAyahs;
     return filteredAyahs.slice(0, visibleLimit);
   }, [filteredAyahs, ayahQuery, visibleLimit]);
+
+  const highlightedAyahKey = useMemo(() => {
+    const rawHash = activeHash || (typeof window !== 'undefined' ? window.location.hash : '');
+    if (!rawHash) return null;
+    const surahScoped = rawHash.match(/^#ayah-(\d+)-(\d+)$/);
+    if (surahScoped) {
+      return `${Number.parseInt(surahScoped[1], 10)}:${Number.parseInt(surahScoped[2], 10)}`;
+    }
+    const single = rawHash.match(/^#ayah-(\d+)$/);
+    if (single) {
+      return `${selectedSurahNumber}:${Number.parseInt(single[1], 10)}`;
+    }
+    return null;
+  }, [activeHash, selectedSurahNumber]);
+
+  useEffect(() => {
+    if (!translationData || !highlightedAyahKey) return;
+    const targetIdx = filteredAyahs.findIndex(
+      (a) => `${a.surahNumber}:${a.ayahNumber}` === highlightedAyahKey
+    );
+    if (targetIdx >= 0 && !ayahQuery.trim() && targetIdx >= visibleLimit) {
+      setVisibleLimit(targetIdx + 10);
+      return;
+    }
+    const [sStr, aStr] = highlightedAyahKey.split(':');
+    const timer = window.setTimeout(() => {
+      const el = document.getElementById(`ayah-${sStr}-${aStr}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [translationData, highlightedAyahKey, filteredAyahs, ayahQuery, visibleLimit]);
+
+  const playAyahAtIndex = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= displayedAyahs.length) {
+        stopAudio();
+        return;
+      }
+      const ayah = displayedAyahs[index];
+      const key = `${ayah.surahNumber}:${ayah.ayahNumber}`;
+      stopAudio();
+      setAudioError(null);
+
+      const audio = new Audio(getEveryAyahAudioUrl(ayah.surahNumber, ayah.ayahNumber, reciter));
+      audioRef.current = audio;
+      setPlayingKey(key);
+
+      audio.onended = () => {
+        if (audioRef.current !== audio) return;
+        if (index + 1 < displayedAyahs.length) {
+          playAyahAtIndex(index + 1);
+        } else {
+          stopAudio();
+        }
+      };
+
+      audio.onerror = () => {
+        if (audioRef.current !== audio) return;
+        stopAudio();
+        setAudioError('Bu ayənin səs faylı hazırda oxuna bilmədi.');
+      };
+
+      void audio.play().catch(() => {
+        if (audioRef.current !== audio) return;
+        stopAudio();
+        setAudioError('Səs oxutma brauzer tərəfindən dayandırıldı. Yenidən toxunun.');
+      });
+    },
+    [displayedAyahs, reciter, stopAudio]
+  );
+
+  function handleToggleAyahAudio(key: string) {
+    if (playingKey === key) {
+      stopAudio();
+      return;
+    }
+    const idx = displayedAyahs.findIndex((a) => `${a.surahNumber}:${a.ayahNumber}` === key);
+    if (idx >= 0) {
+      playAyahAtIndex(idx);
+    }
+  }
 
   if (!video && isChannelLoading) {
     return (
@@ -463,42 +596,81 @@ export function VideoDetailPage({
             </div>
           )}
 
-          {/* In-surah search for longer surahs */}
-          {totalAyahCount > 7 && (
+          {/* In-surah search and reciter selector */}
+          {totalAyahCount > 0 && (
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="relative w-full sm:max-w-sm">
-                <label htmlFor="ayah-search-input" className="sr-only">
-                  Surə daxilində ayə axtar
-                </label>
-                <Search
-                  className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-stone-400"
-                  aria-hidden="true"
-                />
-                <input
-                  id="ayah-search-input"
-                  type="search"
-                  value={ayahQuery}
-                  onChange={(e) => setAyahQuery(e.target.value)}
-                  placeholder="Ayə nömrəsi (məs. 16) və ya söz axtar..."
-                  className="w-full rounded-lg border border-stone-200 bg-white py-2 pr-9 pl-10 text-sm text-stone-900 placeholder:text-stone-400 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#141916] dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-[#86C7AE]"
-                />
-                {ayahQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setAyahQuery('')}
-                    aria-label="Ayə axtarışını təmizlə"
-                    className="absolute top-1/2 right-2.5 -translate-y-1/2 rounded p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
+              {totalAyahCount > 7 ? (
+                <div className="relative w-full sm:max-w-sm">
+                  <label htmlFor="ayah-search-input" className="sr-only">
+                    Surə daxilində ayə axtar
+                  </label>
+                  <Search
+                    className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-stone-400"
+                    aria-hidden="true"
+                  />
+                  <input
+                    id="ayah-search-input"
+                    type="search"
+                    value={ayahQuery}
+                    onChange={(e) => setAyahQuery(e.target.value)}
+                    placeholder="Ayə nömrəsi (məs. 16) və ya söz axtar..."
+                    className="w-full rounded-lg border border-stone-200 bg-white py-2 pr-9 pl-10 text-sm text-stone-900 placeholder:text-stone-400 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#141916] dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-[#86C7AE]"
+                  />
+                  {ayahQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setAyahQuery('')}
+                      aria-label="Ayə axtarışını təmizlə"
+                      className="absolute top-1/2 right-2.5 -translate-y-1/2 rounded p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500 dark:text-stone-400">
+                <div className="flex items-center gap-1.5">
+                  <Volume2 className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
+                  <label htmlFor="detail-reciter-select" className="sr-only">
+                    Qari seçimi
+                  </label>
+                  <select
+                    id="detail-reciter-select"
+                    value={reciter}
+                    onChange={(e) => {
+                      stopAudio();
+                      setReciter(e.target.value as MuhaffizReciterId);
+                    }}
+                    data-testid="detail-reciter-select"
+                    className="rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-800 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#141916] dark:text-stone-100"
                   >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                )}
+                    {MUHAFFIZ_RECITERS.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <p>
+                  {ayahQuery.trim()
+                    ? `${filteredAyahs.length} uyğun ayə tapıldı`
+                    : `${displayedAyahs.length} / ${filteredAyahs.length} ayə göstərilir`}
+                </p>
               </div>
-              <p className="text-xs text-stone-500 dark:text-stone-400">
-                {ayahQuery.trim()
-                  ? `${filteredAyahs.length} uyğun ayə tapıldı`
-                  : `${displayedAyahs.length} / ${filteredAyahs.length} ayə göstərilir`}
-              </p>
             </div>
+          )}
+
+          {audioError && (
+            <p
+              role="status"
+              className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300"
+            >
+              {audioError}
+            </p>
           )}
 
           {/* Loading, Error, or Ayah List */}
@@ -548,37 +720,103 @@ export function VideoDetailPage({
                 {displayedAyahs.map((ayah) => {
                   const key = `${ayah.surahNumber}:${ayah.ayahNumber}`;
                   const isCopied = copiedAyahKey === key;
+                  const isPlaying = playingKey === key;
+                  const isHighlighted = highlightedAyahKey === key;
                   return (
-                    <div key={key} className="p-6 sm:p-7">
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="font-mono-tabular text-xs font-semibold text-[#0F4C3A] dark:text-[#86C7AE]">
-                          {key}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleCopyAyah(
-                              ayah.surahNumber,
-                              ayah.ayahNumber,
-                              ayah.arabicText,
-                              ayah.translation
-                            )
-                          }
-                          aria-label={`${key} ayəsini və tərcüməsini köçür`}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 transition-colors hover:border-stone-300 hover:text-stone-900 dark:border-stone-700 dark:text-stone-400 dark:hover:border-stone-600 dark:hover:text-stone-100"
-                        >
-                          {isCopied ? (
-                            <>
-                              <Check className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
-                              <span>Köçürüldü</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                              <span>Köçür</span>
-                            </>
+                    <div
+                      key={key}
+                      id={`ayah-${ayah.surahNumber}-${ayah.ayahNumber}`}
+                      data-ayah-anchor={`${ayah.surahNumber}-${ayah.ayahNumber}`}
+                      className={`p-6 sm:p-7 transition-colors ${
+                        isHighlighted
+                          ? 'bg-[#0F4C3A]/6 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/15 dark:ring-[#86C7AE]/40'
+                          : isPlaying
+                            ? 'bg-[#0F4C3A]/4 dark:bg-[#196B52]/10'
+                            : ''
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-xs">
+                          <a
+                            href={`#ayah-${ayah.surahNumber}-${ayah.ayahNumber}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              onNavigate(
+                                `/video/${video.videoId}#ayah-${ayah.surahNumber}-${ayah.ayahNumber}`
+                              );
+                            }}
+                            className="font-mono-tabular font-semibold text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                          >
+                            {key}
+                          </a>
+                          {ayah.pageNumber && (
+                            <a
+                              href={`/quran/sehife/${ayah.pageNumber}#ayah-${ayah.surahNumber}-${ayah.ayahNumber}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                onNavigate(
+                                  `/quran/sehife/${ayah.pageNumber}#ayah-${ayah.surahNumber}-${ayah.ayahNumber}`
+                                );
+                              }}
+                              className="font-mono-tabular text-stone-400 hover:text-[#0F4C3A] dark:text-stone-500 dark:hover:text-[#86C7AE]"
+                            >
+                              · Səh. {ayah.pageNumber}
+                            </a>
                           )}
-                        </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAyahAudio(key)}
+                            aria-pressed={isPlaying}
+                            aria-label={isPlaying ? `${key} ayəsini dayandır` : `${key} ayəsini dinlə`}
+                            data-testid={`detail-play-ayah-${ayah.ayahNumber}`}
+                            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                              isPlaying
+                                ? 'border-[#0F4C3A] bg-[#0F4C3A] font-medium text-white dark:border-[#196B52] dark:bg-[#196B52]'
+                                : 'border-stone-200 text-stone-600 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:text-stone-300 dark:hover:border-[#86C7AE]'
+                            }`}
+                          >
+                            {isPlaying ? (
+                              <>
+                                <Square className="h-3 w-3 fill-current" aria-hidden="true" />
+                                <span>Dayandır</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                <span>Dinlə</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCopyAyah(
+                                ayah.surahNumber,
+                                ayah.ayahNumber,
+                                ayah.arabicText,
+                                ayah.translation
+                              )
+                            }
+                            aria-label={`${key} ayəsini və tərcüməsini köçür`}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-600 transition-colors hover:border-stone-300 hover:text-stone-900 dark:border-stone-700 dark:text-stone-400 dark:hover:border-stone-600 dark:hover:text-stone-100"
+                          >
+                            {isCopied ? (
+                              <>
+                                <Check className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
+                                <span>Köçürüldü</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                                <span>Köçür</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       <p

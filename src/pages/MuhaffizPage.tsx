@@ -2,6 +2,8 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Bookmark,
+  Check,
   Clock,
   Eye,
   EyeOff,
@@ -12,12 +14,23 @@ import {
   MoreHorizontal,
   Pause,
   Plus,
+  RotateCcw,
   Sun,
   VolumeX,
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PWAInstallButton } from '../components/PWAInstallButton';
 import { SeoHead } from '../components/SeoHead';
+import {
+  EMPTY_HIFZ_PROGRESS,
+  HifzProgressState,
+  getHifzPageStatus,
+  sanitizeHifzProgress,
+  setHifzPageStatus,
+  summarizeHifzProgress,
+  toggleHifzBookmark,
+} from '../lib/hifzProgress';
 import {
   DEFAULT_MUHAFFIZ_PREFS,
   FATIHAT_PAGE_1_MUHAFFIZ_SEED,
@@ -55,6 +68,17 @@ interface MuhaffizPageProps {
 
 const PREFS_STORAGE_KEY = 'quranqiraeti_muhaffiz_prefs_v2';
 const LAST_PAGE_STORAGE_KEY = 'quranqiraeti_muhaffiz_last_page_v1';
+const HIFZ_PROGRESS_STORAGE_KEY = 'quranqiraeti_hifz_progress_v1';
+
+function loadHifzProgress(): HifzProgressState {
+  try {
+    const raw = localStorage.getItem(HIFZ_PROGRESS_STORAGE_KEY);
+    if (!raw) return EMPTY_HIFZ_PROGRESS;
+    return sanitizeHifzProgress(JSON.parse(raw));
+  } catch {
+    return EMPTY_HIFZ_PROGRESS;
+  }
+}
 
 function loadPrefs(): MuhaffizPreferences {
   try {
@@ -103,6 +127,7 @@ export function MuhaffizPage({
   const [hafsHeaderReady, setHafsHeaderReady] = useState<boolean>(false);
 
   const [prefs, setPrefs] = useState<MuhaffizPreferences>(() => loadPrefs());
+  const [hifzProgress, setHifzProgress] = useState<HifzProgressState>(() => loadHifzProgress());
   const [revealedTokenIds, setRevealedTokenIds] = useState<Set<string>>(() => new Set());
 
   const [isAutoRevealing, setIsAutoRevealing] = useState(false);
@@ -198,6 +223,14 @@ export function MuhaffizPage({
 
   useEffect(() => {
     try {
+      localStorage.setItem(HIFZ_PROGRESS_STORAGE_KEY, JSON.stringify(hifzProgress));
+    } catch {
+      // ignore storage error
+    }
+  }, [hifzProgress]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem(LAST_PAGE_STORAGE_KEY, String(pageNumber));
     } catch {
       // ignore storage error
@@ -290,6 +323,17 @@ export function MuhaffizPage({
   const progressPercent =
     wordTokens.length > 0 ? Math.round((revealedWordCount / wordTokens.length) * 100) : 0;
   const allRevealed = wordTokens.length > 0 && revealedWordCount === wordTokens.length;
+
+  const hifzSummary = useMemo(() => summarizeHifzProgress(hifzProgress), [hifzProgress]);
+  const currentPageHifzStatus = getHifzPageStatus(hifzProgress, pageNumber);
+  const isCurrentPageBookmarked = hifzProgress.bookmarkedPage === pageNumber;
+  const trackedPagesList = useMemo(
+    () =>
+      Object.entries(hifzProgress.pages)
+        .map(([p, status]) => ({ page: Number(p), status }))
+        .sort((a, b) => a.page - b.page),
+    [hifzProgress.pages]
+  );
 
   const handleRevealNext = useCallback(() => {
     setRevealedTokenIds((prev) => revealNextStep(prefs.revealMode, ayahs, wordTokens, prev));
@@ -467,7 +511,7 @@ export function MuhaffizPage({
         title={`Mühafiz (Əzbər Mushafı) — Səhifə ${pageNumber} | Quran Qiraeti`}
         description="Ayələri sözbə-söz və ya ayə-ayə gizlədib-açaraq səhifə-səhifə (1–604 Mədinə Mushafı) Qurani-Kərimi əzbərləmək üçün Mühafiz Mushafı."
         path={pageNumber === 1 ? '/muhaffiz' : `/muhaffiz/${pageNumber}`}
-        ogImage={`/og/muhaffiz/${pageNumber}.svg`}
+        ogImage="/og-default.png"
         prevPath={pageNumber > 1 ? `/muhaffiz/${pageNumber - 1}` : undefined}
         nextPath={pageNumber < TOTAL_QURAN_PAGES ? `/muhaffiz/${pageNumber + 1}` : undefined}
         jsonLd={[
@@ -750,7 +794,7 @@ export function MuhaffizPage({
             <div
               role="dialog"
               aria-label="Mühafiz parametrləri"
-              className="absolute bottom-full left-3 mb-2 w-72 rounded-xl border border-[#DED4BD] bg-[#FFFBF3] p-4 shadow-xl dark:border-stone-700 dark:bg-[#161D1A]"
+              className="absolute bottom-full left-3 mb-2 max-h-[calc(100dvh-5.5rem)] w-72 overflow-y-auto rounded-xl border border-[#DED4BD] bg-[#FFFBF3] p-4 shadow-xl dark:border-stone-700 dark:bg-[#161D1A]"
             >
               <div className="flex items-center justify-between border-b border-[#EAE2CE] pb-2.5 dark:border-stone-800">
                 <span className="text-xs font-semibold text-[#17191C] dark:text-stone-100">
@@ -938,23 +982,114 @@ export function MuhaffizPage({
                   </select>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-[#EAE2CE] pt-2.5 dark:border-stone-800">
-                  <button
-                    type="button"
-                    onClick={() => onNavigate(`/quran/sehife/${pageNumber}`)}
-                    className="inline-flex items-center gap-1 text-[#0E5E4C] hover:underline dark:text-[#86C7AE]"
-                  >
-                    <BookOpen className="h-3.5 w-3.5" />
-                    <span>Normal oxu</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/')}
-                    className="inline-flex items-center gap-1 text-stone-600 hover:underline dark:text-stone-300"
-                  >
-                    <Home className="h-3.5 w-3.5" />
-                    <span>Ana səhifə</span>
-                  </button>
+                {/* Hifz Progress Tracking for Current Page */}
+                <div className="border-t border-[#EAE2CE] pt-2.5 dark:border-stone-800">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-medium text-stone-700 dark:text-stone-300">
+                      Hifz irəliləyişi
+                    </span>
+                    <span
+                      data-testid="hifz-progress-summary"
+                      className="font-mono-tabular font-semibold text-[#0E5E4C] dark:text-[#86C7AE]"
+                    >
+                      {hifzSummary.memorizedCount} / {TOTAL_QURAN_PAGES} ({hifzSummary.memorizedPercent}%)
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#EFE7D5] dark:bg-[#101412]">
+                    <div
+                      style={{ width: `${Math.min(100, hifzSummary.memorizedPercent)}%` }}
+                      className="h-full bg-[#0E5E4C] transition-all duration-300 dark:bg-[#86C7AE]"
+                    />
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setHifzProgress((prev) =>
+                          setHifzPageStatus(
+                            prev,
+                            pageNumber,
+                            currentPageHifzStatus === 'memorized' ? 'none' : 'memorized'
+                          )
+                        )
+                      }
+                      aria-pressed={currentPageHifzStatus === 'memorized'}
+                      data-testid="hifz-mark-memorized"
+                      className={`inline-flex items-center justify-center gap-1 rounded-lg border px-1.5 py-1.5 text-[11px] font-medium transition-colors ${
+                        currentPageHifzStatus === 'memorized'
+                          ? 'border-[#0E5E4C] bg-[#0E5E4C] text-white dark:border-[#196B52] dark:bg-[#196B52]'
+                          : 'border-[#DFD5BE] bg-white text-stone-700 hover:border-[#0E5E4C] dark:border-stone-700 dark:bg-[#1E2622] dark:text-stone-200'
+                      }`}
+                    >
+                      <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
+                      <span>Əzbərlədim</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setHifzProgress((prev) =>
+                          setHifzPageStatus(
+                            prev,
+                            pageNumber,
+                            currentPageHifzStatus === 'learning' ? 'none' : 'learning'
+                          )
+                        )
+                      }
+                      aria-pressed={currentPageHifzStatus === 'learning'}
+                      data-testid="hifz-mark-learning"
+                      className={`inline-flex items-center justify-center gap-1 rounded-lg border px-1.5 py-1.5 text-[11px] font-medium transition-colors ${
+                        currentPageHifzStatus === 'learning'
+                          ? 'border-amber-600 bg-amber-600 text-white'
+                          : 'border-[#DFD5BE] bg-white text-stone-700 hover:border-amber-600 dark:border-stone-700 dark:bg-[#1E2622] dark:text-stone-200'
+                      }`}
+                    >
+                      <RotateCcw className="h-3 w-3 shrink-0" aria-hidden="true" />
+                      <span>Təkrarda</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setHifzProgress((prev) => toggleHifzBookmark(prev, pageNumber))
+                      }
+                      aria-pressed={isCurrentPageBookmarked}
+                      data-testid="hifz-toggle-bookmark"
+                      className={`inline-flex items-center justify-center gap-1 rounded-lg border px-1.5 py-1.5 text-[11px] font-medium transition-colors ${
+                        isCurrentPageBookmarked
+                          ? 'border-[#C6A769] bg-[#C6A769]/20 text-[#7A5E26] dark:text-[#E2C98A]'
+                          : 'border-[#DFD5BE] bg-white text-stone-700 hover:border-[#C6A769] dark:border-stone-700 dark:bg-[#1E2622] dark:text-stone-200'
+                      }`}
+                    >
+                      <Bookmark
+                        className={`h-3 w-3 shrink-0 ${isCurrentPageBookmarked ? 'fill-current' : ''}`}
+                        aria-hidden="true"
+                      />
+                      <span>Əlfəcin</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 border-t border-[#EAE2CE] pt-2.5 dark:border-stone-800">
+                  <PWAInstallButton compact />
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => onNavigate(`/quran/sehife/${pageNumber}`)}
+                      className="inline-flex items-center gap-1 text-[#0E5E4C] hover:underline dark:text-[#86C7AE]"
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                      <span>Normal oxu</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('/')}
+                      className="inline-flex items-center gap-1 text-stone-600 hover:underline dark:text-stone-300"
+                    >
+                      <Home className="h-3.5 w-3.5" />
+                      <span>Ana səhifə</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1096,7 +1231,28 @@ export function MuhaffizPage({
               </button>
             </div>
 
-            <div className="px-5 pt-3">
+            <div className="px-5 pt-3 space-y-2.5">
+              {(hifzSummary.memorizedCount > 0 ||
+                hifzSummary.learningCount > 0 ||
+                hifzProgress.bookmarkedPage !== null) && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#EAE2CE] bg-white px-3 py-2 text-[11px] dark:border-stone-800 dark:bg-[#181E1B]">
+                  <span className="font-mono-tabular text-stone-600 dark:text-stone-300">
+                    Əzbərlənib: <strong className="text-[#0E5E4C] dark:text-[#86C7AE]">{hifzSummary.memorizedCount}</strong> / {TOTAL_QURAN_PAGES}
+                    {hifzSummary.learningCount > 0 && ` · Təkrarda: ${hifzSummary.learningCount}`}
+                  </span>
+                  {hifzProgress.bookmarkedPage !== null && (
+                    <button
+                      type="button"
+                      onClick={() => goToPage(hifzProgress.bookmarkedPage!)}
+                      className="inline-flex items-center gap-1 font-medium text-[#9A7B3E] hover:underline dark:text-[#E2C98A]"
+                    >
+                      <Bookmark className="h-3 w-3 fill-current" aria-hidden="true" />
+                      <span>Əlfəcin: Səh. {hifzProgress.bookmarkedPage}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-1 rounded-lg bg-[#EFE7D5] p-1 dark:bg-[#181E1B]">
                 {(
                   [
@@ -1177,39 +1333,65 @@ export function MuhaffizPage({
               )}
 
               {jumpTab === 'page' && (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    goToPage(Number.parseInt(jumpPageInput, 10) || 1);
-                  }}
-                  className="space-y-4"
-                >
-                  <div>
-                    <label
-                      htmlFor="jump-page-number"
-                      className="block text-xs font-medium text-stone-700 dark:text-stone-300"
-                    >
-                      Mədinə Mushafı səhifə nömrəsi (1–604)
-                    </label>
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        id="jump-page-number"
-                        type="number"
-                        min={1}
-                        max={TOTAL_QURAN_PAGES}
-                        value={jumpPageInput}
-                        onChange={(e) => setJumpPageInput(e.target.value)}
-                        className="w-full rounded-lg border border-[#DFD5BE] bg-white px-3.5 py-2.5 font-mono-tabular text-sm text-stone-900 focus:border-[#0E5E4C] focus:outline-none dark:border-stone-700 dark:bg-[#111513] dark:text-stone-100"
-                      />
-                      <button
-                        type="submit"
-                        className="shrink-0 rounded-lg bg-[#0E5E4C] px-5 py-2.5 text-xs font-medium text-white hover:bg-[#0B4A3C] dark:bg-[#196B52]"
+                <div className="space-y-4">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      goToPage(Number.parseInt(jumpPageInput, 10) || 1);
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label
+                        htmlFor="jump-page-number"
+                        className="block text-xs font-medium text-stone-700 dark:text-stone-300"
                       >
-                        Aç
-                      </button>
+                        Mədinə Mushafı səhifə nömrəsi (1–604)
+                      </label>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          id="jump-page-number"
+                          type="number"
+                          min={1}
+                          max={TOTAL_QURAN_PAGES}
+                          value={jumpPageInput}
+                          onChange={(e) => setJumpPageInput(e.target.value)}
+                          className="w-full rounded-lg border border-[#DFD5BE] bg-white px-3.5 py-2.5 font-mono-tabular text-sm text-stone-900 focus:border-[#0E5E4C] focus:outline-none dark:border-stone-700 dark:bg-[#111513] dark:text-stone-100"
+                        />
+                        <button
+                          type="submit"
+                          className="shrink-0 rounded-lg bg-[#0E5E4C] px-5 py-2.5 text-xs font-medium text-white hover:bg-[#0B4A3C] dark:bg-[#196B52]"
+                        >
+                          Aç
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </form>
+                  </form>
+
+                  {trackedPagesList.length > 0 && (
+                    <div className="border-t border-[#EAE2CE] pt-3 dark:border-stone-800">
+                      <p className="text-[11px] font-medium text-stone-600 dark:text-stone-400">
+                        İzlənən səhifələr ({trackedPagesList.length})
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {trackedPagesList.map((item) => (
+                          <button
+                            key={item.page}
+                            type="button"
+                            onClick={() => goToPage(item.page)}
+                            className={`rounded-md border px-2.5 py-1 font-mono-tabular text-[11px] font-medium ${
+                              item.status === 'memorized'
+                                ? 'border-[#0E5E4C]/35 bg-[#0E5E4C]/12 text-[#0E5E4C] dark:text-[#86C7AE]'
+                                : 'border-amber-600/35 bg-amber-500/12 text-amber-800 dark:text-amber-300'
+                            }`}
+                          >
+                            Səh. {item.page}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

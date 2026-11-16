@@ -2,6 +2,7 @@ import { Component, ErrorInfo, ReactNode, useEffect, useMemo, useState } from 'r
 import { AboutChannelSection, VerseOfTheDaySection } from './components/ChannelStorySection';
 import { Footer } from './components/Footer';
 import { HeroSection } from './components/HeroSection';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { RecitationArchive } from './components/RecitationArchive';
 import { SeoHead } from './components/SeoHead';
 import { SurahRequestSection } from './components/SurahRequestSection';
@@ -30,8 +31,9 @@ import { ShortsPage } from './pages/ShortsPage';
 import { VideoDetailPage } from './pages/VideoDetailPage';
 
 function normalizeRoutePath(pathname: string): string {
-  if (!pathname || pathname === '/') return '/';
-  const clean = pathname.replace(/\/+$/, '');
+  const pathOnly = pathname.split('#')[0].split('?')[0];
+  if (!pathOnly || pathOnly === '/') return '/';
+  const clean = pathOnly.replace(/\/+$/, '');
   return clean || '/';
 }
 
@@ -91,6 +93,7 @@ function AppContent() {
   const [currentPath, setCurrentPath] = useState<string>(() => {
     return normalizeRoutePath(window.location.pathname || '/');
   });
+  const [routeHash, setRouteHash] = useState<string>(() => window.location.hash || '');
 
   const [stats, setStats] = useState<ChannelStats>(DEFAULT_CHANNEL_STATS);
   const [longVideos, setLongVideos] = useState<RecitationVideo[]>(SEED_LONG_VIDEOS);
@@ -124,20 +127,33 @@ function AppContent() {
   useEffect(() => {
     function handlePopState() {
       setCurrentPath(normalizeRoutePath(window.location.pathname || '/'));
+      setRouteHash(window.location.hash || '');
     }
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
   }, []);
 
   function navigate(path: string) {
+    const hashIdx = path.indexOf('#');
+    const nextHash = hashIdx >= 0 ? path.slice(hashIdx) : '';
     const normalized = normalizeRoutePath(path);
-    if (normalized === currentPath) {
+    const historyTarget = nextHash ? `${normalized}${nextHash}` : normalized;
+    if (normalized === currentPath && !nextHash) {
+      setRouteHash('');
+      window.history.pushState({}, '', normalized);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    window.history.pushState({}, '', normalized);
+    window.history.pushState({}, '', historyTarget);
     setCurrentPath(normalized);
-    window.scrollTo({ top: 0 });
+    setRouteHash(nextHash);
+    if (!nextHash) {
+      window.scrollTo({ top: 0 });
+    }
   }
 
   useEffect(() => {
@@ -301,6 +317,7 @@ function AppContent() {
             relatedVideos={relatedForDetail}
             isSaved={detailVideo ? savedIds.includes(detailVideo.videoId) : false}
             isChannelLoading={isLoading}
+            activeHash={routeHash}
             onNavigate={navigate}
             onToggleSave={handleToggleSave}
           />
@@ -308,12 +325,14 @@ function AppContent() {
           <QuranSurahPage
             surahNumber={quranSurahNumber}
             channelVideos={allVideos}
+            activeHash={routeHash}
             onNavigate={navigate}
             onPlayVideo={setActiveVideo}
           />
         ) : quranPageNumber !== undefined ? (
           <QuranMushafPage
             pageNumber={quranPageNumber}
+            activeHash={routeHash}
             onNavigate={navigate}
           />
         ) : currentPath === '/quran' ? (
@@ -338,6 +357,7 @@ function AppContent() {
             onPlay={setActiveVideo}
             onToggleSave={handleToggleSave}
             onOpenDetail={(id) => navigate(`/video/${id}`)}
+            onNavigate={navigate}
             onToggleTheme={() => setIsDark((prev) => !prev)}
           />
         ) : currentPath === '/gunun-ayesi' ? (
@@ -347,7 +367,10 @@ function AppContent() {
               description="Seçilmiş Quran ayələri, ərəbcə mətn və Azərbaycan dilində mənaca tərcüməsi ilə gündəlik təfəkkür."
               path="/gunun-ayesi"
             />
-            <VerseOfTheDaySection onPlayVideoById={handlePlayById} />
+            <VerseOfTheDaySection
+              onPlayVideoById={handlePlayById}
+              onNavigate={navigate}
+            />
           </>
         ) : currentPath === '/haqqinda' ? (
           <>
@@ -495,6 +518,8 @@ function AppContent() {
         }}
         onToggleSave={handleToggleSave}
       />
+
+      <OfflineIndicator />
     </div>
   );
 }

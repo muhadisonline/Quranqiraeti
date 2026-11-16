@@ -43,6 +43,7 @@ export interface PopularQuranTopic {
   searchHint: string;
   surahNumber: number;
   pageNumber: number;
+  anchorHash?: string;
   summary: string;
 }
 
@@ -54,6 +55,7 @@ export const POPULAR_QURAN_TOPICS: PopularQuranTopic[] = [
     searchHint: '2:255 · Səhifə 42',
     surahNumber: 2,
     pageNumber: 42,
+    anchorHash: '#ayah-2-255',
     summary: 'Quranın ən əzəmətli ayəsi — ərəbcə mətn və Əlixan Musayev tərcüməsi.',
   },
   {
@@ -63,6 +65,7 @@ export const POPULAR_QURAN_TOPICS: PopularQuranTopic[] = [
     searchHint: '2:285–286 · Səhifə 49',
     surahNumber: 2,
     pageNumber: 49,
+    anchorHash: '#ayah-2-285',
     summary: 'Bəqərə surəsinin son iki ayəsi və axşam tilavəti üçün dua ayələri.',
   },
   {
@@ -504,7 +507,7 @@ export function resolveRouteSeoMetadata(
 ): RouteSeoMetadata {
   const baseUrl = normalizeBaseUrl(origin);
   const cleanPath = !pathname || pathname === '/' ? '/' : pathname.split('?')[0].replace(/\/+$/, '') || '/';
-  const defaultOg = `${baseUrl}/og/site.svg`;
+  const defaultOg = `${baseUrl}/og-default.png`;
   const robotsIndex = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
   const robotsNoIndex = 'noindex, nofollow';
 
@@ -669,7 +672,7 @@ export function resolveRouteSeoMetadata(
       title: `${surah.number}. ${surah.name} surəsi — Ərəbcə və Tərcümə | Quran Qiraeti`,
       description: `${surah.name} surəsi (${surah.ayahCount} ayə, ${surah.revelationPlace}, Mədinə çapı Səhifə ${surah.startPage}). Ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi.`,
       canonicalUrl: `${baseUrl}/quran/sure/${surah.number}`,
-      ogImage: `${baseUrl}/og/sure/${surah.number}.svg`,
+      ogImage: defaultOg,
       ogType: 'article',
       prevUrl: surah.number > 1 ? `${baseUrl}/quran/sure/${surah.number - 1}` : undefined,
       nextUrl:
@@ -717,7 +720,7 @@ export function resolveRouteSeoMetadata(
       title: `Qurani-Kərim — ${ordinal} səhifə (Mədinə çapı) | Quran Qiraeti`,
       description: `Mədinə çapı üzrə Qurani-Kərimin ${pageNum}-ci səhifəsi (${juz}-ci Cüz): ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi.`,
       canonicalUrl: `${baseUrl}/quran/sehife/${pageNum}`,
-      ogImage: `${baseUrl}/og/sehife/${pageNum}.svg`,
+      ogImage: defaultOg,
       ogType: 'article',
       prevUrl: pageNum > 1 ? `${baseUrl}/quran/sehife/${pageNum - 1}` : undefined,
       nextUrl: pageNum < TOTAL_QURAN_PAGES ? `${baseUrl}/quran/sehife/${pageNum + 1}` : undefined,
@@ -763,7 +766,7 @@ export function resolveRouteSeoMetadata(
       description:
         'Ayələri sözbə-söz və ya ayə-ayə gizlədib-açaraq 1–604 Mədinə Mushafı səhifəsində Qurani-Kərimi əzbərləmək üçün Mühafiz aləti.',
       canonicalUrl: `${baseUrl}${canonicalPath}`,
-      ogImage: `${baseUrl}/og/muhaffiz/${pageNum}.svg`,
+      ogImage: defaultOg,
       ogType: 'website',
       prevUrl: pageNum > 1 ? `${baseUrl}/muhaffiz/${pageNum - 1}` : undefined,
       nextUrl: pageNum < TOTAL_QURAN_PAGES ? `${baseUrl}/muhaffiz/${pageNum + 1}` : undefined,

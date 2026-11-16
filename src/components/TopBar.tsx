@@ -1,5 +1,6 @@
 import { Menu, X } from 'lucide-react';
 import { MouseEvent, useState } from 'react';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface TopBarProps {
   currentPath: string;
@@ -66,8 +67,11 @@ export function TopBar({ currentPath, subscribeUrl, onNavigate }: TopBarProps) {
           })}
         </nav>
 
-        {/* Zone 3: Single Primary Action + Mobile Menu Trigger */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Zone 3: PWA Install + Single Primary Action + Mobile Menu Trigger */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="hidden sm:flex items-center">
+            <PWAInstallButton />
+          </div>
           <a
             href={subscribeUrl}
             target="_blank"
@@ -113,15 +117,18 @@ export function TopBar({ currentPath, subscribeUrl, onNavigate }: TopBarProps) {
                 </a>
               );
             })}
-            <a
-              href={subscribeUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setMobileMenuOpen(false)}
-              className="mt-1 inline-flex items-center justify-center rounded-lg bg-[#0F4C3A] px-4 py-2.5 text-sm font-medium text-white"
-            >
-              YouTube-da Abunə Ol
-            </a>
+            <div className="mt-1 flex flex-col gap-2">
+              <PWAInstallButton compact />
+              <a
+                href={subscribeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="inline-flex items-center justify-center rounded-lg bg-[#0F4C3A] px-4 py-2.5 text-sm font-medium text-white"
+              >
+                YouTube-da Abunə Ol
+              </a>
+            </div>
           </nav>
         </div>
       )}

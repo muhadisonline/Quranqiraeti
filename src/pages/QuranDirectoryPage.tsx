@@ -85,7 +85,7 @@ export function QuranDirectoryPage({
         title="Tam Qurani-Kərim — Mədinə Çapı (604 Səhifə) və 114 Surə | Quran Qiraeti"
         description="Mədinə çapı üzrə Qurani-Kərimin 604 səhifəsi və 114 surəsi: hər səhifədə Mədinə müshəfindəki dəqiq ayə sayı, ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi (v1.0.4)."
         path="/quran"
-        ogImage="/og/site.svg"
+        ogImage="/og-default.png"
         jsonLd={jsonLd}
       />
 
@@ -191,10 +191,10 @@ export function QuranDirectoryPage({
                 <div>
                   <div className="flex items-start justify-between gap-3">
                     <a
-                      href={`/quran/sehife/${topic.pageNumber}`}
+                      href={`/quran/sehife/${topic.pageNumber}${topic.anchorHash ?? ''}`}
                       onClick={(e) => {
                         e.preventDefault();
-                        onNavigate(`/quran/sehife/${topic.pageNumber}`);
+                        onNavigate(`/quran/sehife/${topic.pageNumber}${topic.anchorHash ?? ''}`);
                       }}
                       className="font-display text-base font-semibold text-stone-900 hover:text-[#0F4C3A] dark:text-stone-100 dark:hover:text-[#86C7AE]"
                     >
