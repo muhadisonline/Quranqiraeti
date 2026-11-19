@@ -35,4 +35,13 @@ test('searchGlobalQuickIndex matches Surahs (with Azerbaijani normalization), Du
   const last = duaItems[duaItems.length - 1];
   assert.equal(last.kind, 'search');
   assert.equal(last.path, `/quran?q=${encodeURIComponent('səbir')}`);
+
+  const prayerItems = searchGlobalQuickIndex('Gəncə', []);
+  assert.ok(prayerItems.some((i) => i.path === '/namaz-vaxtlari'));
+
+  const intlPrayerItems = searchGlobalQuickIndex('İstanbul', []);
+  assert.ok(intlPrayerItems.some((i) => i.path === '/namaz-vaxtlari'));
+
+  const zikrItems = searchGlobalQuickIndex('təsbih', []);
+  assert.ok(zikrItems.some((i) => i.path === '/zikr'));
 });

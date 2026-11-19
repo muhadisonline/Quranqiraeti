@@ -1,5 +1,6 @@
 import { QURAN_DUAS } from '../data/quranDuas';
 import { RecitationVideo, normalizeAzerbaijaniText } from './channel';
+import { WORLD_PRAYER_CITIES } from './prayerTimes';
 import {
   JUZ_PAGE_RANGES,
   SURAH_CATALOG,
@@ -227,6 +228,98 @@ export function searchGlobalQuickIndex(
         arabicLabel: video.arabicName,
       });
     }
+  }
+
+  // 5b. Prayer times (world countries & cities) + Qibla compass + Tajweed + Khatm + Zikr/Tasbih shortcuts
+  const prayerMatched =
+    norm.includes('namaz') ||
+    norm.includes('vaxt') ||
+    norm.includes('imsak') ||
+    norm.includes('subh') ||
+    norm.includes('zohr') ||
+    norm.includes('megrib') ||
+    norm.includes('isa') ||
+    norm.includes('ummul') ||
+    norm.includes('qible') ||
+    norm.includes('kompas') ||
+    norm.includes('xatir') ||
+    norm.includes('cume') ||
+    WORLD_PRAYER_CITIES.some(
+      (c) =>
+        normalizeAzerbaijaniText(c.name).includes(norm) ||
+        normalizeAzerbaijaniText(c.countryName).includes(norm)
+    );
+  if (prayerMatched) {
+    pushUnique({
+      id: 'tool-prayer-times',
+      kind: 'dua',
+      kindLabel: 'Vaxtlar & Qiblə',
+      title: 'Namaz Vaxtları, Qiblə Kompası və Xatırlatmalar',
+      subtitle: 'Ümmül-Qura üsulu, xəritə, canlı Qiblə kompası və Cümə xatırlatması',
+      path: '/namaz-vaxtlari',
+    });
+  }
+
+  if (norm.includes('tecvid') || norm.includes('tajweed')) {
+    pushUnique({
+      id: 'tool-tajweed',
+      kind: 'page',
+      kindLabel: 'Təcvid',
+      title: 'Təcvid Rəngli Quran Oxunuşu',
+      subtitle: 'Ğünnə, Qalqələ, İxfa, İdğam və Mədd qaydaları ilə Mədinə Mushafı',
+      path: '/quran/sehife/1',
+    });
+  }
+
+  if (norm.includes('xetm') || norm.includes('vird') || norm.includes('plan')) {
+    pushUnique({
+      id: 'tool-khatm-planner',
+      kind: 'page',
+      kindLabel: 'Xətm Planı',
+      title: 'Şəxsi Xətm Planlayıcısı (15 / 30 / 60 gün)',
+      subtitle: 'Gündəlik səhifə hədəfi və avtomatik yenidən hesablanan xətm cədvəli',
+      path: '/quran',
+    });
+  }
+
+  if (
+    norm.includes('hicri') ||
+    norm.includes('miladi') ||
+    norm.includes('teqvim') ||
+    norm.includes('ramazan') ||
+    norm.includes('qurban') ||
+    norm.includes('bayram') ||
+    norm.includes('qedir') ||
+    norm.includes('esura') ||
+    norm.includes('erefe')
+  ) {
+    pushUnique({
+      id: 'tool-hijri-calendar',
+      kind: 'dua',
+      kindLabel: 'Təqvim',
+      title: 'Hicri–Miladi Təqvim Çeviricisi və Mübarək Günlər',
+      subtitle: 'Ümmül-Qura çevirici, Ramazan, Qədr gecəsi və bayramlara qalan günlər',
+      path: '/teqvim',
+    });
+  }
+
+  if (
+    norm.includes('zikr') ||
+    norm.includes('tesbih') ||
+    norm.includes('saygac') ||
+    norm.includes('seher') ||
+    norm.includes('axsam') ||
+    norm.includes('subhan') ||
+    norm.includes('istigfar')
+  ) {
+    pushUnique({
+      id: 'tool-zikr-tasbih',
+      kind: 'dua',
+      kindLabel: 'Zikr',
+      title: 'Zikrlər və İnteraktiv Təsbih Sayğacı',
+      subtitle: 'Səhər-axşam zikrləri, 33+33+34 Namaz təsbihatı və gündəlik sayğac',
+      path: '/zikr',
+    });
   }
 
   // 6. Full-Quran keyword search action (links directly to /quran?q=...)

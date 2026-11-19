@@ -41,12 +41,21 @@ interface MuhaffizSettingsSheetProps {
   repeatCount: AyahRepeatCount;
   isPlayingAudio: boolean;
   allRevealed: boolean;
+  pageAyahKeys?: string[];
+  rangeStartIdx?: number;
+  rangeEndIdx?: number;
+  loopRangeActive?: boolean;
+  pageRepetitions?: number;
   onClose: () => void;
   onUpdatePrefs: (updater: (prev: MuhaffizPreferences) => MuhaffizPreferences) => void;
   onToggleRevealAll: () => void;
   onToggleAudio: () => void;
   onSetPlaybackSpeed: (spd: AudioPlaybackSpeed) => void;
   onSetRepeatCount: (cnt: AyahRepeatCount) => void;
+  onChangeRangeStart?: (idx: number) => void;
+  onChangeRangeEnd?: (idx: number) => void;
+  onToggleLoopRange?: () => void;
+  onIncrementRepetition?: () => void;
   onSetPageStatus: (status: 'memorized' | 'learning' | 'none') => void;
   onToggleBookmark: () => void;
   onOpenIndex: () => void;
@@ -66,12 +75,21 @@ export function MuhaffizSettingsSheet({
   repeatCount,
   isPlayingAudio,
   allRevealed,
+  pageAyahKeys = [],
+  rangeStartIdx = 0,
+  rangeEndIdx = Math.max(0, pageAyahKeys.length - 1),
+  loopRangeActive = false,
+  pageRepetitions = 0,
   onClose,
   onUpdatePrefs,
   onToggleRevealAll,
   onToggleAudio,
   onSetPlaybackSpeed,
   onSetRepeatCount,
+  onChangeRangeStart,
+  onChangeRangeEnd,
+  onToggleLoopRange,
+  onIncrementRepetition,
   onSetPageStatus,
   onToggleBookmark,
   onOpenIndex,
@@ -522,11 +540,73 @@ export function MuhaffizSettingsSheet({
             </div>
           </div>
 
-          {/* Page status & reveal-all toggle */}
           <div
             style={{ borderTop: `1px solid ${subRowBorder}` }}
             className="space-y-2 px-3 py-2.5 text-xs"
           >
+            {/* Ayah Range Hifz Loop */}
+            {pageAyahKeys.length > 1 && onChangeRangeStart && onChangeRangeEnd && onToggleLoopRange && (
+              <div
+                style={{ borderColor: subRowBorder, backgroundColor: palette.paper }}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-2.5 py-2"
+              >
+                <span className="text-[11px] font-semibold" style={{ color: palette.muted }}>
+                  Hifz döngüsü
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    aria-label="Başlanğıc ayə"
+                    data-testid="muhaffiz-loop-start"
+                    value={rangeStartIdx}
+                    onChange={(e) => onChangeRangeStart(Number(e.target.value))}
+                    style={{ borderColor: palette.line, backgroundColor: palette.chip }}
+                    className="rounded-lg border px-2 py-1 font-mono-tabular text-[11px] font-semibold"
+                  >
+                    {pageAyahKeys.map((k, idx) => (
+                      <option key={`ls-${k}`} value={idx} style={{ color: '#1a1612', backgroundColor: '#fff' }}>
+                        {k}
+                      </option>
+                    ))}
+                  </select>
+                  <span style={{ color: palette.muted }}>→</span>
+                  <select
+                    aria-label="Son ayə"
+                    data-testid="muhaffiz-loop-end"
+                    value={rangeEndIdx}
+                    onChange={(e) => onChangeRangeEnd(Number(e.target.value))}
+                    style={{ borderColor: palette.line, backgroundColor: palette.chip }}
+                    className="rounded-lg border px-2 py-1 font-mono-tabular text-[11px] font-semibold"
+                  >
+                    {pageAyahKeys.map((k, idx) => (
+                      <option
+                        key={`le-${k}`}
+                        value={idx}
+                        disabled={idx < rangeStartIdx}
+                        style={{ color: '#1a1612', backgroundColor: '#fff' }}
+                      >
+                        {k}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    aria-pressed={loopRangeActive}
+                    data-testid="muhaffiz-loop-toggle"
+                    onClick={onToggleLoopRange}
+                    style={
+                      loopRangeActive
+                        ? { backgroundColor: palette.green, color: palette.paper, borderColor: palette.green }
+                        : { borderColor: palette.line, backgroundColor: palette.chip }
+                    }
+                    className="rounded-lg border px-2.5 py-1 text-[11px] font-semibold"
+                  >
+                    {loopRangeActive ? 'Döngü açıq' : 'Döngü'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Page status & reveal-all + repetition count */}
             <div className="grid grid-cols-3 gap-1.5">
               <button
                 type="button"
@@ -582,6 +662,24 @@ export function MuhaffizSettingsSheet({
                 <span>Əlfəcin</span>
               </button>
             </div>
+
+            {onIncrementRepetition && (
+              <div className="flex items-center justify-between gap-2 pt-0.5">
+                <span style={{ color: palette.muted }}>
+                  Bu səhifənin təkrarı:{' '}
+                  <strong style={{ color: palette.ink }}>{pageRepetitions}×</strong>
+                </span>
+                <button
+                  type="button"
+                  data-testid="hifz-sheet-rep-inc"
+                  onClick={onIncrementRepetition}
+                  style={{ borderColor: palette.line, backgroundColor: palette.chip }}
+                  className="rounded-lg border px-2.5 py-1 font-mono-tabular font-semibold hover:opacity-80"
+                >
+                  Təkrar +1
+                </button>
+              </div>
+            )}
 
             {prefs.silentMode && (
               <button

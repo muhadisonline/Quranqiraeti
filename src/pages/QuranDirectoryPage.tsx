@@ -14,13 +14,26 @@ import {
   Square,
   Sun,
   Trash2,
+  Upload,
   Volume2,
   X,
 } from 'lucide-react';
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { KhatmPlannerCard } from '../components/KhatmPlannerCard';
 import { SeoHead } from '../components/SeoHead';
 import { DUA_CATEGORIES, DuaCategory, QURAN_DUAS } from '../data/quranDuas';
-import { useLastRead, useReadingGoal, useSavedAyahs } from '../hooks/useReaderPreferences';
+import {
+  useLastRead,
+  useReaderTransliteration,
+  useReadingGoal,
+  useSavedAyahs,
+} from '../hooks/useReaderPreferences';
+import {
+  applyUserBackupToStorage,
+  collectUserBackupFromStorage,
+  parseAndValidateBackupJson,
+} from '../lib/backup';
+import { transliterateArabicToAz } from '../lib/transliteration';
 import { EMPTY_HIFZ_PROGRESS, HifzProgressState, sanitizeHifzProgress, summarizeHifzProgress, summarizeJuzHifzProgress } from '../lib/hifzProgress';
 import {
   MUHAFFIZ_RECITERS,
@@ -89,11 +102,15 @@ export function QuranDirectoryPage({
   const [playingDuaId, setPlayingDuaId] = useState<string | null>(null);
   const [copiedDuaId, setCopiedDuaId] = useState<string | null>(null);
   const [duaAudioError, setDuaAudioError] = useState('');
+  const [backupMessage, setBackupMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const duaAudioRef = useRef<HTMLAudioElement | null>(null);
+  const backupInputRef = useRef<HTMLInputElement | null>(null);
 
   const lastRead = useLastRead();
+  const { showTranslit, setShowTranslit } = useReaderTransliteration();
   const { savedAyahs, toggleAyahBookmark, removeAyahBookmark, updateAyahNote, isSaved } = useSavedAyahs();
   const {
+    goalState,
     summary: readingGoalSummary,
     setDailyGoalPages,
     resetKhatm,
@@ -362,6 +379,46 @@ export function QuranDirectoryPage({
     URL.revokeObjectURL(url);
   }
 
+  function handleExportBackupJson() {
+    const backup = collectUserBackupFromStorage();
+    const payload = JSON.stringify(backup, null, 2);
+    const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `quran-qiraeti-ehtiyat-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setBackupMessage({
+      kind: 'ok',
+      text: `Ehtiyat nüsxə endirildi (${backup.savedAyahs.length} ayə, ${Object.keys(backup.hifzProgress.pages).length} Mühafiz səhifəsi, ${backup.readingGoal.khatmPages.length} Xətm səhifəsi).`,
+    });
+  }
+
+  async function handleImportBackupJson(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const result = parseAndValidateBackupJson(text);
+      if (!result.ok) {
+        setBackupMessage({ kind: 'err', text: result.error });
+        return;
+      }
+      applyUserBackupToStorage(result.data);
+      setHifzProgress(result.data.hifzProgress);
+      setBackupMessage({
+        kind: 'ok',
+        text: `Bərpa tamamlandı: ${result.data.savedAyahs.length} saxlanılan ayə, ${Object.keys(result.data.hifzProgress.pages).length} Mühafiz səhifəsi və ${result.data.readingGoal.khatmPages.length} Xətm səhifəsi yükləndi.`,
+      });
+    } catch {
+      setBackupMessage({ kind: 'err', text: 'Fayl oxunarkən xəta baş verdi.' });
+    }
+  }
+
   const seoTitle = activeJuzRange
     ? `${formatAzerbaijaniOrdinal(activeJuzRange.juz)} Cüz (Səhifə ${activeJuzRange.startPage}–${activeJuzRange.endPage}) | Quran Qiraeti`
     : isDuasRoute
@@ -562,7 +619,7 @@ export function QuranDirectoryPage({
               data-testid="toggle-reading-goal"
               className="rounded-md border border-stone-200 bg-white px-2.5 py-1 font-medium text-stone-700 transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200 dark:hover:border-[#86C7AE]"
             >
-              {showReadingGoal ? 'Virdi gizlət' : 'Vird və Xətm'}
+              {showReadingGoal ? 'Planı gizlət' : 'Vird və Xətm Planı'}
             </button>
 
             {hifzSummary.memorizedCount > 0 && (
@@ -698,6 +755,64 @@ export function QuranDirectoryPage({
                 </div>
               </div>
             </div>
+
+            <KhatmPlannerCard goalState={goalState} onNavigate={onNavigate} />
+
+            <div className="mt-4 flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-stone-800">
+              <div>
+                <p className="text-xs font-medium text-stone-800 dark:text-stone-200">
+                  Məlumatların Ehtiyat Nüsxəsi (Xətm · Mühafiz · Saxlanılan Ayələr)
+                </p>
+                <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                  Başqa cihaza köçürmək üçün tərəqqinizi JSON faylı kimi endirin və ya bərpa edin.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportBackupJson}
+                  data-testid="backup-export-btn"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-[#F7F5F0] px-3 py-1.5 text-xs font-medium text-stone-800 whitespace-nowrap transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
+                >
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Nüsxə endir (.json)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => backupInputRef.current?.click()}
+                  data-testid="backup-import-btn"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 whitespace-nowrap transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
+                >
+                  <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Fayldan bərpa et</span>
+                </button>
+                <input
+                  ref={backupInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={handleImportBackupJson}
+                  data-testid="backup-import-input"
+                  className="sr-only"
+                  aria-label="Ehtiyat nüsxə JSON faylını seçin"
+                />
+              </div>
+            </div>
+
+            {backupMessage && (
+              <p
+                role="status"
+                data-testid="backup-status-message"
+                className={`mt-3 text-xs font-medium ${
+                  backupMessage.kind === 'ok'
+                    ? 'text-[#0F4C3A] dark:text-[#86C7AE]'
+                    : 'text-red-700 dark:text-red-400'
+                }`}
+              >
+                {backupMessage.text}
+              </p>
+            )}
           </div>
         )}
 
@@ -1303,7 +1418,20 @@ export function QuranDirectoryPage({
                 ))}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTranslit(!showTranslit)}
+                  aria-pressed={showTranslit}
+                  data-testid="duas-translit-toggle"
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                    showTranslit
+                      ? 'border-[#0F4C3A] bg-[#0F4C3A] text-white dark:border-[#196B52] dark:bg-[#196B52]'
+                      : 'border-stone-200 bg-white text-stone-700 hover:border-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200'
+                  }`}
+                >
+                  Oxunuş
+                </button>
                 <label htmlFor="dua-reciter-select" className="text-xs text-stone-500 dark:text-stone-400 whitespace-nowrap">
                   Qari:
                 </label>
@@ -1363,6 +1491,15 @@ export function QuranDirectoryPage({
                       >
                         {dua.arabicText}
                       </p>
+
+                      {showTranslit && (
+                        <p
+                          lang="az-Latn"
+                          className="mt-2.5 text-sm leading-relaxed font-medium text-[#0F4C3A] dark:text-[#86C7AE]"
+                        >
+                          {transliterateArabicToAz(dua.arabicText)}
+                        </p>
+                      )}
 
                       <p lang="az" className="mt-3 text-sm leading-relaxed text-stone-700 dark:text-stone-300">
                         «{dua.translation}»

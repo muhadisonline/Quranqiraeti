@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   EMPTY_HIFZ_PROGRESS,
   buildHifzReviewQueue,
+  getHifzPageRepetitions,
   getHifzPageStatus,
+  incrementHifzRepetition,
   sanitizeHifzProgress,
   setHifzPageStatus,
   summarizeHifzProgress,
@@ -46,9 +48,11 @@ test('toggleHifzBookmark toggles bookmark and sanitizeHifzProgress discards out-
   const sanitized = sanitizeHifzProgress({
     pages: { '1': 'memorized', '999': 'memorized', '5': 'invalid', '12': 'learning' },
     bookmarkedPage: 36,
+    repetitions: { '1': 4, '999': 5, '2': -1 },
     updatedAt: '2026-11-16T10:00:00Z',
   });
   assert.deepEqual(sanitized.pages, { 1: 'memorized', 12: 'learning' });
+  assert.deepEqual(sanitized.repetitions, { 1: 4 });
   assert.equal(sanitized.bookmarkedPage, 36);
 });
 
@@ -73,4 +77,13 @@ test('buildHifzReviewQueue prioritizes mistake pages, then learning pages, then 
   assert.equal(queue[2].pageNumber, 10);
   assert.equal(queue[2].priority, 'learning');
 });
+
+test('incrementHifzRepetition increments per-page repetition counts safely', () => {
+  let state = EMPTY_HIFZ_PROGRESS;
+  assert.equal(getHifzPageRepetitions(state, 1), 0);
+  state = incrementHifzRepetition(state, 1, '2026-11-16T10:00:00Z');
+  state = incrementHifzRepetition(state, 1, '2026-11-16T10:01:00Z');
+  assert.equal(getHifzPageRepetitions(state, 1), 2);
+});
+
 

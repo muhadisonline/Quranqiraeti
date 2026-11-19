@@ -6,6 +6,7 @@ export type HifzPageStatus = 'none' | 'learning' | 'memorized';
 export interface HifzProgressState {
   pages: Record<number, Exclude<HifzPageStatus, 'none'>>;
   bookmarkedPage: number | null;
+  repetitions?: Record<number, number>;
   updatedAt: string | null;
 }
 
@@ -22,6 +23,7 @@ export interface JuzHifzSummary {
 export const EMPTY_HIFZ_PROGRESS: HifzProgressState = {
   pages: {},
   bookmarkedPage: null,
+  repetitions: {},
   updatedAt: null,
 };
 
@@ -56,9 +58,27 @@ export function sanitizeHifzProgress(input: unknown): HifzProgressState {
     bookmarkedPage = clampMuhaffizPage(obj.bookmarkedPage);
   }
 
+  const cleanRepetitions: Record<number, number> = {};
+  if (obj.repetitions && typeof obj.repetitions === 'object') {
+    for (const [k, v] of Object.entries(obj.repetitions)) {
+      const pageNum = Number.parseInt(k, 10);
+      if (
+        Number.isFinite(pageNum) &&
+        pageNum >= 1 &&
+        pageNum <= TOTAL_QURAN_PAGES &&
+        typeof v === 'number' &&
+        Number.isFinite(v) &&
+        v >= 1
+      ) {
+        cleanRepetitions[pageNum] = Math.min(999, Math.trunc(v));
+      }
+    }
+  }
+
   return {
     pages: cleanPages,
     bookmarkedPage,
+    repetitions: cleanRepetitions,
     updatedAt: typeof obj.updatedAt === 'string' ? obj.updatedAt : null,
   };
 }
@@ -102,6 +122,31 @@ export function getHifzPageStatus(
 ): HifzPageStatus {
   const page = clampMuhaffizPage(pageNumber);
   return state.pages[page] ?? 'none';
+}
+
+export function getHifzPageRepetitions(
+  state: HifzProgressState,
+  pageNumber: number
+): number {
+  const page = clampMuhaffizPage(pageNumber);
+  return state.repetitions?.[page] ?? 0;
+}
+
+export function incrementHifzRepetition(
+  state: HifzProgressState,
+  pageNumber: number,
+  nowIso = new Date().toISOString()
+): HifzProgressState {
+  const page = clampMuhaffizPage(pageNumber);
+  const current = state.repetitions?.[page] ?? 0;
+  return {
+    ...state,
+    repetitions: {
+      ...(state.repetitions ?? {}),
+      [page]: Math.min(999, current + 1),
+    },
+    updatedAt: nowIso,
+  };
 }
 
 export interface HifzSummary {
@@ -154,6 +199,7 @@ export interface HifzReviewPageEntry {
   pageNumber: number;
   status: HifzPageStatus;
   mistakeCount: number;
+  repetitions: number;
   isBookmarked: boolean;
   priority: 'mistakes' | 'learning' | 'memorized';
 }
@@ -173,6 +219,12 @@ export function buildHifzReviewQueue(
     const p = Number.parseInt(key, 10);
     if (p >= 1 && p <= TOTAL_QURAN_PAGES) allPages.add(p);
   }
+  if (state.repetitions) {
+    for (const [key, val] of Object.entries(state.repetitions)) {
+      const p = Number.parseInt(key, 10);
+      if (p >= 1 && p <= TOTAL_QURAN_PAGES && val > 0) allPages.add(p);
+    }
+  }
   for (const p of mistakesByPage.keys()) {
     allPages.add(p);
   }
@@ -190,15 +242,17 @@ export function buildHifzReviewQueue(
   for (const pageNumber of allPages) {
     const status = getHifzPageStatus(state, pageNumber);
     const mistakeCount = mistakesByPage.get(pageNumber) ?? 0;
+    const repetitions = getHifzPageRepetitions(state, pageNumber);
     const isBookmarked = state.bookmarkedPage === pageNumber;
     const priority: HifzReviewPageEntry['priority'] =
       mistakeCount > 0 ? 'mistakes' : status === 'memorized' ? 'memorized' : 'learning';
 
-    if (mistakeCount > 0 || status !== 'none' || isBookmarked) {
+    if (mistakeCount > 0 || status !== 'none' || isBookmarked || repetitions > 0) {
       entries.push({
         pageNumber,
         status,
         mistakeCount,
+        repetitions,
         isBookmarked,
         priority,
       });

@@ -4,6 +4,7 @@ import { Footer } from './components/Footer';
 import { HeroSection } from './components/HeroSection';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { QuickJumpModal } from './components/QuickJumpModal';
+import { QuranJourneySection } from './components/QuranJourneySection';
 import { RecitationArchive } from './components/RecitationArchive';
 import { SeoHead } from './components/SeoHead';
 import { SurahRequestSection } from './components/SurahRequestSection';
@@ -25,11 +26,13 @@ import { parseJsonSafely } from './lib/quranClient';
 import { recordPageTelemetryEvent } from './lib/firebase';
 import { AdminPage } from './pages/AdminPage';
 import { MuhaffizPage } from './pages/MuhaffizPage';
+import { PrayerTimesPage } from './pages/PrayerTimesPage';
 import { QuranDirectoryPage } from './pages/QuranDirectoryPage';
 import { QuranMushafPage } from './pages/QuranMushafPage';
 import { QuranSurahPage } from './pages/QuranSurahPage';
 import { ShortsPage } from './pages/ShortsPage';
 import { VideoDetailPage } from './pages/VideoDetailPage';
+import { ZikrPage } from './pages/ZikrPage';
 
 function normalizeRoutePath(pathname: string): string {
   const pathOnly = pathname.split('#')[0].split('?')[0];
@@ -309,6 +312,19 @@ function AppContent() {
     () => new URLSearchParams(routeSearch).get('q')?.trim() || '',
     [routeSearch]
   );
+  const quranTabParam = useMemo(() => {
+    const raw = new URLSearchParams(routeSearch).get('tab')?.trim();
+    if (
+      raw === 'pages' ||
+      raw === 'surahs' ||
+      raw === 'search' ||
+      raw === 'duas' ||
+      raw === 'saved'
+    ) {
+      return raw;
+    }
+    return undefined;
+  }, [routeSearch]);
   const muhaffizPageMatch = currentPath.match(/^\/(?:muhaffiz|ezber)(?:\/(\d+))?$/);
   const muhaffizInitialPage = muhaffizPageMatch?.[1]
     ? Number.parseInt(muhaffizPageMatch[1], 10)
@@ -356,18 +372,22 @@ function AppContent() {
             surahNumber={quranSurahNumber}
             channelVideos={allVideos}
             activeHash={routeHash}
+            isDark={isDark}
             onNavigate={navigate}
             onPlayVideo={setActiveVideo}
+            onToggleTheme={() => setIsDark((prev) => !prev)}
           />
         ) : quranPageNumber !== undefined ? (
           <QuranMushafPage
             pageNumber={quranPageNumber}
             activeHash={routeHash}
+            isDark={isDark}
             onNavigate={navigate}
+            onToggleTheme={() => setIsDark((prev) => !prev)}
           />
         ) : currentPath === '/quran' || quranCuzNumber !== undefined ? (
           <QuranDirectoryPage
-            initialTab="pages"
+            initialTab={quranTabParam ?? 'pages'}
             initialJuz={quranCuzNumber}
             initialSearchQuery={currentPath === '/quran' ? quranSearchQuery : undefined}
             isDark={isDark}
@@ -377,6 +397,19 @@ function AppContent() {
         ) : currentPath === '/dualar' ? (
           <QuranDirectoryPage
             initialTab="duas"
+            isDark={isDark}
+            onNavigate={navigate}
+            onToggleTheme={() => setIsDark((prev) => !prev)}
+          />
+        ) : currentPath === '/namaz-vaxtlari' || currentPath === '/qible' || currentPath === '/teqvim' ? (
+          <PrayerTimesPage
+            isDark={isDark}
+            initialSection={currentPath === '/teqvim' ? 'calendar' : undefined}
+            onNavigate={navigate}
+            onToggleTheme={() => setIsDark((prev) => !prev)}
+          />
+        ) : currentPath === '/zikr' ? (
+          <ZikrPage
             isDark={isDark}
             onNavigate={navigate}
             onToggleTheme={() => setIsDark((prev) => !prev)}
@@ -408,6 +441,8 @@ function AppContent() {
               path="/gunun-ayesi"
             />
             <VerseOfTheDaySection
+              isDark={isDark}
+              onToggleTheme={() => setIsDark((prev) => !prev)}
               onPlayVideoById={handlePlayById}
               onNavigate={navigate}
             />
@@ -475,6 +510,7 @@ function AppContent() {
               onPlayFeatured={setActiveVideo}
               onNavigate={navigate}
             />
+            <QuranJourneySection onNavigate={navigate} />
             <RecitationArchive
               videos={longVideos}
               filteredVideos={filteredLongVideos}

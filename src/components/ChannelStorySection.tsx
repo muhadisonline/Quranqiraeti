@@ -1,8 +1,8 @@
-import { BookOpen, Bookmark, Check, Copy, ImageDown, Play, Shuffle, Square, Volume2 } from 'lucide-react';
+import { BookOpen, Bookmark, Check, Copy, ImageDown, Moon, Play, Shuffle, Square, Sun, Volume2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import studioEditorialImage from '../assets/images/recitation_studio_editorial_1794730602469.jpg';
 import { CURATED_VERSES } from '../data/recitations';
-import { useSavedAyahs } from '../hooks/useReaderPreferences';
+import { useReaderTransliteration, useSavedAyahs } from '../hooks/useReaderPreferences';
 import {
   MUHAFFIZ_RECITERS,
   MuhaffizReciterId,
@@ -14,9 +14,12 @@ import {
   pickDailyCuratedIndex,
   pickRandomGlobalAyahTarget,
 } from '../lib/readerState';
+import { transliterateArabicToAz } from '../lib/transliteration';
 import { downloadVerseImageCard } from '../lib/verseCard';
 
 interface VerseSectionProps {
+  isDark?: boolean;
+  onToggleTheme?: () => void;
   onPlayVideoById: (videoId: string) => void;
   onNavigate?: (path: string) => void;
 }
@@ -53,7 +56,12 @@ const PRINCIPLES = [
   },
 ];
 
-export function VerseOfTheDaySection({ onPlayVideoById, onNavigate }: VerseSectionProps) {
+export function VerseOfTheDaySection({
+  isDark = false,
+  onToggleTheme,
+  onPlayVideoById,
+  onNavigate,
+}: VerseSectionProps) {
   const [verseIdx, setVerseIdx] = useState<number>(() =>
     pickDailyCuratedIndex(CURATED_VERSES.length)
   );
@@ -79,6 +87,7 @@ export function VerseOfTheDaySection({ onPlayVideoById, onNavigate }: VerseSecti
   const [audioError, setAudioError] = useState('');
 
   const { isSaved, toggleAyahBookmark } = useSavedAyahs();
+  const { showTranslit, setShowTranslit } = useReaderTransliteration();
 
   const curated = CURATED_VERSES[verseIdx] ?? CURATED_VERSES[0];
   const activeVerse: DynamicDailyVerse = randomVerse ?? {
@@ -258,6 +267,15 @@ export function VerseOfTheDaySection({ onPlayVideoById, onNavigate }: VerseSecti
           >
             {activeVerse.arabicText}
           </p>
+          {showTranslit && (
+            <p
+              lang="az-Latn"
+              data-testid="daily-verse-translit-text"
+              className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed font-medium text-[#0F4C3A] dark:text-[#86C7AE]"
+            >
+              {transliterateArabicToAz(activeVerse.arabicText)}
+            </p>
+          )}
           <p className="font-display mx-auto mt-6 max-w-2xl text-xl leading-relaxed italic text-stone-800 sm:text-2xl dark:text-stone-200">
             {activeVerse.azerbaijaniTranslation}
           </p>
@@ -382,6 +400,36 @@ export function VerseOfTheDaySection({ onPlayVideoById, onNavigate }: VerseSecti
             <ImageDown className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Şəkil</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowTranslit(!showTranslit)}
+            aria-pressed={showTranslit}
+            data-testid="daily-verse-translit-btn"
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors min-h-[38px] ${
+              showTranslit
+                ? 'border-[#0F4C3A] bg-[#0F4C3A] text-white dark:border-[#196B52] dark:bg-[#196B52]'
+                : 'border-stone-300 bg-white text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200'
+            }`}
+          >
+            <span>Oxunuş</span>
+          </button>
+
+          {onToggleTheme && (
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              aria-label={isDark ? 'Gündüz oxu rejiminə keç' : 'Gecə oxu rejiminə keç'}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3.5 py-2 text-xs font-medium text-stone-700 whitespace-nowrap transition-colors hover:border-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200 min-h-[38px]"
+            >
+              {isDark ? (
+                <Sun className="h-3.5 w-3.5 text-[#C6A769]" aria-hidden="true" />
+              ) : (
+                <Moon className="h-3.5 w-3.5 text-[#0F4C3A]" aria-hidden="true" />
+              )}
+              <span>{isDark ? 'Gündüz' : 'Gecə'}</span>
+            </button>
+          )}
         </div>
 
         {audioError && (

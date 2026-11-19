@@ -1466,6 +1466,250 @@ var FATIHAT_PAGE_1_MUHAFFIZ_SEED = {
   centeredPage: true
 };
 
+// src/data/quranDuas.ts
+var QURAN_DUAS = [
+  {
+    id: "fatiha-6",
+    title: "Do\u011Fru yola y\xF6n\u0259lm\u0259k duas\u0131",
+    category: "hidayet",
+    surahNumber: 1,
+    surahName: "Fatih\u0259",
+    ayahNumber: 6,
+    ayahLabel: "1:6",
+    pageNumber: 1,
+    arabicText: "\u0627\u0647\u0652\u062F\u0650\u0646\u064E\u0627 \u0627\u0644\u0635\u0650\u0651\u0631\u064E\u0627\u0637\u064E \u0627\u0644\u0652\u0645\u064F\u0633\u0652\u062A\u064E\u0642\u0650\u064A\u0645\u064E",
+    translation: "Bizi do\u011Fru yola y\xF6n\u0259lt!"
+  },
+  {
+    id: "baqarah-201",
+    title: "D\xFCnya v\u0259 axir\u0259t g\xF6z\u0259lliyi duas\u0131",
+    category: "hidayet",
+    surahNumber: 2,
+    surahName: "B\u0259q\u0259r\u0259",
+    ayahNumber: 201,
+    ayahLabel: "2:201",
+    pageNumber: 31,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0622\u062A\u0650\u0646\u064E\u0627 \u0641\u0650\u064A \u0627\u0644\u062F\u064F\u0651\u0646\u0652\u064A\u064E\u0627 \u062D\u064E\u0633\u064E\u0646\u064E\u0629\u064B \u0648\u064E\u0641\u0650\u064A \u0627\u0644\u0652\u0622\u062E\u0650\u0631\u064E\u0629\u0650 \u062D\u064E\u0633\u064E\u0646\u064E\u0629\u064B \u0648\u064E\u0642\u0650\u0646\u064E\u0627 \u0639\u064E\u0630\u064E\u0627\u0628\u064E \u0627\u0644\u0646\u064E\u0651\u0627\u0631\u0650",
+    translation: "Ey R\u0259bbimiz! Biz\u0259 h\u0259m bu d\xFCnyada, h\u0259m d\u0259 axir\u0259td\u0259 g\xF6z\u0259l nem\u0259tl\u0259r ver v\u0259 bizi Od \u0259zab\u0131ndan qoru!"
+  },
+  {
+    id: "baqarah-250",
+    title: "S\u0259bir v\u0259 sabitlik duas\u0131",
+    category: "elm-sebir",
+    surahNumber: 2,
+    surahName: "B\u0259q\u0259r\u0259",
+    ayahNumber: 250,
+    ayahLabel: "2:250",
+    pageNumber: 41,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0623\u064E\u0641\u0652\u0631\u0650\u063A\u0652 \u0639\u064E\u0644\u064E\u064A\u0652\u0646\u064E\u0627 \u0635\u064E\u0628\u0652\u0631\u064B\u0627 \u0648\u064E\u062B\u064E\u0628\u0650\u0651\u062A\u0652 \u0623\u064E\u0642\u0652\u062F\u064E\u0627\u0645\u064E\u0646\u064E\u0627 \u0648\u064E\u0627\u0646\u0635\u064F\u0631\u0652\u0646\u064E\u0627 \u0639\u064E\u0644\u064E\u0649 \u0627\u0644\u0652\u0642\u064E\u0648\u0652\u0645\u0650 \u0627\u0644\u0652\u0643\u064E\u0627\u0641\u0650\u0631\u0650\u064A\u0646\u064E",
+    translation: "Ey R\u0259bbimiz! Biz\u0259 s\u0259bir ver, q\u0259d\u0259ml\u0259rimizi m\xF6hk\u0259ml\u0259t v\u0259 kafir q\xF6vm\u0259 qar\u015F\u0131 biz\u0259 yard\u0131m et!"
+  },
+  {
+    id: "baqarah-286",
+    title: "G\xFCc\xFCm\xFCz \xE7atmayan y\xFCkd\u0259n qorunma duas\u0131",
+    category: "magfiret",
+    surahNumber: 2,
+    surahName: "B\u0259q\u0259r\u0259",
+    ayahNumber: 286,
+    ayahLabel: "2:286",
+    pageNumber: 49,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0644\u064E\u0627 \u062A\u064F\u0624\u064E\u0627\u062E\u0650\u0630\u0652\u0646\u064E\u0627 \u0625\u0650\u0646 \u0646\u064E\u0651\u0633\u0650\u064A\u0646\u064E\u0627 \u0623\u064E\u0648\u0652 \u0623\u064E\u062E\u0652\u0637\u064E\u0623\u0652\u0646\u064E\u0627 \u06DA \u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0648\u064E\u0644\u064E\u0627 \u062A\u064E\u062D\u0652\u0645\u0650\u0644\u0652 \u0639\u064E\u0644\u064E\u064A\u0652\u0646\u064E\u0627 \u0625\u0650\u0635\u0652\u0631\u064B\u0627 \u0643\u064E\u0645\u064E\u0627 \u062D\u064E\u0645\u064E\u0644\u0652\u062A\u064E\u0647\u064F \u0639\u064E\u0644\u064E\u0649 \u0627\u0644\u064E\u0651\u0630\u0650\u064A\u0646\u064E \u0645\u0650\u0646 \u0642\u064E\u0628\u0652\u0644\u0650\u0646\u064E\u0627 \u06DA \u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0648\u064E\u0644\u064E\u0627 \u062A\u064F\u062D\u064E\u0645\u0650\u0651\u0644\u0652\u0646\u064E\u0627 \u0645\u064E\u0627 \u0644\u064E\u0627 \u0637\u064E\u0627\u0642\u064E\u0629\u064E \u0644\u064E\u0646\u064E\u0627 \u0628\u0650\u0647\u0650 \u06D6 \u0648\u064E\u0627\u0639\u0652\u0641\u064F \u0639\u064E\u0646\u064E\u0651\u0627 \u0648\u064E\u0627\u063A\u0652\u0641\u0650\u0631\u0652 \u0644\u064E\u0646\u064E\u0627 \u0648\u064E\u0627\u0631\u0652\u062D\u064E\u0645\u0652\u0646\u064E\u0627",
+    translation: "Ey R\u0259bbimiz, unutsaq v\u0259 ya x\u0259ta ets\u0259k bizi c\u0259zaland\u0131rma! Ey R\u0259bbimiz, bizd\u0259n \u0259vv\u0259lkil\u0259r\u0259 y\xFCkl\u0259diyin kimi, biz\u0259 d\u0259 a\u011F\u0131r y\xFCk y\xFCkl\u0259m\u0259! Ey R\u0259bbimiz, g\xFCc\xFCm\xFCz \xE7atmayan \u015Feyi da\u015F\u0131ma\u011Fa bizi m\u0259cbur etm\u0259! Bizi \u0259fv et, bizi ba\u011F\u0131\u015Fla v\u0259 biz\u0259 r\u0259hm et!"
+  },
+  {
+    id: "ali-imran-8",
+    title: "Q\u0259lbl\u0259rin haqq yolda sabit qalmas\u0131 duas\u0131",
+    category: "hidayet",
+    surahNumber: 3,
+    surahName: "Ali-\u0130mran",
+    ayahNumber: 8,
+    ayahLabel: "3:8",
+    pageNumber: 50,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0644\u064E\u0627 \u062A\u064F\u0632\u0650\u063A\u0652 \u0642\u064F\u0644\u064F\u0648\u0628\u064E\u0646\u064E\u0627 \u0628\u064E\u0639\u0652\u062F\u064E \u0625\u0650\u0630\u0652 \u0647\u064E\u062F\u064E\u064A\u0652\u062A\u064E\u0646\u064E\u0627 \u0648\u064E\u0647\u064E\u0628\u0652 \u0644\u064E\u0646\u064E\u0627 \u0645\u0650\u0646 \u0644\u064E\u0651\u062F\u064F\u0646\u0643\u064E \u0631\u064E\u062D\u0652\u0645\u064E\u0629\u064B \u06DA \u0625\u0650\u0646\u064E\u0651\u0643\u064E \u0623\u064E\u0646\u062A\u064E \u0627\u0644\u0652\u0648\u064E\u0647\u064E\u0651\u0627\u0628\u064F",
+    translation: "Ey R\u0259bbimiz! Bizi do\u011Fru yola y\xF6n\u0259ltdikd\u0259n sonra q\u0259lbl\u0259rimizi azd\u0131rma v\u0259 \xD6z t\u0259r\u0259find\u0259n biz\u0259 m\u0259rh\u0259m\u0259t b\u0259x\u015F et. H\u0259qiq\u0259t\u0259n, S\u0259n B\u0259x\u015Fed\u0259ns\u0259n!"
+  },
+  {
+    id: "ali-imran-16",
+    title: "\u0130man v\u0259 g\xFCnahlar\u0131n ba\u011F\u0131\u015Flanmas\u0131 duas\u0131",
+    category: "magfiret",
+    surahNumber: 3,
+    surahName: "Ali-\u0130mran",
+    ayahNumber: 16,
+    ayahLabel: "3:16",
+    pageNumber: 52,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0625\u0650\u0646\u064E\u0651\u0646\u064E\u0627 \u0622\u0645\u064E\u0646\u064E\u0651\u0627 \u0641\u064E\u0627\u063A\u0652\u0641\u0650\u0631\u0652 \u0644\u064E\u0646\u064E\u0627 \u0630\u064F\u0646\u064F\u0648\u0628\u064E\u0646\u064E\u0627 \u0648\u064E\u0642\u0650\u0646\u064E\u0627 \u0639\u064E\u0630\u064E\u0627\u0628\u064E \u0627\u0644\u0646\u064E\u0651\u0627\u0631\u0650",
+    translation: "Ey R\u0259bbimiz! H\u0259qiq\u0259t\u0259n, biz iman g\u0259tirdik, bizim g\xFCnahlar\u0131m\u0131z\u0131 ba\u011F\u0131\u015Fla v\u0259 bizi Od \u0259zab\u0131ndan qoru!"
+  },
+  {
+    id: "ali-imran-38",
+    title: "Saleh \xF6vlad duas\u0131 (Z\u0259k\u0259riyya \u0259.s.)",
+    category: "aile",
+    surahNumber: 3,
+    surahName: "Ali-\u0130mran",
+    ayahNumber: 38,
+    ayahLabel: "3:38",
+    pageNumber: 55,
+    arabicText: "\u0631\u064E\u0628\u0650\u0651 \u0647\u064E\u0628\u0652 \u0644\u0650\u064A \u0645\u0650\u0646 \u0644\u064E\u0651\u062F\u064F\u0646\u0643\u064E \u0630\u064F\u0631\u0650\u0651\u064A\u064E\u0651\u0629\u064B \u0637\u064E\u064A\u0650\u0651\u0628\u064E\u0629\u064B \u06D6 \u0625\u0650\u0646\u064E\u0651\u0643\u064E \u0633\u064E\u0645\u0650\u064A\u0639\u064F \u0627\u0644\u062F\u064F\u0651\u0639\u064E\u0627\u0621\u0650",
+    translation: "Ey R\u0259bbim! \xD6z t\u0259r\u0259find\u0259n m\u0259n\u0259 pak bir n\u0259sil b\u0259x\u015F et! \u015E\xFCbh\u0259siz ki, S\u0259n dualar\u0131 E\u015Fid\u0259ns\u0259n!"
+  },
+  {
+    id: "ali-imran-147",
+    title: "Sabitlik v\u0259 q\u0259l\u0259b\u0259 duas\u0131",
+    category: "elm-sebir",
+    surahNumber: 3,
+    surahName: "Ali-\u0130mran",
+    ayahNumber: 147,
+    ayahLabel: "3:147",
+    pageNumber: 68,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0627\u063A\u0652\u0641\u0650\u0631\u0652 \u0644\u064E\u0646\u064E\u0627 \u0630\u064F\u0646\u064F\u0648\u0628\u064E\u0646\u064E\u0627 \u0648\u064E\u0625\u0650\u0633\u0652\u0631\u064E\u0627\u0641\u064E\u0646\u064E\u0627 \u0641\u0650\u064A \u0623\u064E\u0645\u0652\u0631\u0650\u0646\u064E\u0627 \u0648\u064E\u062B\u064E\u0628\u0650\u0651\u062A\u0652 \u0623\u064E\u0642\u0652\u062F\u064E\u0627\u0645\u064E\u0646\u064E\u0627 \u0648\u064E\u0627\u0646\u0635\u064F\u0631\u0652\u0646\u064E\u0627 \u0639\u064E\u0644\u064E\u0649 \u0627\u0644\u0652\u0642\u064E\u0648\u0652\u0645\u0650 \u0627\u0644\u0652\u0643\u064E\u0627\u0641\u0650\u0631\u0650\u064A\u0646\u064E",
+    translation: "Ey R\u0259bbimiz! G\xFCnahlar\u0131m\u0131z\u0131 v\u0259 i\u015Fl\u0259rimizd\u0259 h\u0259ddi a\u015Fma\u011F\u0131m\u0131z\u0131 biz\u0259 ba\u011F\u0131\u015Fla, q\u0259d\u0259ml\u0259rimizi m\xF6hk\u0259ml\u0259t v\u0259 kafir q\xF6vm\u0259 qar\u015F\u0131 biz\u0259 yard\u0131m et!"
+  },
+  {
+    id: "araf-23",
+    title: "T\xF6vb\u0259 v\u0259 ba\u011F\u0131\u015Flanma duas\u0131 (Ad\u0259m \u0259.s.)",
+    category: "magfiret",
+    surahNumber: 7,
+    surahName: "\u018Fraf",
+    ayahNumber: 23,
+    ayahLabel: "7:23",
+    pageNumber: 153,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0638\u064E\u0644\u064E\u0645\u0652\u0646\u064E\u0627 \u0623\u064E\u0646\u0641\u064F\u0633\u064E\u0646\u064E\u0627 \u0648\u064E\u0625\u0650\u0646 \u0644\u064E\u0651\u0645\u0652 \u062A\u064E\u063A\u0652\u0641\u0650\u0631\u0652 \u0644\u064E\u0646\u064E\u0627 \u0648\u064E\u062A\u064E\u0631\u0652\u062D\u064E\u0645\u0652\u0646\u064E\u0627 \u0644\u064E\u0646\u064E\u0643\u064F\u0648\u0646\u064E\u0646\u064E\u0651 \u0645\u0650\u0646\u064E \u0627\u0644\u0652\u062E\u064E\u0627\u0633\u0650\u0631\u0650\u064A\u0646\u064E",
+    translation: "Ey R\u0259bbimiz! Biz \xF6z\xFCm\xFCz\u0259 z\xFClm etdik. \u018Fg\u0259r bizi ba\u011F\u0131\u015Flamasan v\u0259 biz\u0259 r\u0259hm etm\u0259s\u0259n, \u0259lb\u0259tt\u0259, ziyana u\u011Frayanlardan olar\u0131q!"
+  },
+  {
+    id: "ibrahim-40",
+    title: "Namaz\u0131 qorumaq \xFC\xE7\xFCn dua (\u0130brahim \u0259.s.)",
+    category: "aile",
+    surahNumber: 14,
+    surahName: "\u0130brahim",
+    ayahNumber: 40,
+    ayahLabel: "14:40",
+    pageNumber: 260,
+    arabicText: "\u0631\u064E\u0628\u0650\u0651 \u0627\u062C\u0652\u0639\u064E\u0644\u0652\u0646\u0650\u064A \u0645\u064F\u0642\u0650\u064A\u0645\u064E \u0627\u0644\u0635\u064E\u0651\u0644\u064E\u0627\u0629\u0650 \u0648\u064E\u0645\u0650\u0646 \u0630\u064F\u0631\u0650\u0651\u064A\u064E\u0651\u062A\u0650\u064A \u06DA \u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0648\u064E\u062A\u064E\u0642\u064E\u0628\u064E\u0651\u0644\u0652 \u062F\u064F\u0639\u064E\u0627\u0621\u0650",
+    translation: "Ey R\u0259bbim! M\u0259ni d\u0259, n\u0259slimd\u0259n olanlar\u0131 da namaz q\u0131lan et! Ey R\u0259bbimiz! Duam\u0131 q\u0259bul el\u0259!"
+  },
+  {
+    id: "ibrahim-41",
+    title: "Valideynl\u0259r v\u0259 m\xF6minl\u0259r \xFC\xE7\xFCn ba\u011F\u0131\u015Flanma duas\u0131",
+    category: "aile",
+    surahNumber: 14,
+    surahName: "\u0130brahim",
+    ayahNumber: 41,
+    ayahLabel: "14:41",
+    pageNumber: 260,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0627\u063A\u0652\u0641\u0650\u0631\u0652 \u0644\u0650\u064A \u0648\u064E\u0644\u0650\u0648\u064E\u0627\u0644\u0650\u062F\u064E\u064A\u064E\u0651 \u0648\u064E\u0644\u0650\u0644\u0652\u0645\u064F\u0624\u0652\u0645\u0650\u0646\u0650\u064A\u0646\u064E \u064A\u064E\u0648\u0652\u0645\u064E \u064A\u064E\u0642\u064F\u0648\u0645\u064F \u0627\u0644\u0652\u062D\u0650\u0633\u064E\u0627\u0628\u064F",
+    translation: "Ey R\u0259bbimiz! Hesab qurulaca\u011F\u0131 g\xFCn m\u0259ni, valideynl\u0259rimi v\u0259 m\xF6minl\u0259ri ba\u011F\u0131\u015Fla!"
+  },
+  {
+    id: "isra-24",
+    title: "Ata v\u0259 ana \xFC\xE7\xFCn r\u0259hm\u0259t duas\u0131",
+    category: "aile",
+    surahNumber: 17,
+    surahName: "\u0130sra",
+    ayahNumber: 24,
+    ayahLabel: "17:24",
+    pageNumber: 284,
+    arabicText: "\u0631\u064E\u0651\u0628\u0650\u0651 \u0627\u0631\u0652\u062D\u064E\u0645\u0652\u0647\u064F\u0645\u064E\u0627 \u0643\u064E\u0645\u064E\u0627 \u0631\u064E\u0628\u064E\u0651\u064A\u064E\u0627\u0646\u0650\u064A \u0635\u064E\u063A\u0650\u064A\u0631\u064B\u0627",
+    translation: "Ey R\u0259bbim! Onlar m\u0259ni k\xF6rp\u0259likd\u0259 t\u0259rbiy\u0259 edib b\xF6y\xFCtd\xFCkl\u0259ri kimi, S\u0259n d\u0259 onlara r\u0259hm et!"
+  },
+  {
+    id: "isra-80",
+    title: "Xeyirli giri\u015F, \xE7\u0131x\u0131\u015F v\u0259 yard\u0131m duas\u0131",
+    category: "elm-sebir",
+    surahNumber: 17,
+    surahName: "\u0130sra",
+    ayahNumber: 80,
+    ayahLabel: "17:80",
+    pageNumber: 290,
+    arabicText: "\u0631\u064E\u0651\u0628\u0650\u0651 \u0623\u064E\u062F\u0652\u062E\u0650\u0644\u0652\u0646\u0650\u064A \u0645\u064F\u062F\u0652\u062E\u064E\u0644\u064E \u0635\u0650\u062F\u0652\u0642\u064D \u0648\u064E\u0623\u064E\u062E\u0652\u0631\u0650\u062C\u0652\u0646\u0650\u064A \u0645\u064F\u062E\u0652\u0631\u064E\u062C\u064E \u0635\u0650\u062F\u0652\u0642\u064D \u0648\u064E\u0627\u062C\u0652\u0639\u064E\u0644 \u0644\u0650\u0651\u064A \u0645\u0650\u0646 \u0644\u064E\u0651\u062F\u064F\u0646\u0643\u064E \u0633\u064F\u0644\u0652\u0637\u064E\u0627\u0646\u064B\u0627 \u0646\u064E\u0651\u0635\u0650\u064A\u0631\u064B\u0627",
+    translation: "Ey R\u0259bbim! M\u0259ni daxil ed\u0259c\u0259yin yer\u0259 do\u011Fruluqla daxil et, \xE7\u0131xaraca\u011F\u0131n yerd\u0259n d\u0259 do\u011Fruluqla \xE7\u0131xart v\u0259 \xD6z t\u0259r\u0259find\u0259n m\u0259n\u0259 k\xF6m\u0259k ed\u0259n bir d\u0259lil ver!"
+  },
+  {
+    id: "kahf-10",
+    title: "M\u0259rh\u0259m\u0259t v\u0259 do\u011Fru r\u0259hb\u0259rlik duas\u0131 (\u018Fshabi-K\u0259hf)",
+    category: "hidayet",
+    surahNumber: 18,
+    surahName: "K\u0259hf",
+    ayahNumber: 10,
+    ayahLabel: "18:10",
+    pageNumber: 294,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0622\u062A\u0650\u0646\u064E\u0627 \u0645\u0650\u0646 \u0644\u064E\u0651\u062F\u064F\u0646\u0643\u064E \u0631\u064E\u062D\u0652\u0645\u064E\u0629\u064B \u0648\u064E\u0647\u064E\u064A\u0650\u0651\u0626\u0652 \u0644\u064E\u0646\u064E\u0627 \u0645\u0650\u0646\u0652 \u0623\u064E\u0645\u0652\u0631\u0650\u0646\u064E\u0627 \u0631\u064E\u0634\u064E\u062F\u064B\u0627",
+    translation: "Ey R\u0259bbimiz! Biz\u0259 \xD6z t\u0259r\u0259find\u0259n m\u0259rh\u0259m\u0259t b\u0259x\u015F et v\u0259 i\u015Fimizd\u0259 bizim \xFC\xE7\xFCn do\u011Fru yol haz\u0131rla!"
+  },
+  {
+    id: "taha-25",
+    title: "K\xF6n\xFCl rahatl\u0131\u011F\u0131 v\u0259 nitqd\u0259 f\u0259sah\u0259t duas\u0131 (Musa \u0259.s.)",
+    category: "elm-sebir",
+    surahNumber: 20,
+    surahName: "Taha",
+    ayahNumber: 25,
+    ayahLabel: "20:25",
+    pageNumber: 313,
+    arabicText: "\u0631\u064E\u0628\u0650\u0651 \u0627\u0634\u0652\u0631\u064E\u062D\u0652 \u0644\u0650\u064A \u0635\u064E\u062F\u0652\u0631\u0650\u064A \u06DD \u0648\u064E\u064A\u064E\u0633\u0650\u0651\u0631\u0652 \u0644\u0650\u064A \u0623\u064E\u0645\u0652\u0631\u0650\u064A",
+    translation: "Ey R\u0259bbim! K\xF6ks\xFCm\xFC a\xE7\u0131b geni\u015Fl\u0259t v\u0259 i\u015Fimi y\xFCng\xFCll\u0259\u015Fdir!"
+  },
+  {
+    id: "taha-114",
+    title: "Elmin art\u0131r\u0131lmas\u0131 duas\u0131",
+    category: "elm-sebir",
+    surahNumber: 20,
+    surahName: "Taha",
+    ayahNumber: 114,
+    ayahLabel: "20:114",
+    pageNumber: 320,
+    arabicText: "\u0631\u064E\u0651\u0628\u0650\u0651 \u0632\u0650\u062F\u0652\u0646\u0650\u064A \u0639\u0650\u0644\u0652\u0645\u064B\u0627",
+    translation: "Ey R\u0259bbim! Elmimi art\u0131r!"
+  },
+  {
+    id: "anbiya-87",
+    title: "\xC7\u0259tinlik an\u0131nda t\u0259sbih v\u0259 t\xF6vb\u0259 duas\u0131 (Yunus \u0259.s.)",
+    category: "magfiret",
+    surahNumber: 21,
+    surahName: "\u018Fnbiya",
+    ayahNumber: 87,
+    ayahLabel: "21:87",
+    pageNumber: 329,
+    arabicText: "\u0644\u064E\u0651\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0623\u064E\u0646\u062A\u064E \u0633\u064F\u0628\u0652\u062D\u064E\u0627\u0646\u064E\u0643\u064E \u0625\u0650\u0646\u0650\u0651\u064A \u0643\u064F\u0646\u062A\u064F \u0645\u0650\u0646\u064E \u0627\u0644\u0638\u064E\u0651\u0627\u0644\u0650\u0645\u0650\u064A\u0646\u064E",
+    translation: "S\u0259nd\u0259n ba\u015Fqa ilah yoxdur. S\u0259n paksan, m\xFCq\u0259dd\u0259ss\u0259n! H\u0259qiq\u0259t\u0259n, m\u0259n zal\u0131mlardan olmu\u015Fam!"
+  },
+  {
+    id: "furqan-74",
+    title: "G\xF6z ayd\u0131nl\u0131\u011F\u0131 olan ail\u0259 duas\u0131",
+    category: "aile",
+    surahNumber: 25,
+    surahName: "Furqan",
+    ayahNumber: 74,
+    ayahLabel: "25:74",
+    pageNumber: 366,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0647\u064E\u0628\u0652 \u0644\u064E\u0646\u064E\u0627 \u0645\u0650\u0646\u0652 \u0623\u064E\u0632\u0652\u0648\u064E\u0627\u062C\u0650\u0646\u064E\u0627 \u0648\u064E\u0630\u064F\u0631\u0650\u0651\u064A\u064E\u0651\u0627\u062A\u0650\u0646\u064E\u0627 \u0642\u064F\u0631\u064E\u0651\u0629\u064E \u0623\u064E\u0639\u0652\u064A\u064F\u0646\u064D \u0648\u064E\u0627\u062C\u0652\u0639\u064E\u0644\u0652\u0646\u064E\u0627 \u0644\u0650\u0644\u0652\u0645\u064F\u062A\u064E\u0651\u0642\u0650\u064A\u0646\u064E \u0625\u0650\u0645\u064E\u0627\u0645\u064B\u0627",
+    translation: "Ey R\u0259bbimiz! Biz\u0259 g\xF6z\xFCm\xFCz\xFCn ayd\u0131nl\u0131\u011F\u0131 olan z\xF6vc\u0259l\u0259r v\u0259 \xF6vladlar b\u0259x\u015F et v\u0259 bizi m\xFCtt\u0259qil\u0259r\u0259 imam (n\xFCmun\u0259) et!"
+  },
+  {
+    id: "hashr-10",
+    title: "Q\u0259lbl\u0259rd\u0259 kin olmamas\u0131 v\u0259 qarda\u015Fl\u0131q duas\u0131",
+    category: "hidayet",
+    surahNumber: 59,
+    surahName: "H\u0259\u015Fr",
+    ayahNumber: 10,
+    ayahLabel: "59:10",
+    pageNumber: 547,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0627\u063A\u0652\u0641\u0650\u0631\u0652 \u0644\u064E\u0646\u064E\u0627 \u0648\u064E\u0644\u0650\u0625\u0650\u062E\u0652\u0648\u064E\u0627\u0646\u0650\u0646\u064E\u0627 \u0627\u0644\u064E\u0651\u0630\u0650\u064A\u0646\u064E \u0633\u064E\u0628\u064E\u0642\u064F\u0648\u0646\u064E\u0627 \u0628\u0650\u0627\u0644\u0652\u0625\u0650\u064A\u0645\u064E\u0627\u0646\u0650 \u0648\u064E\u0644\u064E\u0627 \u062A\u064E\u062C\u0652\u0639\u064E\u0644\u0652 \u0641\u0650\u064A \u0642\u064F\u0644\u064F\u0648\u0628\u0650\u0646\u064E\u0627 \u063A\u0650\u0644\u064B\u0651\u0627 \u0644\u0650\u0651\u0644\u064E\u0651\u0630\u0650\u064A\u0646\u064E \u0622\u0645\u064E\u0646\u064F\u0648\u0627 \u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0625\u0650\u0646\u064E\u0651\u0643\u064E \u0631\u064E\u0621\u064F\u0648\u0641\u064C \u0631\u064E\u0651\u062D\u0650\u064A\u0645\u064C",
+    translation: "Ey R\u0259bbimiz! Bizi v\u0259 bizd\u0259n \u0259vv\u0259l iman g\u0259tirmi\u015F qarda\u015Flar\u0131m\u0131z\u0131 ba\u011F\u0131\u015Fla! Q\u0259lbl\u0259rimizd\u0259 iman g\u0259tir\u0259nl\u0259r\u0259 qar\u015F\u0131 kin-k\xFCdur\u0259t\u0259 yer verm\u0259! Ey R\u0259bbimiz! H\u0259qiq\u0259t\u0259n, S\u0259n \u015E\u0259fq\u0259tlis\u0259n, M\u0259rh\u0259m\u0259tlis\u0259n!"
+  },
+  {
+    id: "tahrim-8",
+    title: "Kamil nur v\u0259 ba\u011F\u0131\u015Flanma duas\u0131",
+    category: "hidayet",
+    surahNumber: 66,
+    surahName: "T\u0259hrim",
+    ayahNumber: 8,
+    ayahLabel: "66:8",
+    pageNumber: 561,
+    arabicText: "\u0631\u064E\u0628\u064E\u0651\u0646\u064E\u0627 \u0623\u064E\u062A\u0652\u0645\u0650\u0645\u0652 \u0644\u064E\u0646\u064E\u0627 \u0646\u064F\u0648\u0631\u064E\u0646\u064E\u0627 \u0648\u064E\u0627\u063A\u0652\u0641\u0650\u0631\u0652 \u0644\u064E\u0646\u064E\u0627 \u06D6 \u0625\u0650\u0646\u064E\u0651\u0643\u064E \u0639\u064E\u0644\u064E\u0649\u0670 \u0643\u064F\u0644\u0650\u0651 \u0634\u064E\u064A\u0652\u0621\u064D \u0642\u064E\u062F\u0650\u064A\u0631\u064C",
+    translation: "Ey R\u0259bbimiz! Nurumuzu bizim \xFC\xE7\xFCn tamamla v\u0259 bizi ba\u011F\u0131\u015Fla. H\u0259qiq\u0259t\u0259n, S\u0259n h\u0259r \u015Fey\u0259 Qadirs\u0259n!"
+  }
+];
+
 // src/lib/seo.ts
 function escapeXml(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
@@ -1685,10 +1929,19 @@ function buildCoreSitemapXml(origin, todayIsoDate = (/* @__PURE__ */ new Date())
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.9" },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
     { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.85" },
+    { loc: `${baseUrl}/zikr`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.85" },
+    { loc: `${baseUrl}/namaz-vaxtlari`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.9" },
+    { loc: `${baseUrl}/teqvim`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.85" },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.8" },
     { loc: `${baseUrl}/haqqinda`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.7" },
-    { loc: `${baseUrl}/istek`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.6" }
+    { loc: `${baseUrl}/istek`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.6" },
+    ...JUZ_PAGE_RANGES.map((j) => ({
+      loc: `${baseUrl}/quran/cuz/${j.juz}`,
+      lastmod: todayIsoDate,
+      changefreq: "monthly",
+      priority: "0.80"
+    }))
   ]);
 }
 function buildSurahsSitemapXml(origin, todayIsoDate = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)) {
@@ -1775,11 +2028,22 @@ function buildSitemapXml(origin, videos, todayIsoDate = (/* @__PURE__ */ new Dat
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.9" },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
     { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.85" },
+    { loc: `${baseUrl}/zikr`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.85" },
+    { loc: `${baseUrl}/namaz-vaxtlari`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.9" },
+    { loc: `${baseUrl}/teqvim`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.85" },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.8" },
     { loc: `${baseUrl}/haqqinda`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.7" },
     { loc: `${baseUrl}/istek`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.6" }
   ];
+  for (const juz of JUZ_PAGE_RANGES) {
+    urls.push({
+      loc: `${baseUrl}/quran/cuz/${juz.juz}`,
+      lastmod: todayIsoDate,
+      changefreq: "monthly",
+      priority: "0.80"
+    });
+  }
   for (const surah of SURAH_CATALOG) {
     urls.push({
       loc: `${baseUrl}/quran/sure/${surah.number}`,
@@ -1809,6 +2073,55 @@ function buildSitemapXml(origin, videos, todayIsoDate = (/* @__PURE__ */ new Dat
     });
   }
   return renderUrlSetXml(urls);
+}
+function toRfc822Date(raw) {
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toUTCString();
+  }
+  return (/* @__PURE__ */ new Date()).toUTCString();
+}
+function buildRssFeedXml(origin, stats, videos) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const seen = /* @__PURE__ */ new Set();
+  const items = [];
+  for (const video of videos) {
+    if (!video.videoId || seen.has(video.videoId)) continue;
+    seen.add(video.videoId);
+    const link = `${baseUrl}/video/${video.videoId}`;
+    const thumb = video.thumbnailUrl || `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`;
+    const desc = video.seoDescription || `${video.surahName} (${video.ayahRange}) \u2014 ${video.reciter} tilav\u0259ti v\u0259 \u018Flixan Musayev t\u0259rc\xFCm\u0259si.`;
+    const pubDate = /^\d{4}-\d{2}-\d{2}/.test(video.published) ? toRfc822Date(video.published) : (/* @__PURE__ */ new Date()).toUTCString();
+    items.push(
+      [
+        "    <item>",
+        `      <title>${escapeXml(video.title)}</title>`,
+        `      <link>${escapeXml(link)}</link>`,
+        `      <guid isPermaLink="true">${escapeXml(link)}</guid>`,
+        `      <pubDate>${escapeXml(pubDate)}</pubDate>`,
+        `      <category>${escapeXml(video.surahName)}</category>`,
+        `      <description>${escapeXml(desc)}</description>`,
+        `      <media:thumbnail url="${escapeXml(thumb)}" />`,
+        "    </item>"
+      ].join("\n")
+    );
+    if (items.length >= 40) break;
+  }
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">',
+    "  <channel>",
+    `    <title>${escapeXml(stats.name)} \u2014 Quran Tilav\u0259tl\u0259ri RSS</title>`,
+    `    <link>${escapeXml(`${baseUrl}/`)}</link>`,
+    `    <description>${escapeXml(stats.description)}</description>`,
+    "    <language>az</language>",
+    `    <lastBuildDate>${escapeXml((/* @__PURE__ */ new Date()).toUTCString())}</lastBuildDate>`,
+    `    <atom:link href="${escapeXml(`${baseUrl}/rss.xml`)}" rel="self" type="application/rss+xml" />`,
+    ...items,
+    "  </channel>",
+    "</rss>",
+    ""
+  ].join("\n");
 }
 function buildDynamicOgSvg(kind, id = 1) {
   let eyebrow = "QURAN Q\u0130RA\u018FT\u0130 \xB7 R\u018FSM\u0130 ARX\u0130V";
@@ -1874,6 +2187,20 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
     };
   }
   if (cleanPath === "/") {
+    const featuredItems = videos.slice(0, 10).map((video, idx) => ({
+      "@type": "ListItem",
+      position: idx + 1,
+      item: {
+        "@type": "VideoObject",
+        name: video.title,
+        description: video.seoDescription || `${video.surahName} (${video.ayahRange}) \u2014 ${video.reciter}`,
+        thumbnailUrl: [video.thumbnailUrl || `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`],
+        uploadDate: /^\d{4}-\d{2}-\d{2}/.test(video.published) ? video.published : void 0,
+        contentUrl: `${baseUrl}/video/${video.videoId}`,
+        embedUrl: `https://www.youtube-nocookie.com/embed/${video.videoId}`,
+        inLanguage: ["ar", "az"]
+      }
+    }));
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -1882,18 +2209,47 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
       canonicalUrl: `${baseUrl}/`,
       ogImage: defaultOg,
       ogType: "website",
-      jsonLd: {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        name: "Quran Qiraeti",
-        url: `${baseUrl}/`,
-        inLanguage: ["az", "ar"],
-        description: "Tam Qurani-K\u0259rim (114 sur\u0259, 604 M\u0259din\u0259 s\u0259hif\u0259si), M\xFChafiz \u0259zb\u0259r al\u0259ti v\u0259 uzun tilav\u0259t arxivi."
-      },
-      noscriptHtml: "<h1>Quran Qiraeti \u2014 Uzun Tilav\u0259tl\u0259r v\u0259 Tam Qurani-K\u0259rim</h1><p>Az\u0259rbaycan dilind\u0259 m\u0259naca t\u0259rc\xFCm\u0259, 114 sur\u0259, 604 M\u0259din\u0259 Mushaf\u0131 s\u0259hif\u0259si v\u0259 M\xFChafiz \u0259zb\u0259r al\u0259ti.</p>"
+      jsonLd: [
+        {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "Quran Qiraeti",
+          url: `${baseUrl}/`,
+          logo: defaultOg,
+          sameAs: [
+            "https://youtube.com/@quranqiraeti",
+            "https://www.youtube.com/channel/UCp9AvvdTxAXDZfnnVjNF1Yg"
+          ],
+          description: "Quran Qiraeti YouTube kanal\u0131 \u2014 \u018Fr\u0259bc\u0259 Quran tilav\u0259tl\u0259ri v\u0259 \u018Flixan Musayevin Az\u0259rbaycan t\u0259rc\xFCm\u0259si arxivi."
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "Quran Qiraeti",
+          url: `${baseUrl}/`,
+          inLanguage: ["az", "ar"],
+          description: "Tam Qurani-K\u0259rim (114 sur\u0259, 604 M\u0259din\u0259 s\u0259hif\u0259si), M\xFChafiz \u0259zb\u0259r al\u0259ti v\u0259 uzun tilav\u0259t arxivi.",
+          potentialAction: {
+            "@type": "SearchAction",
+            target: `${baseUrl}/quran?q={search_term_string}`,
+            "query-input": "required name=search_term_string"
+          }
+        },
+        ...featuredItems.length > 0 ? [
+          {
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: "Se\xE7ilmi\u015F Quran Tilav\u0259tl\u0259ri",
+            numberOfItems: featuredItems.length,
+            itemListElement: featuredItems
+          }
+        ] : []
+      ],
+      noscriptHtml: '<h1>Quran Qiraeti \u2014 Uzun Tilav\u0259tl\u0259r v\u0259 Tam Qurani-K\u0259rim</h1><p>Az\u0259rbaycan dilind\u0259 m\u0259naca t\u0259rc\xFCm\u0259, 114 sur\u0259, 604 M\u0259din\u0259 Mushaf\u0131 s\u0259hif\u0259si v\u0259 M\xFChafiz \u0259zb\u0259r al\u0259ti.</p><nav><a href="/quran">Qurani-K\u0259rim (114 Sur\u0259)</a> \xB7 <a href="/dualar">Qurandak\u0131 Dualar</a> \xB7 <a href="/muhaffiz">M\xFChafiz \u018Fzb\u0259r</a> \xB7 <a href="/shorts">Shorts</a> \xB7 <a href="/quran/cuz/1">1-ci C\xFCz</a> \xB7 <a href="/quran/cuz/30">30-cu C\xFCz</a></nav>'
     };
   }
   if (cleanPath === "/shorts") {
+    const shortVideos = videos.filter((v) => v.format === "short").slice(0, 12);
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -1902,14 +2258,58 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
       canonicalUrl: `${baseUrl}/shorts`,
       ogImage: defaultOg,
       ogType: "website",
-      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
-        { name: "Ana s\u0259hif\u0259", path: "/" },
-        { name: "Shorts", path: "/shorts" }
-      ]),
-      noscriptHtml: "<h1>Quran Shorts Tilav\u0259tl\u0259ri</h1>"
+      jsonLd: [
+        {
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: "Quran Shorts Tilav\u0259tl\u0259ri",
+          url: `${baseUrl}/shorts`,
+          inLanguage: ["ar", "az"],
+          description: "Q\u0131sa Quran tilav\u0259tl\u0259ri, ay\u0259 aral\u0131qlar\u0131 v\u0259 Az\u0259rbaycan dilind\u0259 t\u0259rc\xFCm\u0259 arxivi."
+        },
+        buildBreadcrumbJsonLd(baseUrl, [
+          { name: "Ana s\u0259hif\u0259", path: "/" },
+          { name: "Shorts", path: "/shorts" }
+        ]),
+        ...shortVideos.length > 0 ? [
+          {
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: "Quran Shorts Video Siyah\u0131s\u0131",
+            numberOfItems: shortVideos.length,
+            itemListElement: shortVideos.map((v, idx) => ({
+              "@type": "ListItem",
+              position: idx + 1,
+              item: {
+                "@type": "VideoObject",
+                name: v.title,
+                description: v.seoDescription || v.title,
+                thumbnailUrl: [v.thumbnailUrl || `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`],
+                contentUrl: `${baseUrl}/video/${v.videoId}`,
+                embedUrl: `https://www.youtube-nocookie.com/embed/${v.videoId}`
+              }
+            }))
+          }
+        ] : []
+      ],
+      noscriptHtml: `<h1>Quran Shorts Tilav\u0259tl\u0259ri</h1><ul>${shortVideos.map((v) => `<li><a href="/video/${escapeHtmlAttr(v.videoId)}">${escapeHtmlText(v.title)}</a></li>`).join("")}</ul>`
     };
   }
   if (cleanPath === "/quran") {
+    const quranFaq = [
+      {
+        question: "Saytdak\u0131 Qurani-K\u0259rim t\u0259rc\xFCm\u0259si kim\u0259 aiddir?",
+        answer: "B\xFCt\xFCn 114 sur\u0259 v\u0259 604 s\u0259hif\u0259 \u018Flixan Musayevin son n\u0259\u015Fr (v1.0.4) Az\u0259rbaycan dilin\u0259 m\u0259naca t\u0259rc\xFCm\u0259si il\u0259 t\u0259qdim olunur."
+      },
+      {
+        question: "M\u0259din\u0259 Mushaf\u0131 ne\xE7\u0259 s\u0259hif\u0259 v\u0259 ne\xE7\u0259 c\xFCzd\u0259n ibar\u0259tdir?",
+        answer: "Standart M\u0259din\u0259 Mushaf\u0131 604 s\u0259hif\u0259, 30 c\xFCz v\u0259 114 sur\u0259d\u0259n ibar\u0259tdir. H\u0259r s\u0259hif\u0259 v\u0259 c\xFCz ayr\u0131ca \xFCnvanda a\xE7\u0131l\u0131r."
+      },
+      {
+        question: "Quran ay\u0259l\u0259rini s\xF6zb\u0259-s\xF6z nec\u0259 \u0259zb\u0259rl\u0259m\u0259k olar?",
+        answer: "M\xFChafiz b\xF6lm\u0259sind\u0259 ist\u0259nil\u0259n M\u0259din\u0259 s\u0259hif\u0259sini (1\u2013604) a\xE7araq s\xF6zl\u0259ri v\u0259 ay\u0259l\u0259ri gizl\u0259dib-a\xE7maqla hifz t\u0259krar\u0131 ed\u0259 bil\u0259rsiniz."
+      }
+    ];
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -1923,6 +2323,9 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
           "@context": "https://schema.org",
           "@type": "Book",
           name: "Qurani-K\u0259rim (M\u0259din\u0259 \xE7ap\u0131, 604 s\u0259hif\u0259)",
+          author: { "@type": "Person", name: "Qurani-K\u0259rim" },
+          translator: { "@type": "Person", name: "\u018Flixan Musayev" },
+          bookFormat: "https://schema.org/EBook",
           inLanguage: ["ar", "az"],
           numberOfPages: TOTAL_QURAN_PAGES,
           url: `${baseUrl}/quran`
@@ -1930,12 +2333,27 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
         buildBreadcrumbJsonLd(baseUrl, [
           { name: "Ana s\u0259hif\u0259", path: "/" },
           { name: "Qurani-K\u0259rim", path: "/quran" }
-        ])
+        ]),
+        buildFaqPageJsonLd(quranFaq)
       ],
-      noscriptHtml: "<h1>Tam Qurani-K\u0259rim \u2014 M\u0259din\u0259 \xC7ap\u0131 (604 S\u0259hif\u0259) v\u0259 114 Sur\u0259</h1><p>\u018Fr\u0259bc\u0259 m\u0259tn v\u0259 \u018Flixan Musayevin Az\u0259rbaycan dilin\u0259 t\u0259rc\xFCm\u0259si.</p>"
+      noscriptHtml: `<h1>Tam Qurani-K\u0259rim \u2014 M\u0259din\u0259 \xC7ap\u0131 (604 S\u0259hif\u0259) v\u0259 114 Sur\u0259</h1><p>\u018Fr\u0259bc\u0259 m\u0259tn v\u0259 \u018Flixan Musayevin Az\u0259rbaycan dilin\u0259 t\u0259rc\xFCm\u0259si.</p><nav>${JUZ_PAGE_RANGES.map((j) => `<a href="/quran/cuz/${j.juz}">${j.juz}. C\xFCz</a>`).join(" \xB7 ")} \xB7 <a href="/dualar">Qurandak\u0131 Dualar</a></nav>`
     };
   }
   if (cleanPath === "/dualar") {
+    const duaFaq = [
+      {
+        question: "Qurandak\u0131 Dualar b\xF6lm\u0259sind\u0259 hans\u0131 dualar toplan\u0131b?",
+        answer: `Qurani-K\u0259rimd\u0259n se\xE7ilmi\u015F ${QURAN_DUAS.length} s\u0259hih R\u0259bb\u0259n\u0259 v\u0259 pey\u011F\u0259mb\u0259r duas\u0131 \u2014 hiday\u0259t, ba\u011F\u0131\u015Flanma, ail\u0259, elm v\u0259 s\u0259bir m\xF6vzular\u0131 \xFCzr\u0259 t\u0259qdim olunur.`
+      },
+      {
+        question: "Dualar\u0131n \u0259r\u0259bc\u0259 tilav\u0259tini dinl\u0259m\u0259k m\xFCmk\xFCnd\xFCrm\xFC?",
+        answer: "B\u0259li, h\u0259r dua kart\u0131nda se\xE7ilmi\u015F qari il\u0259 ay\u0259nin \u0259r\u0259bc\u0259 s\u0259sli tilav\u0259tini birba\u015Fa dinl\u0259m\u0259k v\u0259 m\u0259tni k\xF6\xE7\xFCrm\u0259k olar."
+      },
+      {
+        question: "Dua ay\u0259l\u0259rini \u015F\u0259kil kart\u0131 kimi y\xFCkl\u0259m\u0259k olurmu?",
+        answer: "B\u0259li, ist\u0259nil\u0259n dua v\u0259 ya ay\u0259ni y\xFCks\u0259k keyfiyy\u0259tli 1080\xD71350 PNG \u015F\u0259kil kart\u0131 kimi endirib payla\u015Fa bil\u0259rsiniz."
+      }
+    ];
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -1944,12 +2362,62 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
       canonicalUrl: `${baseUrl}/dualar`,
       ogImage: defaultOg,
       ogType: "website",
+      jsonLd: [
+        {
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: "Qurandak\u0131 Dualar (R\u0259bb\u0259n\u0259 Dualar\u0131)",
+          url: `${baseUrl}/dualar`,
+          inLanguage: ["az", "ar"],
+          description: "Qurani-K\u0259rimd\u0259n se\xE7ilmi\u015F 20 s\u0259hih R\u0259bb\u0259n\u0259 v\u0259 pey\u011F\u0259mb\u0259r duas\u0131 \u2014 \u0259r\u0259bc\u0259 m\u0259tn, t\u0259rc\xFCm\u0259 v\u0259 s\u0259sli tilav\u0259t."
+        },
+        buildBreadcrumbJsonLd(baseUrl, [
+          { name: "Ana s\u0259hif\u0259", path: "/" },
+          { name: "Qurani-K\u0259rim", path: "/quran" },
+          { name: "Qurandak\u0131 Dualar", path: "/dualar" }
+        ]),
+        buildFaqPageJsonLd(duaFaq)
+      ],
+      noscriptHtml: `<h1>Qurandak\u0131 Dualar (R\u0259bb\u0259n\u0259 Dualar\u0131)</h1><p>Hiday\u0259t, ba\u011F\u0131\u015Flanma, ail\u0259, elm v\u0259 s\u0259bir m\xF6vzular\u0131nda Qurandan se\xE7ilmi\u015F ${QURAN_DUAS.length} dua.</p><ul>${QURAN_DUAS.map(
+        (d) => `<li><a href="/quran/sure/${d.surahNumber}#ayah-${d.ayahNumber}">${escapeHtmlText(d.title)} (${escapeHtmlText(d.surahName)} ${escapeHtmlText(d.ayahLabel)})</a>: ${escapeHtmlText(d.translation)}</li>`
+      ).join("")}</ul>`
+    };
+  }
+  if (cleanPath === "/namaz-vaxtlari" || cleanPath === "/qible" || cleanPath === "/teqvim") {
+    const isCalendar = cleanPath === "/teqvim";
+    const isQibla = cleanPath === "/qible";
+    return {
+      httpStatus: 200,
+      robots: robotsIndex,
+      title: isCalendar ? "Hicri\u2013Miladi T\u0259qvim \xC7eviricisi v\u0259 M\xFCbar\u0259k G\xFCnl\u0259r | Quran Qiraeti" : isQibla ? "Canl\u0131 Qibl\u0259 Kompas\u0131 v\u0259 Namaz Vaxtlar\u0131 | Quran Qiraeti" : "Namaz Vaxtlar\u0131 \u2014 \xDCmm\xFCl-Qura, \xD6lk\u0259l\u0259r v\u0259 X\u0259rit\u0259 | Quran Qiraeti",
+      description: isCalendar ? "\xDCmm\xFCl-Qura t\u0259qvimi \xFCzr\u0259 Hicri v\u0259 Miladi tarix \xE7eviricisi, Ramazan ba\u015Flan\u011F\u0131c\u0131, Q\u0259dr gec\u0259si, Ramazan v\u0259 Qurban bayramlar\u0131na qalan g\xFCnl\u0259rin canl\u0131 say\u011Fac\u0131." : "\xDCmm\xFCl-Qura (M\u0259kk\u0259) \xFCsulu il\u0259 Az\u0259rbaycan v\u0259 d\xFCnya \u015F\u0259h\u0259rl\u0259ri \xFCzr\u0259 g\xFCnd\u0259lik v\u0259 h\u0259ft\u0259lik namaz vaxtlar\u0131, x\u0259rit\u0259 \xFCz\u0259rind\u0259n avtomatik m\u0259kan se\xE7imi, Qibl\u0259 buca\u011F\u0131 v\u0259 canl\u0131 gerisay\u0131m.",
+      canonicalUrl: `${baseUrl}${cleanPath}`,
+      ogImage: defaultOg,
+      ogType: "website",
       jsonLd: buildBreadcrumbJsonLd(baseUrl, [
         { name: "Ana s\u0259hif\u0259", path: "/" },
-        { name: "Qurani-K\u0259rim", path: "/quran" },
-        { name: "Qurandak\u0131 Dualar", path: "/dualar" }
+        {
+          name: isCalendar ? "Hicri\u2013Miladi T\u0259qvim" : isQibla ? "Qibl\u0259 Kompas\u0131" : "Namaz Vaxtlar\u0131",
+          path: cleanPath
+        }
       ]),
-      noscriptHtml: "<h1>Qurandak\u0131 Dualar (R\u0259bb\u0259n\u0259 Dualar\u0131)</h1><p>Hiday\u0259t, ba\u011F\u0131\u015Flanma, ail\u0259, elm v\u0259 s\u0259bir m\xF6vzular\u0131nda Qurandan se\xE7ilmi\u015F 20 dua.</p>"
+      noscriptHtml: isCalendar ? "<h1>Hicri\u2013Miladi T\u0259qvim \xC7eviricisi v\u0259 M\xFCbar\u0259k G\xFCnl\u0259r</h1><p>\xDCmm\xFCl-Qura t\u0259qvimi \u0259sas\u0131nda Hicri v\u0259 Miladi tarixl\u0259rin \xE7evrilm\u0259si v\u0259 qar\u015F\u0131dak\u0131 bayramlar\u0131n say\u011Fac\u0131.</p>" : "<h1>Namaz Vaxtlar\u0131 \u2014 \xDCmm\xFCl-Qura v\u0259 X\u0259rit\u0259 Se\xE7imi</h1><p>Az\u0259rbaycan v\u0259 d\xFCnya \u015F\u0259h\u0259rl\u0259ri \xFCzr\u0259 g\xFCnd\u0259lik S\xFCbh, G\xFCn\u0259\u015F, Z\xF6hr, \u018Fsr, M\u0259\u011Frib v\u0259 \u0130\u015Fa vaxtlar\u0131.</p>"
+    };
+  }
+  if (cleanPath === "/zikr") {
+    return {
+      httpStatus: 200,
+      robots: robotsIndex,
+      title: "S\u0259h\u0259r-Ax\u015Fam Zikrl\u0259ri v\u0259 T\u0259sbih Say\u011Fac\u0131 | Quran Qiraeti",
+      description: "Onlayn t\u0259sbih say\u011Fac\u0131 (33 / 99 / 100 v\u0259 Namaz sonras\u0131 33+33+34 rejimi), S\u0259h\u0259r v\u0259 Ax\u015Fam zikrl\u0259ri \u2014 \u0259r\u0259bc\u0259 m\u0259tn, oxunu\u015F v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si.",
+      canonicalUrl: `${baseUrl}/zikr`,
+      ogImage: defaultOg,
+      ogType: "website",
+      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
+        { name: "Ana s\u0259hif\u0259", path: "/" },
+        { name: "Zikr v\u0259 T\u0259sbih", path: "/zikr" }
+      ]),
+      noscriptHtml: "<h1>S\u0259h\u0259r-Ax\u015Fam Zikrl\u0259ri v\u0259 \u0130nteraktiv T\u0259sbih Say\u011Fac\u0131</h1><p>Namaz t\u0259sbihat\u0131, s\u0259h\u0259r v\u0259 ax\u015Fam zikrl\u0259ri \u2014 \u0259r\u0259bc\u0259 m\u0259tn v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si.</p>"
     };
   }
   if (cleanPath === "/gunun-ayesi") {
@@ -1961,11 +2429,26 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
       canonicalUrl: `${baseUrl}/gunun-ayesi`,
       ogImage: defaultOg,
       ogType: "article",
-      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
-        { name: "Ana s\u0259hif\u0259", path: "/" },
-        { name: "G\xFCn\xFCn Ay\u0259si", path: "/gunun-ayesi" }
-      ]),
-      noscriptHtml: "<h1>G\xFCn\xFCn Ay\u0259si v\u0259 T\u0259f\u0259kk\xFCr</h1>"
+      jsonLd: [
+        {
+          "@context": "https://schema.org",
+          "@type": "Article",
+          headline: "G\xFCn\xFCn Ay\u0259si v\u0259 T\u0259f\u0259kk\xFCr",
+          description: "Se\xE7ilmi\u015F Quran ay\u0259l\u0259ri, \u0259r\u0259bc\u0259 m\u0259tn v\u0259 Az\u0259rbaycan dilind\u0259 m\u0259naca t\u0259rc\xFCm\u0259si il\u0259 g\xFCnd\u0259lik t\u0259f\u0259kk\xFCr.",
+          url: `${baseUrl}/gunun-ayesi`,
+          inLanguage: ["az", "ar"],
+          publisher: {
+            "@type": "Organization",
+            name: "Quran Qiraeti",
+            url: `${baseUrl}/`
+          }
+        },
+        buildBreadcrumbJsonLd(baseUrl, [
+          { name: "Ana s\u0259hif\u0259", path: "/" },
+          { name: "G\xFCn\xFCn Ay\u0259si", path: "/gunun-ayesi" }
+        ])
+      ],
+      noscriptHtml: "<h1>G\xFCn\xFCn Ay\u0259si v\u0259 T\u0259f\u0259kk\xFCr</h1><p>G\xFCnd\u0259lik se\xE7ilmi\u015F Quran ay\u0259l\u0259ri, \u0259r\u0259bc\u0259 m\u0259tn v\u0259 t\u0259rc\xFCm\u0259.</p>"
     };
   }
   if (cleanPath === "/haqqinda") {
@@ -2017,6 +2500,7 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
       };
     }
     const faq = buildSurahFaqEntries(surah);
+    const startJuz = getJuzForPage(surah.startPage);
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -2034,6 +2518,10 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
           name: `${surah.number}. ${surah.name} sur\u0259si`,
           position: surah.number,
           inLanguage: ["ar", "az"],
+          translator: {
+            "@type": "Person",
+            name: "\u018Flixan Musayev"
+          },
           url: `${baseUrl}/quran/sure/${surah.number}`
         },
         buildBreadcrumbJsonLd(baseUrl, [
@@ -2043,7 +2531,59 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
         ]),
         buildFaqPageJsonLd(faq)
       ],
-      noscriptHtml: `<h1>${escapeHtmlText(`${surah.number}. ${surah.name} sur\u0259si (${surah.arabicName})`)}</h1><p>${escapeHtmlText(`${surah.ayahCount} ay\u0259 \xB7 ${surah.revelationPlace} \xB7 M\u0259din\u0259 \xE7ap\u0131 S\u0259hif\u0259 ${surah.startPage} \xB7 \u018Flixan Musayev t\u0259rc\xFCm\u0259si`)}</p>`
+      noscriptHtml: `<h1>${escapeHtmlText(`${surah.number}. ${surah.name} sur\u0259si (${surah.arabicName})`)}</h1><p>${escapeHtmlText(`${surah.ayahCount} ay\u0259 \xB7 ${surah.revelationPlace} \xB7 ${startJuz}-ci C\xFCz \xB7 M\u0259din\u0259 \xE7ap\u0131 S\u0259hif\u0259 ${surah.startPage} \xB7 \u018Flixan Musayev t\u0259rc\xFCm\u0259si`)}</p><nav><a href="/quran/sehife/${surah.startPage}">M\u0259din\u0259 s\u0259hif\u0259si ${surah.startPage}</a> \xB7 <a href="/muhaffiz/${surah.startPage}">M\xFChafizd\u0259 \u0259zb\u0259rl\u0259</a> \xB7 <a href="/quran/cuz/${startJuz}">${startJuz}-ci C\xFCz</a></nav>`
+    };
+  }
+  const cuzMatch = cleanPath.match(/^\/quran\/cuz\/(\d+)$/);
+  if (cuzMatch) {
+    const juzNum = Number.parseInt(cuzMatch[1], 10);
+    const range = JUZ_PAGE_RANGES.find((j) => j.juz === juzNum);
+    if (!range) {
+      return {
+        httpStatus: 404,
+        robots: robotsNoIndex,
+        title: "C\xFCz tap\u0131lmad\u0131 (404) | Quran Qiraeti",
+        description: "Qurani-K\u0259rimd\u0259 c\xFCz n\xF6mr\u0259si 1 il\u0259 30 aras\u0131nda olmal\u0131d\u0131r.",
+        canonicalUrl: `${baseUrl}/quran`,
+        ogImage: defaultOg,
+        ogType: "website",
+        noscriptHtml: "<h1>C\xFCz tap\u0131lmad\u0131</h1>"
+      };
+    }
+    const ordinalJuz = formatAzerbaijaniOrdinal(juzNum);
+    const matchingSurahs = SURAH_CATALOG.filter((s, idx) => {
+      const nextStart = SURAH_CATALOG[idx + 1]?.startPage ?? TOTAL_QURAN_PAGES;
+      const surahEndPage = Math.max(s.startPage, nextStart);
+      return s.startPage <= range.endPage && surahEndPage >= range.startPage;
+    });
+    const surahNamesPreview = matchingSurahs.slice(0, 4).map((s) => s.name).join(", ");
+    const description = `M\u0259din\u0259 Mushaf\u0131n\u0131n ${ordinalJuz} C\xFCz\xFC (S\u0259hif\u0259 ${range.startPage}\u2013${range.endPage}): ${surahNamesPreview} sur\u0259l\u0259ri \u2014 \u0259r\u0259bc\u0259 m\u0259tn v\u0259 \u018Flixan Musayev t\u0259rc\xFCm\u0259si.`;
+    return {
+      httpStatus: 200,
+      robots: robotsIndex,
+      title: `${ordinalJuz} C\xFCz (S\u0259hif\u0259 ${range.startPage}\u2013${range.endPage}) | Quran Qiraeti`,
+      description,
+      canonicalUrl: `${baseUrl}/quran/cuz/${juzNum}`,
+      ogImage: defaultOg,
+      ogType: "website",
+      prevUrl: juzNum > 1 ? `${baseUrl}/quran/cuz/${juzNum - 1}` : void 0,
+      nextUrl: juzNum < 30 ? `${baseUrl}/quran/cuz/${juzNum + 1}` : void 0,
+      jsonLd: [
+        {
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: `${ordinalJuz} C\xFCz \u2014 Qurani-K\u0259rim (S\u0259hif\u0259 ${range.startPage}\u2013${range.endPage})`,
+          description,
+          inLanguage: ["ar", "az"],
+          url: `${baseUrl}/quran/cuz/${juzNum}`
+        },
+        buildBreadcrumbJsonLd(baseUrl, [
+          { name: "Ana s\u0259hif\u0259", path: "/" },
+          { name: "Qurani-K\u0259rim", path: "/quran" },
+          { name: `${ordinalJuz} C\xFCz`, path: `/quran/cuz/${juzNum}` }
+        ])
+      ],
+      noscriptHtml: `<h1>${escapeHtmlText(`${ordinalJuz} C\xFCz (S\u0259hif\u0259 ${range.startPage}\u2013${range.endPage})`)}</h1><p>${escapeHtmlText(description)}</p><nav><a href="/quran/sehife/${range.startPage}">S\u0259hif\u0259 ${range.startPage}-d\u0259n oxu</a> \xB7 <a href="/muhaffiz/${range.startPage}">M\xFChafizd\u0259 \u0259zb\u0259rl\u0259</a></nav><ul>${matchingSurahs.map((s) => `<li><a href="/quran/sure/${s.number}">${escapeHtmlText(`${s.number}. ${s.name} sur\u0259si`)}</a></li>`).join("")}</ul>`
     };
   }
   const mushafMatch = cleanPath.match(/^\/quran\/sehife\/(\d+)$/);
@@ -2107,6 +2647,16 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
     }
     const pageNum = clampMuhaffizPage(rawPage);
     const canonicalPath = muhaffizMatch[1] ? `/muhaffiz/${pageNum}` : "/muhaffiz";
+    const muhaffizFaq = [
+      {
+        question: "M\xFChafiz \u0259zb\u0259r al\u0259ti nec\u0259 i\u015Fl\u0259yir?",
+        answer: "Orijinal 15 s\u0259tirlik M\u0259din\u0259 Mushaf\u0131 s\u0259hif\u0259l\u0259rind\u0259 s\xF6zl\u0259ri v\u0259 ya b\xFCt\xF6v ay\u0259l\u0259ri gizl\u0259dib toxunu\u015Fla a\xE7araq \xF6z\xFCn\xFCz\xFC s\u0131naya bil\u0259rsiniz."
+      },
+      {
+        question: "M\xFChafizd\u0259 ne\xE7\u0259 qari il\u0259 s\u0259sli t\u0259krar m\xFCmk\xFCnd\xFCr?",
+        answer: "H\u0259r s\u0259hif\u0259 v\u0259 ay\u0259 \xFCzr\u0259 se\xE7ilmi\u015F 5 f\u0259rqli qari il\u0259 s\u0259sli oxutma v\u0259 f\u0259rdi ay\u0259 t\u0259krar\u0131 funksiyas\u0131 m\xF6vcuddur."
+      }
+    ];
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -2123,14 +2673,21 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
           "@type": "WebApplication",
           name: "M\xFChafiz \u2014 Quran \u018Fzb\u0259r Mushaf\u0131",
           applicationCategory: "EducationalApplication",
+          operatingSystem: "All",
           inLanguage: ["az", "ar"],
+          offers: {
+            "@type": "Offer",
+            price: "0",
+            priceCurrency: "USD"
+          },
           url: `${baseUrl}${canonicalPath}`
         },
         buildBreadcrumbJsonLd(baseUrl, [
           { name: "Ana s\u0259hif\u0259", path: "/" },
           { name: "M\xFChafiz", path: "/muhaffiz" },
           ...muhaffizMatch[1] ? [{ name: `S\u0259hif\u0259 ${pageNum}`, path: `/muhaffiz/${pageNum}` }] : []
-        ])
+        ]),
+        ...!muhaffizMatch[1] ? [buildFaqPageJsonLd(muhaffizFaq)] : []
       ],
       noscriptHtml: `<h1>M\xFChafiz \u2014 M\u0259din\u0259 Mushaf\u0131 S\u0259hif\u0259 ${pageNum}</h1><p>S\xF6zb\u0259-s\xF6z v\u0259 ay\u0259-ay\u0259 Quran \u0259zb\u0259rl\u0259m\u0259 al\u0259ti.</p>`
     };
@@ -2213,10 +2770,11 @@ function injectRouteSeoIntoHtml(html, meta) {
   ).replace(
     /<meta\s+name="twitter:image"\s+content="[^"]*"\s*\/?>/i,
     `<meta name="twitter:image" content="${safeOgImage}" />`
-  );
+  ).replace(/<meta\s+property="og:(?:url|image:alt)"\s+content="[^"]*"\s*\/?>\s*/gi, "").replace(/<meta\s+name="twitter:(?:title|description)"\s+content="[^"]*"\s*\/?>\s*/gi, "").replace(/<link\s+rel="(?:canonical|prev|next)"\s+href="[^"]*"\s*\/?>\s*/gi, "").replace(/<link\s+rel="alternate"\s+hreflang="(?:az|x-default)"\s+href="[^"]*"\s*\/?>\s*/gi, "").replace(/<script\s+id="quran-qiraeti-ssr-jsonld"\s+type="application\/ld\+json">[\s\S]*?<\/script>\s*/gi, "");
   const extraHeadTags = [
     `<link rel="canonical" href="${safeCanonical}" />`,
     `<meta property="og:url" content="${safeCanonical}" />`,
+    `<meta property="og:image:alt" content="${escapeHtmlAttr(meta.title)}" />`,
     `<meta name="twitter:title" content="${escapeHtmlAttr(meta.title)}" />`,
     `<meta name="twitter:description" content="${safeDesc}" />`,
     `<link rel="alternate" hreflang="az" href="${safeCanonical}" />`,
@@ -2265,22 +2823,27 @@ function buildLlmsTxt(origin, stats, longVideos, shorts) {
     `- [Uzun Videolar (Ana s\u0259hif\u0259)](${baseUrl}/): Tam sur\u0259 v\u0259 uzun Quran tilav\u0259tl\u0259ri arxivi.`,
     `- [Shorts B\xF6lm\u0259si](${baseUrl}/shorts): Kanaldak\u0131 b\xFCt\xFCn q\u0131sa Quran tilav\u0259tl\u0259ri (${shorts.length} video) v\u0259 SEO m\u0259lumatlar\u0131.`,
     `- [Tam Qurani-K\u0259rim](${baseUrl}/quran): B\xFCt\xFCn 114 sur\u0259 v\u0259 604 Mushaf s\u0259hif\u0259si \xFCzr\u0259 \u0259r\u0259bc\u0259 m\u0259tn v\u0259 \u018Flixan Musayev t\u0259rc\xFCm\u0259si.`,
+    `- [Qurandak\u0131 Dualar](${baseUrl}/dualar): Qurandan se\xE7ilmi\u015F ${QURAN_DUAS.length} R\u0259bb\u0259n\u0259 v\u0259 pey\u011F\u0259mb\u0259r duas\u0131 \u2014 s\u0259sli tilav\u0259t v\u0259 t\u0259rc\xFCm\u0259.`,
+    `- [Zikrl\u0259r v\u0259 T\u0259sbih](${baseUrl}/zikr): S\u0259h\u0259r-ax\u015Fam zikrl\u0259ri, namaz t\u0259sbihat\u0131 v\u0259 g\xFCnd\u0259lik zikr say\u011Fac\u0131.`,
+    `- [Namaz Vaxtlar\u0131](${baseUrl}/namaz-vaxtlari): Bak\u0131, G\u0259nc\u0259, Sumqay\u0131t, Nax\xE7\u0131van, \u015E\u0259ki, \u015Eu\u015Fa v\u0259 dig\u0259r Az\u0259rbaycan \u015F\u0259h\u0259rl\u0259ri \xFCzr\u0259 namaz vaxtlar\u0131.`,
     `- [M\xFChafiz \u2014 \u018Fzb\u0259r Mushaf\u0131](${baseUrl}/muhaffiz): 604 Mushaf s\u0259hif\u0259sind\u0259 ay\u0259l\u0259ri s\xF6zb\u0259-s\xF6z v\u0259 ay\u0259-ay\u0259 gizl\u0259dib-a\xE7araq hifz v\u0259 t\u0259krar al\u0259ti.`,
     `- [G\xFCn\xFCn Ay\u0259si](${baseUrl}/gunun-ayesi): Se\xE7ilmi\u015F ay\u0259l\u0259r, \u0259r\u0259bc\u0259 m\u0259tn v\u0259 t\u0259f\u0259kk\xFCr izah\u0131.`,
     `- [Kanal Haqq\u0131nda](${baseUrl}/haqqinda): Kanal\u0131n m\u0259qs\u0259di, qaril\u0259r v\u0259 t\u0259rc\xFCm\u0259 prinsipl\u0259ri.`,
     `- [Sur\u0259 \u0130st\u0259yi](${baseUrl}/istek): Dinl\u0259yicil\u0259r \xFC\xE7\xFCn sur\u0259 v\u0259 qari t\u0259klifi formu.`,
     "",
     "## Machine-Readable Endpoints for AI & Search Crawlers",
-    `- [XML Sitemap](${baseUrl}/sitemap.xml): Complete URL index (core routes, 114 surahs, 604 Mushaf pages, all channel videos).`,
+    `- [XML Sitemap](${baseUrl}/sitemap.xml): Complete URL index (core routes, 30 Juz, 114 surahs, 604 Mushaf pages, all channel videos).`,
     `- [XML Sitemap Index](${baseUrl}/sitemap-index.xml): Split sitemaps (core, surahs, mushaf, muhaffiz 1..604, Google video sitemap).`,
     `- [Google Video Sitemap](${baseUrl}/sitemap-videos.xml): Structured Video Sitemap with duration and thumbnails.`,
+    `- [RSS 2.0 Feed](${baseUrl}/rss.xml): Syndicated XML feed of Quran Qiraeti long recitations and Shorts.`,
     `- [Full LLM Reference](${baseUrl}/llms-full.txt): Expanded catalog of all 114 surahs, 30 Juz page ranges, and channel videos.`,
     `- [AI Structured JSON Index](${baseUrl}/ai-index.json): Structured JSON feed of channel stats, surahs, and video metadata.`,
     `- [Channel Feed JSON](${baseUrl}/api/channel): Live long videos and Shorts metadata JSON.`,
     `- [Surah Translation JSON Pattern](${baseUrl}/api/quran/surah/{1..114}): Arabic text, \u018Flixan Musayev Azerbaijani translation (v1.0.4), and footnotes per surah.`,
     `- [Mushaf Page JSON Pattern](${baseUrl}/api/quran/page/{1..604}): Exact ayahs per Mushaf page with Arabic Uthmani text and \u018Flixan Musayev translation.`,
     "",
-    "## Complete Quran Index (114 Surahs & 604 Pages)",
+    "## Complete Quran Index (114 Surahs, 30 Juz & 604 Pages)",
+    `- Individual Juz Pages: ${baseUrl}/quran/cuz/{1..30}`,
     `- Individual Surah Pages: ${baseUrl}/quran/sure/{1..114}`,
     `- Individual Mushaf Pages: ${baseUrl}/quran/sehife/{1..604}`,
     `- Individual Muhaffiz Memorization Pages: ${baseUrl}/muhaffiz/{1..604}`,
@@ -2317,7 +2880,12 @@ function buildLlmsFullTxt(origin, stats, longVideos, shorts) {
     "",
     "## 30 Juz & 604 Mushaf Page Ranges",
     ...JUZ_PAGE_RANGES.map(
-      (j) => `- C\xFCz ${j.juz}: ${baseUrl}/quran/sehife/${j.startPage} \u2014 S\u0259hif\u0259 ${j.startPage}\u2013${j.endPage}`
+      (j) => `- C\xFCz ${j.juz}: ${baseUrl}/quran/cuz/${j.juz} | Start Page: ${baseUrl}/quran/sehife/${j.startPage} \u2014 S\u0259hif\u0259 ${j.startPage}\u2013${j.endPage}`
+    ),
+    "",
+    `## Qurandak\u0131 Dualar (${QURAN_DUAS.length})`,
+    ...QURAN_DUAS.map(
+      (d) => `- ${d.title} (${d.surahName} ${d.ayahLabel}) | URL: ${baseUrl}/quran/sure/${d.surahNumber}#ayah-${d.ayahNumber} | ${d.translation}`
     ),
     "",
     "## All 114 Surahs",
@@ -2367,6 +2935,7 @@ function buildAiIndexJson(origin, stats, longVideos, shorts) {
       sitemapXml: `${baseUrl}/sitemap.xml`,
       sitemapIndexXml: `${baseUrl}/sitemap-index.xml`,
       videoSitemapXml: `${baseUrl}/sitemap-videos.xml`,
+      rssXml: `${baseUrl}/rss.xml`,
       robotsTxt: `${baseUrl}/robots.txt`,
       llmsTxt: `${baseUrl}/llms.txt`,
       llmsFullTxt: `${baseUrl}/llms-full.txt`
@@ -2376,6 +2945,22 @@ function buildAiIndexJson(origin, stats, longVideos, shorts) {
       surahTemplate: `${baseUrl}/api/quran/surah/{surahNumber}`,
       mushafPageTemplate: `${baseUrl}/api/quran/page/{pageNumber}`
     },
+    juzIndex: JUZ_PAGE_RANGES.map((j) => ({
+      ...j,
+      url: `${baseUrl}/quran/cuz/${j.juz}`,
+      startPageUrl: `${baseUrl}/quran/sehife/${j.startPage}`,
+      muhaffizUrl: `${baseUrl}/muhaffiz/${j.startPage}`
+    })),
+    duas: QURAN_DUAS.map((d) => ({
+      id: d.id,
+      title: d.title,
+      category: d.category,
+      surahNumber: d.surahNumber,
+      surahName: d.surahName,
+      ayahNumber: d.ayahNumber,
+      url: `${baseUrl}/quran/sure/${d.surahNumber}#ayah-${d.ayahNumber}`,
+      duasPageUrl: `${baseUrl}/dualar`
+    })),
     popularTopics: POPULAR_QURAN_TOPICS.map((t) => ({
       ...t,
       url: `${baseUrl}/quran/sehife/${t.pageNumber}`,
@@ -3668,6 +4253,7 @@ function createSeoRouter() {
         `${origin}/`,
         `${origin}/shorts`,
         `${origin}/quran`,
+        `${origin}/dualar`,
         `${origin}/muhaffiz`,
         ...longVideos.slice(0, 10).map((v) => `${origin}/video/${v.videoId}`),
         ...shorts.slice(0, 10).map((v) => `${origin}/video/${v.videoId}`)
@@ -3677,6 +4263,13 @@ function createSeoRouter() {
     } catch {
       res.status(502).json({ configured: true, submitted: false });
     }
+  });
+  router.get(["/rss.xml", "/feed.xml"], async (req, res) => {
+    const origin = getRequestOrigin(req);
+    const { stats, longVideos, shorts } = await getChannelDataForSeo();
+    res.setHeader("Content-Type", "application/rss+xml; charset=utf-8");
+    res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate=86400");
+    res.send(buildRssFeedXml(origin, stats, [...longVideos, ...shorts]));
   });
   router.get("/:keyFile.txt", (req, res, next) => {
     const key = String(process.env.INDEXNOW_KEY ?? "").trim();

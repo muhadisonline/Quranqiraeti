@@ -279,6 +279,9 @@ export function buildCoreSitemapXml(
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.9' },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
     { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.85' },
+    { loc: `${baseUrl}/zikr`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.85' },
+    { loc: `${baseUrl}/namaz-vaxtlari`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.9' },
+    { loc: `${baseUrl}/teqvim`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.85' },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.8' },
     { loc: `${baseUrl}/haqqinda`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.7' },
@@ -402,6 +405,9 @@ export function buildSitemapXml(
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.9' },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
     { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.85' },
+    { loc: `${baseUrl}/zikr`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.85' },
+    { loc: `${baseUrl}/namaz-vaxtlari`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.9' },
+    { loc: `${baseUrl}/teqvim`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.85' },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.8' },
     { loc: `${baseUrl}/haqqinda`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.7' },
@@ -820,6 +826,55 @@ export function resolveRouteSeoMetadata(
         (d) =>
           `<li><a href="/quran/sure/${d.surahNumber}#ayah-${d.ayahNumber}">${escapeHtmlText(d.title)} (${escapeHtmlText(d.surahName)} ${escapeHtmlText(d.ayahLabel)})</a>: ${escapeHtmlText(d.translation)}</li>`
       ).join('')}</ul>`,
+    };
+  }
+
+  if (cleanPath === '/namaz-vaxtlari' || cleanPath === '/qible' || cleanPath === '/teqvim') {
+    const isCalendar = cleanPath === '/teqvim';
+    const isQibla = cleanPath === '/qible';
+    return {
+      httpStatus: 200,
+      robots: robotsIndex,
+      title: isCalendar
+        ? 'Hicri–Miladi Təqvim Çeviricisi və Mübarək Günlər | Quran Qiraeti'
+        : isQibla
+          ? 'Canlı Qiblə Kompası və Namaz Vaxtları | Quran Qiraeti'
+          : 'Namaz Vaxtları — Ümmül-Qura, Ölkələr və Xəritə | Quran Qiraeti',
+      description: isCalendar
+        ? 'Ümmül-Qura təqvimi üzrə Hicri və Miladi tarix çeviricisi, Ramazan başlanğıcı, Qədr gecəsi, Ramazan və Qurban bayramlarına qalan günlərin canlı sayğacı.'
+        : 'Ümmül-Qura (Məkkə) üsulu ilə Azərbaycan və dünya şəhərləri üzrə gündəlik və həftəlik namaz vaxtları, xəritə üzərindən avtomatik məkan seçimi, Qiblə bucağı və canlı gerisayım.',
+      canonicalUrl: `${baseUrl}${cleanPath}`,
+      ogImage: defaultOg,
+      ogType: 'website',
+      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
+        { name: 'Ana səhifə', path: '/' },
+        {
+          name: isCalendar ? 'Hicri–Miladi Təqvim' : isQibla ? 'Qiblə Kompası' : 'Namaz Vaxtları',
+          path: cleanPath,
+        },
+      ]),
+      noscriptHtml: isCalendar
+        ? '<h1>Hicri–Miladi Təqvim Çeviricisi və Mübarək Günlər</h1><p>Ümmül-Qura təqvimi əsasında Hicri və Miladi tarixlərin çevrilməsi və qarşıdakı bayramların sayğacı.</p>'
+        : '<h1>Namaz Vaxtları — Ümmül-Qura və Xəritə Seçimi</h1><p>Azərbaycan və dünya şəhərləri üzrə gündəlik Sübh, Günəş, Zöhr, Əsr, Məğrib və İşa vaxtları.</p>',
+    };
+  }
+
+  if (cleanPath === '/zikr') {
+    return {
+      httpStatus: 200,
+      robots: robotsIndex,
+      title: 'Səhər-Axşam Zikrləri və Təsbih Sayğacı | Quran Qiraeti',
+      description:
+        'Onlayn təsbih sayğacı (33 / 99 / 100 və Namaz sonrası 33+33+34 rejimi), Səhər və Axşam zikrləri — ərəbcə mətn, oxunuş və Azərbaycan tərcüməsi.',
+      canonicalUrl: `${baseUrl}/zikr`,
+      ogImage: defaultOg,
+      ogType: 'website',
+      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
+        { name: 'Ana səhifə', path: '/' },
+        { name: 'Zikr və Təsbih', path: '/zikr' },
+      ]),
+      noscriptHtml:
+        '<h1>Səhər-Axşam Zikrləri və İnteraktiv Təsbih Sayğacı</h1><p>Namaz təsbihatı, səhər və axşam zikrləri — ərəbcə mətn və Azərbaycan tərcüməsi.</p>',
     };
   }
 
@@ -1286,6 +1341,8 @@ export function buildLlmsTxt(
     `- [Shorts Bölməsi](${baseUrl}/shorts): Kanaldakı bütün qısa Quran tilavətləri (${shorts.length} video) və SEO məlumatları.`,
     `- [Tam Qurani-Kərim](${baseUrl}/quran): Bütün 114 surə və 604 Mushaf səhifəsi üzrə ərəbcə mətn və Əlixan Musayev tərcüməsi.`,
     `- [Qurandakı Dualar](${baseUrl}/dualar): Qurandan seçilmiş ${QURAN_DUAS.length} Rəbbənə və peyğəmbər duası — səsli tilavət və tərcümə.`,
+    `- [Zikrlər və Təsbih](${baseUrl}/zikr): Səhər-axşam zikrləri, namaz təsbihatı və gündəlik zikr sayğacı.`,
+    `- [Namaz Vaxtları](${baseUrl}/namaz-vaxtlari): Bakı, Gəncə, Sumqayıt, Naxçıvan, Şəki, Şuşa və digər Azərbaycan şəhərləri üzrə namaz vaxtları.`,
     `- [Mühafiz — Əzbər Mushafı](${baseUrl}/muhaffiz): 604 Mushaf səhifəsində ayələri sözbə-söz və ayə-ayə gizlədib-açaraq hifz və təkrar aləti.`,
     `- [Günün Ayəsi](${baseUrl}/gunun-ayesi): Seçilmiş ayələr, ərəbcə mətn və təfəkkür izahı.`,
     `- [Kanal Haqqında](${baseUrl}/haqqinda): Kanalın məqsədi, qarilər və tərcümə prinsipləri.`,

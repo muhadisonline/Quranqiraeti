@@ -1,4 +1,5 @@
 import {
+  AudioLines,
   BookOpen,
   Check,
   ChevronLeft,
@@ -23,12 +24,15 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SeoHead } from '../components/SeoHead';
 import { MuhaffizIndexOverlay } from '../components/muhaffiz/MuhaffizIndexOverlay';
+import { MuhaffizSelfRecordPanel } from '../components/muhaffiz/MuhaffizSelfRecordPanel';
 import { MuhaffizSettingsSheet } from '../components/muhaffiz/MuhaffizSettingsSheet';
 import { useAudioPlaybackPrefs, useReadingGoal } from '../hooks/useReaderPreferences';
 import {
   EMPTY_HIFZ_PROGRESS,
   HifzProgressState,
+  getHifzPageRepetitions,
   getHifzPageStatus,
+  incrementHifzRepetition,
   sanitizeHifzProgress,
   setHifzPageStatus,
   summarizeHifzProgress,
@@ -49,6 +53,7 @@ import {
   ayahKey,
   clampMuhaffizPage,
   getEveryAyahAudioUrl,
+  getNextPlaybackAyahStep,
   getQcfV2FontUrl,
   getSurahBannerGlyphs,
   groupPageAyahsBySurah,
@@ -199,6 +204,7 @@ export function MuhaffizPage({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [indexOpen, setIndexOpen] = useState(false);
   const [mistakesOpen, setMistakesOpen] = useState(false);
+  const [selfRecordOpen, setSelfRecordOpen] = useState(false);
 
   // Qari Audio playback state
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -211,6 +217,11 @@ export function MuhaffizPage({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [isMicListening, setIsMicListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState<string>('');
+
+  // Hifz Ayah-Range Loop (per page)
+  const [rangeStartIdx, setRangeStartIdx] = useState<number>(0);
+  const [rangeEndIdx, setRangeEndIdx] = useState<number>(6);
+  const [loopRangeActive, setLoopRangeActive] = useState<boolean>(false);
 
   const { playbackSpeed, setPlaybackSpeed, repeatCount, setRepeatCount } = useAudioPlaybackPrefs();
   const { recordPageRead } = useReadingGoal();
@@ -383,10 +394,15 @@ export function MuhaffizPage({
     if (isPageChange) {
       setLastRevealedTokenId(null);
       setRevealedTokenIds(new Set());
+      setLoopRangeActive(false);
+      setRangeStartIdx(0);
     }
 
     if (pageNumber === 1) {
       setPageData(FATIHAT_PAGE_1_MUHAFFIZ_SEED);
+      if (isPageChange) {
+        setRangeEndIdx(Math.max(0, FATIHAT_PAGE_1_MUHAFFIZ_SEED.ayahs.length - 1));
+      }
       setIsLoading(false);
     } else {
       setIsLoading(true);
@@ -395,6 +411,9 @@ export function MuhaffizPage({
     fetchMuhaffizPageWithFallback(pageNumber, controller.signal)
       .then((payload) => {
         setPageData(payload);
+        if (isPageChange || pageNumber !== 1) {
+          setRangeEndIdx(Math.max(0, payload.ayahs.length - 1));
+        }
         const tokens = orderedWordTokens(payload.rows);
         setRevealedTokenIds((prev) => {
           if (!prefs.silentMode) return new Set(tokens.map((t) => t.id));
@@ -453,7 +472,9 @@ export function MuhaffizPage({
   const hifzSummary = useMemo(() => summarizeHifzProgress(hifzProgress), [hifzProgress]);
   const juzHifzSummary = useMemo(() => summarizeJuzHifzProgress(hifzProgress), [hifzProgress]);
   const currentPageHifzStatus = getHifzPageStatus(hifzProgress, pageNumber);
+  const currentPageRepetitions = getHifzPageRepetitions(hifzProgress, pageNumber);
   const isCurrentPageBookmarked = hifzProgress.bookmarkedPage === pageNumber;
+  const pageAyahKeys = useMemo(() => ayahs.map((a) => ayahKey(a)), [ayahs]);
 
   const handleRevealNext = useCallback(() => {
     setRevealedTokenIds((prev) => {
@@ -535,14 +556,19 @@ export function MuhaffizPage({
 
       audio.onended = () => {
         if (audioRef.current !== audio) return;
-        if (repeatsLeft === 0) {
-          playAyahAtIndex(index, 0);
-        } else if (repeatsLeft > 1) {
-          playAyahAtIndex(index, repeatsLeft - 1);
-        } else if (index + 1 < ayahs.length) {
-          playAyahAtIndex(index + 1, repeatCount);
-        } else {
+        const step = getNextPlaybackAyahStep({
+          currentIndex: index,
+          remainingRepeats: repeatsLeft,
+          totalAyahs: ayahs.length,
+          repeatCount,
+          rangeStartIndex: loopRangeActive ? rangeStartIdx : 0,
+          rangeEndIndex: loopRangeActive ? rangeEndIdx : Math.max(0, ayahs.length - 1),
+          loopRange: loopRangeActive,
+        });
+        if (step.action === 'stop') {
           stopAudio();
+        } else {
+          playAyahAtIndex(step.nextIndex, step.nextRemainingRepeats);
         }
       };
 
@@ -558,7 +584,18 @@ export function MuhaffizPage({
         setStatusMessage('Səs oxutma brauzer tərəfindən dayandırıldı.');
       });
     },
-    [ayahs, wordTokens, prefs.reciter, playbackSpeed, repeatCount, stopAudio, stopMic]
+    [
+      ayahs,
+      wordTokens,
+      prefs.reciter,
+      playbackSpeed,
+      repeatCount,
+      loopRangeActive,
+      rangeStartIdx,
+      rangeEndIdx,
+      stopAudio,
+      stopMic,
+    ]
   );
 
   function handleToggleListen() {
@@ -567,6 +604,10 @@ export function MuhaffizPage({
       return;
     }
     if (ayahs.length === 0) return;
+    if (loopRangeActive) {
+      playAyahAtIndex(Math.max(0, Math.min(ayahs.length - 1, rangeStartIdx)));
+      return;
+    }
     const firstUnrevealedIdx = ayahs.findIndex(
       (a) => !isAyahRevealed(ayahKey(a), wordTokens, revealedTokenIds)
     );
@@ -672,6 +713,7 @@ export function MuhaffizPage({
     setIndexOpen(false);
     setSettingsOpen(false);
     setMistakesOpen(false);
+    setSelfRecordOpen(false);
     if (typeof window !== 'undefined') {
       const nextPath = clean === 1 ? '/muhaffiz' : `/muhaffiz/${clean}`;
       if (window.location.pathname !== nextPath) {
@@ -800,14 +842,22 @@ export function MuhaffizPage({
         ? 'Səssiz təkrar'
         : 'Oxu';
 
+  const activeLoopSummary =
+    loopRangeActive && pageAyahKeys.length > 0
+      ? `Döngü: ${pageAyahKeys[rangeStartIdx] ?? ''}–${pageAyahKeys[rangeEndIdx] ?? ''}`
+      : null;
+
   const statusSubLabel = isMicListening
     ? liveTranscript || 'Ərəbcə ayələri oxuyun...'
     : playingKey
-      ? MUHAFFIZ_RECITERS.find((r) => r.id === prefs.reciter)?.label ?? 'Qari'
+      ? `${MUHAFFIZ_RECITERS.find((r) => r.id === prefs.reciter)?.label ?? 'Qari'}${activeLoopSummary ? ` · ${activeLoopSummary}` : ''}`
       : statusMessage ||
+        activeLoopSummary ||
         (prefs.silentMode
-          ? `${revealedWordCount}/${wordTokens.length} söz açılıb`
-          : null);
+          ? `${revealedWordCount}/${wordTokens.length} söz açılıb${currentPageRepetitions > 0 ? ` · ${currentPageRepetitions}× təkrar` : ''}`
+          : currentPageRepetitions > 0
+            ? `${currentPageRepetitions}× təkrar`
+            : null);
 
   return (
     <section
@@ -1230,6 +1280,17 @@ export function MuhaffizPage({
               </button>
               <button
                 type="button"
+                data-testid="muhaffiz-rep-inc-btn"
+                onClick={() =>
+                  setHifzProgress((prev) => incrementHifzRepetition(prev, pageNumber))
+                }
+                style={{ backgroundColor: palette.chip, color: palette.ink, borderColor: palette.line }}
+                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-mono-tabular text-[11px] font-semibold hover:opacity-80"
+              >
+                <span>Təkrar +1{currentPageRepetitions > 0 ? ` (${currentPageRepetitions}×)` : ''}</span>
+              </button>
+              <button
+                type="button"
                 data-testid="muhaffiz-reset-reveal-btn"
                 onClick={handleResetPageReveal}
                 style={{ backgroundColor: palette.chip, color: palette.muted, borderColor: palette.line }}
@@ -1342,6 +1403,30 @@ export function MuhaffizPage({
                     <Volume2 className="h-3 w-3" aria-hidden="true" />
                   )}
                   <span>{playingKey ? 'Dayandır' : 'Qari'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMistakesOpen(false);
+                    setSelfRecordOpen((v) => !v);
+                  }}
+                  aria-pressed={selfRecordOpen}
+                  aria-label="Öz səsini yaz və Qari ilə müqayisə et"
+                  title="Səsini yaz · Qari ilə müqayisə"
+                  data-testid="muhaffiz-self-record-toggle"
+                  style={
+                    selfRecordOpen
+                      ? {
+                          backgroundColor: palette.green,
+                          color: palette.paper,
+                          borderColor: palette.green,
+                        }
+                      : { borderColor: palette.line, color: palette.muted }
+                  }
+                  className="inline-flex h-8 w-8 items-center justify-center gap-1 rounded-full border text-[11px] font-medium whitespace-nowrap hover:opacity-80 sm:h-6 sm:w-auto sm:px-2"
+                >
+                  <AudioLines className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden="true" />
+                  <span className="hidden sm:inline">Səs yaz</span>
                 </button>
               </div>
               {statusSubLabel && (
@@ -1613,6 +1698,16 @@ export function MuhaffizPage({
         </div>
       )}
 
+      {/* Self-Voice Recording & Qari Comparison Panel */}
+      <MuhaffizSelfRecordPanel
+        isOpen={selfRecordOpen}
+        pageNumber={pageNumber}
+        ayahs={ayahs}
+        palette={palette}
+        onListenAyahIndex={(idx) => playAyahAtIndex(idx)}
+        onClose={() => setSelfRecordOpen(false)}
+      />
+
       {/* Ayarlar Bottom Sheet */}
       <MuhaffizSettingsSheet
         isOpen={settingsOpen}
@@ -1627,6 +1722,11 @@ export function MuhaffizPage({
         repeatCount={repeatCount}
         isPlayingAudio={Boolean(playingKey)}
         allRevealed={allRevealed}
+        pageAyahKeys={pageAyahKeys}
+        rangeStartIdx={rangeStartIdx}
+        rangeEndIdx={rangeEndIdx}
+        loopRangeActive={loopRangeActive}
+        pageRepetitions={currentPageRepetitions}
         onClose={() => setSettingsOpen(false)}
         onUpdatePrefs={(updater) => setPrefs((prev) => updater(prev))}
         onToggleRevealAll={() => {
@@ -1641,6 +1741,15 @@ export function MuhaffizPage({
         onToggleAudio={handleToggleListen}
         onSetPlaybackSpeed={setPlaybackSpeed}
         onSetRepeatCount={setRepeatCount}
+        onChangeRangeStart={(idx) => {
+          setRangeStartIdx(idx);
+          if (rangeEndIdx < idx) setRangeEndIdx(idx);
+        }}
+        onChangeRangeEnd={(idx) => setRangeEndIdx(Math.max(rangeStartIdx, idx))}
+        onToggleLoopRange={() => setLoopRangeActive((v) => !v)}
+        onIncrementRepetition={() =>
+          setHifzProgress((prev) => incrementHifzRepetition(prev, pageNumber))
+        }
         onSetPageStatus={(status) =>
           setHifzProgress((prev) => setHifzPageStatus(prev, pageNumber, status))
         }

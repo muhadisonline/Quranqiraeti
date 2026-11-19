@@ -246,4 +246,61 @@ test('toggleMissedWordRecord toggles word presence cleanly and enforces max capa
   assert.equal(list[0].tokenId, '1:1-1');
 });
 
+test('getNextPlaybackAyahStep supports single repeat, range advance, infinite range loop, and stop', async () => {
+  const { getNextPlaybackAyahStep } = await import('./muhaffiz');
+
+  assert.deepEqual(
+    getNextPlaybackAyahStep({
+      currentIndex: 2,
+      remainingRepeats: 3,
+      totalAyahs: 7,
+      repeatCount: 3,
+      rangeStartIndex: 1,
+      rangeEndIndex: 4,
+      loopRange: true,
+    }),
+    { action: 'repeat', nextIndex: 2, nextRemainingRepeats: 2 }
+  );
+
+  assert.deepEqual(
+    getNextPlaybackAyahStep({
+      currentIndex: 2,
+      remainingRepeats: 1,
+      totalAyahs: 7,
+      repeatCount: 3,
+      rangeStartIndex: 1,
+      rangeEndIndex: 4,
+      loopRange: true,
+    }),
+    { action: 'advance', nextIndex: 3, nextRemainingRepeats: 3 }
+  );
+
+  assert.deepEqual(
+    getNextPlaybackAyahStep({
+      currentIndex: 4,
+      remainingRepeats: 1,
+      totalAyahs: 7,
+      repeatCount: 1,
+      rangeStartIndex: 1,
+      rangeEndIndex: 4,
+      loopRange: true,
+    }),
+    { action: 'loop-start', nextIndex: 1, nextRemainingRepeats: 1 }
+  );
+
+  assert.deepEqual(
+    getNextPlaybackAyahStep({
+      currentIndex: 4,
+      remainingRepeats: 1,
+      totalAyahs: 7,
+      repeatCount: 1,
+      rangeStartIndex: 1,
+      rangeEndIndex: 4,
+      loopRange: false,
+    }),
+    { action: 'stop', nextIndex: -1, nextRemainingRepeats: 0 }
+  );
+});
+
+
 

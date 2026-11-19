@@ -215,7 +215,7 @@ export function MuhaffizIndexOverlay({
             borderBottom: activeTab === 'surahs' ? `2px solid ${palette.green}` : '2px solid transparent',
             color: activeTab === 'surahs' ? palette.ink : palette.muted,
           }}
-          className="py-2.5 text-center transition-colors"
+          className="py-2.5 text-center"
         >
           SURƏLƏR
         </button>
@@ -226,7 +226,7 @@ export function MuhaffizIndexOverlay({
             borderBottom: activeTab === 'juz' ? `2px solid ${palette.green}` : '2px solid transparent',
             color: activeTab === 'juz' ? palette.ink : palette.muted,
           }}
-          className="py-2.5 text-center transition-colors"
+          className="py-2.5 text-center"
         >
           CÜZLƏR
         </button>
@@ -238,7 +238,7 @@ export function MuhaffizIndexOverlay({
             borderBottom: activeTab === 'review' ? `2px solid ${palette.green}` : '2px solid transparent',
             color: activeTab === 'review' ? palette.ink : palette.muted,
           }}
-          className="py-2.5 text-center transition-colors"
+          className="py-2.5 text-center"
         >
           TƏKRAR{reviewQueue.length > 0 ? ` (${reviewQueue.length})` : ''}
         </button>
@@ -449,6 +449,17 @@ export function MuhaffizIndexOverlay({
                                 className="h-3.5 w-3.5 fill-current"
                                 style={{ color: palette.gold }}
                               />
+                            )}
+                            {entry.repetitions > 0 && (
+                              <span
+                                style={{
+                                  backgroundColor: palette.chip,
+                                  color: palette.muted,
+                                }}
+                                className="rounded-full px-2 py-0.5 font-mono-tabular text-[11px] font-semibold"
+                              >
+                                ×{entry.repetitions} təkrar
+                              </span>
                             )}
                           </div>
                           <p className="text-xs" style={{ color: palette.muted }}>

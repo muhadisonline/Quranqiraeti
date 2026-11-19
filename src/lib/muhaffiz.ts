@@ -1033,3 +1033,41 @@ export function matchSpokenArabicAgainstTokens(
   };
 }
 
+export interface PlaybackAyahStepInput {
+  currentIndex: number;
+  remainingRepeats: number;
+  totalAyahs: number;
+  repeatCount: number;
+  rangeStartIndex?: number;
+  rangeEndIndex?: number;
+  loopRange?: boolean;
+}
+
+export function getNextPlaybackAyahStep(input: PlaybackAyahStepInput): {
+  action: 'repeat' | 'advance' | 'loop-start' | 'stop';
+  nextIndex: number;
+  nextRemainingRepeats: number;
+} {
+  const { currentIndex, remainingRepeats, totalAyahs, repeatCount, loopRange = false } = input;
+  if (totalAyahs <= 0) {
+    return { action: 'stop', nextIndex: -1, nextRemainingRepeats: 0 };
+  }
+  const rawStart = Math.max(0, Math.min(totalAyahs - 1, input.rangeStartIndex ?? 0));
+  const rawEnd = Math.max(rawStart, Math.min(totalAyahs - 1, input.rangeEndIndex ?? totalAyahs - 1));
+
+  if (remainingRepeats === 0) {
+    return { action: 'repeat', nextIndex: currentIndex, nextRemainingRepeats: 0 };
+  }
+  if (remainingRepeats > 1) {
+    return { action: 'repeat', nextIndex: currentIndex, nextRemainingRepeats: remainingRepeats - 1 };
+  }
+  if (currentIndex + 1 <= rawEnd) {
+    return { action: 'advance', nextIndex: currentIndex + 1, nextRemainingRepeats: repeatCount };
+  }
+  if (loopRange) {
+    return { action: 'loop-start', nextIndex: rawStart, nextRemainingRepeats: repeatCount };
+  }
+  return { action: 'stop', nextIndex: -1, nextRemainingRepeats: 0 };
+}
+
+

@@ -5,22 +5,36 @@ import {
   Bookmark,
   Check,
   Copy,
+  Crosshair,
   ImageDown,
+  Moon,
   Play,
   Search,
   Square,
+  Sun,
+  Timer,
   Volume2,
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReaderAudioBar } from '../components/ReaderAudioBar';
 import { SeoHead } from '../components/SeoHead';
+import { TajweedArabicText, TajweedLegendBar } from '../components/TajweedArabicText';
 import {
   useAudioPlaybackPrefs,
+  useAudioSleepTimer,
+  useAutoFocusAyah,
   useReaderDisplayMode,
+  useReaderTajweed,
   useReaderTextScale,
+  useReaderTransliteration,
   useSavedAyahs,
 } from '../hooks/useReaderPreferences';
+import {
+  formatSleepTimerPresetLabel,
+  formatSleepTimerRemaining,
+} from '../lib/sleepTimer';
+import { transliterateArabicToAz } from '../lib/transliteration';
 import {
   RecitationVideo,
   SurahTranslationPayload,
@@ -60,16 +74,20 @@ interface QuranSurahPageProps {
   surahNumber: number;
   channelVideos: RecitationVideo[];
   activeHash?: string;
+  isDark: boolean;
   onNavigate: (path: string) => void;
   onPlayVideo: (video: RecitationVideo) => void;
+  onToggleTheme: () => void;
 }
 
 export function QuranSurahPage({
   surahNumber,
   channelVideos,
   activeHash,
+  isDark,
   onNavigate,
   onPlayVideo,
+  onToggleTheme,
 }: QuranSurahPageProps) {
   const surah = getSurahByNumber(surahNumber);
   const prevSurah = surahNumber > 1 ? getSurahByNumber(surahNumber - 1) : undefined;
@@ -103,7 +121,10 @@ export function QuranSurahPage({
   const { isSaved, toggleAyahBookmark } = useSavedAyahs();
   const { textScale, setTextScale } = useReaderTextScale();
   const { displayMode, setDisplayMode } = useReaderDisplayMode();
+  const { showTranslit, setShowTranslit } = useReaderTransliteration();
+  const { showTajweed, setShowTajweed } = useReaderTajweed();
   const { playbackSpeed, setPlaybackSpeed, repeatCount, setRepeatCount } = useAudioPlaybackPrefs();
+  const { autoFocus, setAutoFocus } = useAutoFocusAyah();
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -114,6 +135,12 @@ export function QuranSurahPage({
     }
     setPlayingKey(null);
   }, []);
+
+  const {
+    sleepMinutes,
+    remainingSec: sleepRemainingSec,
+    cycleSleepMinutes,
+  } = useAudioSleepTimer(stopAudio);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -152,13 +179,13 @@ export function QuranSurahPage({
   }, [stopAudio]);
 
   useEffect(() => {
-    if (!playingKey) return;
+    if (!playingKey || !autoFocus) return;
     const [, ayahStr] = playingKey.split(':');
     const el = document.getElementById(`ayah-${ayahStr}`);
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [playingKey]);
+  }, [playingKey, autoFocus]);
 
   useEffect(() => {
     if (!surah) return;
@@ -542,6 +569,26 @@ export function QuranSurahPage({
               <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Mədinə səhifəsi {targetMushafPage}</span>
             </a>
+
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              aria-label={isDark ? 'Gündüz oxu rejiminə keç' : 'Gecə oxu rejiminə keç'}
+              data-testid="surah-theme-toggle"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 whitespace-nowrap transition-colors hover:border-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
+            >
+              {isDark ? (
+                <>
+                  <Sun className="h-3.5 w-3.5 text-[#C6A769]" aria-hidden="true" />
+                  <span>Gündüz</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="h-3.5 w-3.5 text-[#0F4C3A]" aria-hidden="true" />
+                  <span>Gecə</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 
@@ -716,6 +763,34 @@ export function QuranSurahPage({
                   >
                     {displayMode === 'arabic' ? 'Ərəbcə' : 'AZ + AR'}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowTranslit(!showTranslit)}
+                    aria-pressed={showTranslit}
+                    data-testid="surah-translit-toggle"
+                    title="Ərəbcə ayələrin Azərbaycan Latın əlifbası ilə oxunuşunu göstər"
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                      showTranslit
+                        ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                        : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                    }`}
+                  >
+                    Oxunuş
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowTajweed(!showTajweed)}
+                    aria-pressed={showTajweed}
+                    data-testid="surah-tajweed-toggle"
+                    title="Təcvid qaydalarını rənglərlə göstər (Ğünnə, Qalqələ, İxfa, İdğam, Mədd)"
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                      showTajweed
+                        ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                        : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                    }`}
+                  >
+                    Təcvid
+                  </button>
                 </div>
 
                 <div
@@ -769,6 +844,43 @@ export function QuranSurahPage({
                       {opt.label}
                     </button>
                   ))}
+                </div>
+
+                <div className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white p-0.5 dark:border-stone-700 dark:bg-[#141916]">
+                  <button
+                    type="button"
+                    onClick={() => setAutoFocus(!autoFocus)}
+                    aria-pressed={autoFocus}
+                    data-testid="surah-auto-focus-toggle"
+                    title="Tilavət zamanı oxunan ayəyə avtomatik fokuslan"
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                      autoFocus
+                        ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                        : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                    }`}
+                  >
+                    <Crosshair className="h-3 w-3" aria-hidden="true" />
+                    <span>Fokus</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cycleSleepMinutes}
+                    data-testid="surah-sleep-timer-btn"
+                    aria-label={`Yuxu taymeri: ${sleepMinutes > 0 && sleepRemainingSec > 0 ? formatSleepTimerRemaining(sleepRemainingSec) : formatSleepTimerPresetLabel(sleepMinutes)}`}
+                    title="Tilavət yuxu taymeri (Bağlı / 15 / 30 / 45 / 60 dəq)"
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono-tabular text-[11px] font-medium whitespace-nowrap transition-colors ${
+                      sleepMinutes > 0
+                        ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                        : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                    }`}
+                  >
+                    <Timer className="h-3 w-3" aria-hidden="true" />
+                    <span>
+                      {sleepMinutes > 0 && sleepRemainingSec > 0
+                        ? formatSleepTimerRemaining(sleepRemainingSec)
+                        : 'Yuxu'}
+                    </span>
+                  </button>
                 </div>
 
                 {query.trim() ? (
@@ -861,6 +973,8 @@ export function QuranSurahPage({
           </div>
         )}
 
+        {showTajweed && <TajweedLegendBar onClose={() => setShowTajweed(false)} />}
+
         {/* Ayahs */}
         {isLoading ? (
           <div className="mt-6 divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-[#141916]">
@@ -905,11 +1019,12 @@ export function QuranSurahPage({
                     key={key}
                     id={`ayah-${ayah.ayahNumber}`}
                     data-ayah-anchor={`${ayah.surahNumber}-${ayah.ayahNumber}`}
+                    data-auto-focused={isPlaying && autoFocus ? 'true' : undefined}
                     className={`p-6 sm:p-7 transition-colors ${
-                      isHighlighted
-                        ? 'bg-[#0F4C3A]/6 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/15 dark:ring-[#86C7AE]/40'
-                        : isPlaying
-                          ? 'bg-[#0F4C3A]/4 dark:bg-[#196B52]/10'
+                      isPlaying
+                        ? 'bg-[#0F4C3A]/8 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/20 dark:ring-[#86C7AE]/45'
+                        : isHighlighted
+                          ? 'bg-[#0F4C3A]/6 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/15 dark:ring-[#86C7AE]/40'
                           : ''
                     }`}
                   >
@@ -1046,8 +1161,18 @@ export function QuranSurahPage({
                       lang="ar"
                       className={`font-arabic mt-4 text-right ${READER_SCALE_CLASSES[textScale].arabic} text-stone-900 dark:text-stone-100`}
                     >
-                      {ayah.arabicText}
+                      <TajweedArabicText text={ayah.arabicText} enabled={showTajweed} />
                     </p>
+
+                    {showTranslit && (
+                      <p
+                        lang="az-Latn"
+                        data-testid={`surah-translit-${ayah.ayahNumber}`}
+                        className="mt-3 text-sm leading-relaxed font-medium text-[#0F4C3A] dark:text-[#86C7AE]"
+                      >
+                        {transliterateArabicToAz(ayah.arabicText)}
+                      </p>
+                    )}
 
                     {displayMode === 'both' && (
                       <>
@@ -1237,6 +1362,9 @@ export function QuranSurahPage({
           hasNext={playingDisplayIndex >= 0 && playingDisplayIndex < displayedAyahs.length - 1}
           playbackSpeed={playbackSpeed}
           repeatCount={repeatCount}
+          sleepMinutes={sleepMinutes}
+          sleepRemainingSec={sleepRemainingSec}
+          autoFocusEnabled={autoFocus}
           onPrev={() => {
             if (playingDisplayIndex > 0) playAyahAtIndex(playingDisplayIndex - 1);
           }}
@@ -1248,6 +1376,8 @@ export function QuranSurahPage({
           onStop={stopAudio}
           onCycleSpeed={handleCycleSpeed}
           onCycleRepeat={handleCycleRepeat}
+          onCycleSleepTimer={cycleSleepMinutes}
+          onToggleAutoFocus={() => setAutoFocus(!autoFocus)}
         />
       )}
     </article>

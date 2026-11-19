@@ -67,6 +67,8 @@ export const READER_SCALE_STORAGE_KEY = 'quranqiraeti_reader_scale_v1';
 export const READER_DISPLAY_STORAGE_KEY = 'quranqiraeti_reader_display_v1';
 export const AUDIO_SPEED_STORAGE_KEY = 'quranqiraeti_audio_speed_v1';
 export const AUDIO_REPEAT_STORAGE_KEY = 'quranqiraeti_audio_repeat_v1';
+export const READER_TRANSLIT_STORAGE_KEY = 'quranqiraeti_reader_translit_v1';
+export const READER_TAJWEED_STORAGE_KEY = 'quranqiraeti_reader_tajweed_v1';
 
 export const READER_SCALE_LABELS: Record<ReaderTextScale, string> = {
   compact: 'Kiçik',
@@ -370,6 +372,42 @@ export function saveAudioRepeatToStorage(repeat: AyahRepeatCount): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(AUDIO_REPEAT_STORAGE_KEY, String(repeat));
+  } catch {
+    // ignore storage error
+  }
+}
+
+export function loadReaderTranslitFromStorage(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(READER_TRANSLIT_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveReaderTranslitToStorage(enabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(READER_TRANSLIT_STORAGE_KEY, enabled ? '1' : '0');
+  } catch {
+    // ignore storage error
+  }
+}
+
+export function loadReaderTajweedFromStorage(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(READER_TAJWEED_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveReaderTajweedToStorage(enabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(READER_TAJWEED_STORAGE_KEY, enabled ? '1' : '0');
   } catch {
     // ignore storage error
   }
