@@ -5,6 +5,7 @@ import {
   computeSleepRemainingSeconds,
   cycleSleepTimerMinutes,
 } from '../lib/sleepTimer';
+import { READER_LINE_FOCUS_KEY } from '../lib/readingFocus';
 import {
   EMPTY_HIFZ_PROGRESS,
   HifzProgressState,
@@ -577,6 +578,27 @@ export function useAutoFocusAyah() {
   }, []);
 
   return { autoFocus, setAutoFocus };
+}
+
+export function useLineFocusReader() {
+  const [lineFocus, setLineFocusState] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(READER_LINE_FOCUS_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const setLineFocus = useCallback((next: boolean) => {
+    setLineFocusState(next);
+    try {
+      window.localStorage.setItem(READER_LINE_FOCUS_KEY, next ? 'true' : 'false');
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  return { lineFocus, setLineFocus };
 }
 
 export function useAudioSleepTimer(onExpire: () => void) {

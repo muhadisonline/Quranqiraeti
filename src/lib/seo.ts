@@ -279,6 +279,7 @@ export function buildCoreSitemapXml(
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.9' },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
     { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.85' },
+    { loc: `${baseUrl}/elifba`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.85' },
     { loc: `${baseUrl}/zikr`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.85' },
     { loc: `${baseUrl}/namaz-vaxtlari`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.9' },
     { loc: `${baseUrl}/teqvim`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.85' },
@@ -856,6 +857,26 @@ export function resolveRouteSeoMetadata(
       noscriptHtml: isCalendar
         ? '<h1>Hicri–Miladi Təqvim Çeviricisi və Mübarək Günlər</h1><p>Ümmül-Qura təqvimi əsasında Hicri və Miladi tarixlərin çevrilməsi və qarşıdakı bayramların sayğacı.</p>'
         : '<h1>Namaz Vaxtları — Ümmül-Qura və Xəritə Seçimi</h1><p>Azərbaycan və dünya şəhərləri üzrə gündəlik Sübh, Günəş, Zöhr, Əsr, Məğrib və İşa vaxtları.</p>',
+    };
+  }
+
+  if (cleanPath === '/elifba') {
+    return {
+      httpStatus: 200,
+      robots: robotsIndex,
+      title: 'Ərəb Əlifbası, Hərəkələr və Təcvid Bələdçisi | Quran Qiraeti',
+      description:
+        '28 ərəb hərfinin tək, başda, ortada və sonda yazılış formaları, məxrəcləri, canlı hərəkə qurucusu, əsas təcvid qaydaları və Quran ayələrindən səsli nümunələr.',
+      canonicalUrl: `${baseUrl}/elifba`,
+      ogImage: defaultOg,
+      ogType: 'website',
+      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
+        { name: 'Ana səhifə', path: '/' },
+        { name: 'Qurani-Kərim', path: '/quran' },
+        { name: 'Əlifba və Təcvid', path: '/elifba' },
+      ]),
+      noscriptHtml:
+        '<h1>İnteraktiv Ərəb Əlifbası və Təcvid Bələdçisi</h1><p>28 ərəb hərfinin yazılış formaları, məxrəc nöqtələri, hərəkələr və əsas təcvid qaydaları.</p>',
     };
   }
 

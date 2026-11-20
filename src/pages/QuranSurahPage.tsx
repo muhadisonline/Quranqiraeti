@@ -6,6 +6,7 @@ import {
   Check,
   Copy,
   Crosshair,
+  Eye,
   ImageDown,
   Moon,
   Play,
@@ -17,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LineFocusBar } from '../components/LineFocusBar';
 import { ReaderAudioBar } from '../components/ReaderAudioBar';
 import { SeoHead } from '../components/SeoHead';
 import { TajweedArabicText, TajweedLegendBar } from '../components/TajweedArabicText';
@@ -24,12 +26,18 @@ import {
   useAudioPlaybackPrefs,
   useAudioSleepTimer,
   useAutoFocusAyah,
+  useLineFocusReader,
   useReaderDisplayMode,
   useReaderTajweed,
   useReaderTextScale,
   useReaderTransliteration,
   useSavedAyahs,
 } from '../hooks/useReaderPreferences';
+import {
+  formatLineFocusProgress,
+  resolveFocusedAyahKey,
+  stepFocusedAyahKey,
+} from '../lib/readingFocus';
 import {
   formatSleepTimerPresetLabel,
   formatSleepTimerRemaining,
@@ -125,6 +133,8 @@ export function QuranSurahPage({
   const { showTajweed, setShowTajweed } = useReaderTajweed();
   const { playbackSpeed, setPlaybackSpeed, repeatCount, setRepeatCount } = useAudioPlaybackPrefs();
   const { autoFocus, setAutoFocus } = useAutoFocusAyah();
+  const { lineFocus, setLineFocus } = useLineFocusReader();
+  const [manualFocusedKey, setManualFocusedKey] = useState<string | null>(null);
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -169,6 +179,7 @@ export function QuranSurahPage({
     setSelectedMushafPage(null);
     setShowAllPages(false);
     setAudioError(null);
+    setManualFocusedKey(null);
     stopAudio();
   }, [surahNumber, stopAudio]);
 
@@ -286,6 +297,71 @@ export function QuranSurahPage({
     }, 80);
     return () => window.clearTimeout(timer);
   }, [payload, highlightedAyahNumber, pageGroups, showAllPages, activeGroup]);
+
+  const displayedAyahKeys = useMemo(
+    () => displayedAyahs.map((a) => `${a.surahNumber}:${a.ayahNumber}`),
+    [displayedAyahs]
+  );
+
+  const highlightedLineKey =
+    highlightedAyahNumber !== null ? `${surahNumber}:${highlightedAyahNumber}` : null;
+
+  const activeLineFocusKey = useMemo(
+    () =>
+      resolveFocusedAyahKey(displayedAyahKeys, {
+        playingKey,
+        manualKey: manualFocusedKey,
+        highlightedKey: highlightedLineKey,
+      }),
+    [displayedAyahKeys, playingKey, manualFocusedKey, highlightedLineKey]
+  );
+
+  const lineFocusProgress = useMemo(
+    () => formatLineFocusProgress(displayedAyahKeys, activeLineFocusKey),
+    [displayedAyahKeys, activeLineFocusKey]
+  );
+
+  const stepLineFocus = useCallback(
+    (delta: -1 | 1) => {
+      const nextKey = stepFocusedAyahKey(displayedAyahKeys, activeLineFocusKey, delta);
+      if (!nextKey) return;
+      setManualFocusedKey(nextKey);
+      const [sStr, aStr] = nextKey.split(':');
+      const el = document.querySelector(`[data-ayah-anchor="${sStr}-${aStr}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    },
+    [displayedAyahKeys, activeLineFocusKey]
+  );
+
+  useEffect(() => {
+    if (!lineFocus) return;
+    function handleFocusKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        stepLineFocus(1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        stepLineFocus(-1);
+      } else if (e.key === 'Escape') {
+        setLineFocus(false);
+      }
+    }
+    window.addEventListener('keydown', handleFocusKeyDown);
+    return () => window.removeEventListener('keydown', handleFocusKeyDown);
+  }, [lineFocus, stepLineFocus, setLineFocus]);
 
   useEffect(() => {
     if (query.trim() || showAllPages || pageGroups.length <= 1 || activeGroupIndex < 0) {
@@ -864,6 +940,21 @@ export function QuranSurahPage({
                   </button>
                   <button
                     type="button"
+                    onClick={() => setLineFocus(!lineFocus)}
+                    aria-pressed={lineFocus}
+                    data-testid="surah-line-focus-toggle"
+                    title="Sətir Fokus (Qaranlıq Pərdə): Yalnız aktiv ayəni aydın saxla"
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                      lineFocus
+                        ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                        : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                    }`}
+                  >
+                    <Eye className="h-3 w-3" aria-hidden="true" />
+                    <span>Pərdə</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={cycleSleepMinutes}
                     data-testid="surah-sleep-timer-btn"
                     aria-label={`Yuxu taymeri: ${sleepMinutes > 0 && sleepRemainingSec > 0 ? formatSleepTimerRemaining(sleepRemainingSec) : formatSleepTimerPresetLabel(sleepMinutes)}`}
@@ -1005,6 +1096,17 @@ export function QuranSurahPage({
           </div>
         ) : (
           <>
+            {lineFocus && displayedAyahs.length > 0 && (
+              <LineFocusBar
+                focusedKey={activeLineFocusKey}
+                progressLabel={lineFocusProgress.label}
+                canStepPrev={lineFocusProgress.index > 1}
+                canStepNext={lineFocusProgress.index < lineFocusProgress.total}
+                onStepPrev={() => stepLineFocus(-1)}
+                onStepNext={() => stepLineFocus(1)}
+                onClose={() => setLineFocus(false)}
+              />
+            )}
             <div
               data-testid="surah-ayah-list"
               className="mt-6 divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-[#141916]"
@@ -1014,18 +1116,32 @@ export function QuranSurahPage({
                 const isCopied = copiedKey === key;
                 const isPlaying = playingKey === key;
                 const isHighlighted = highlightedAyahNumber === ayah.ayahNumber;
+                const isLineFocused = lineFocus && activeLineFocusKey === key;
+                const isLineDimmed = lineFocus && activeLineFocusKey !== key;
                 return (
                   <div
                     key={key}
                     id={`ayah-${ayah.ayahNumber}`}
                     data-ayah-anchor={`${ayah.surahNumber}-${ayah.ayahNumber}`}
                     data-auto-focused={isPlaying && autoFocus ? 'true' : undefined}
-                    className={`p-6 sm:p-7 transition-colors ${
-                      isPlaying
-                        ? 'bg-[#0F4C3A]/8 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/20 dark:ring-[#86C7AE]/45'
-                        : isHighlighted
-                          ? 'bg-[#0F4C3A]/6 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/15 dark:ring-[#86C7AE]/40'
-                          : ''
+                    data-line-focused={isLineFocused ? 'true' : undefined}
+                    data-line-dimmed={isLineDimmed ? 'true' : undefined}
+                    onClick={(e) => {
+                      if (!lineFocus) return;
+                      const targetEl = e.target as HTMLElement | null;
+                      if (targetEl?.closest('a, button, input, select')) return;
+                      setManualFocusedKey(key);
+                    }}
+                    className={`p-6 sm:p-7 transition-all duration-200 ${
+                      isLineFocused
+                        ? 'relative z-10 bg-white opacity-100 ring-2 ring-inset ring-[#0F4C3A]/65 shadow-sm dark:bg-[#141916] dark:ring-[#86C7AE]/65'
+                        : isLineDimmed
+                          ? 'cursor-pointer opacity-30 hover:opacity-75'
+                          : isPlaying
+                            ? 'bg-[#0F4C3A]/8 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/20 dark:ring-[#86C7AE]/45'
+                            : isHighlighted
+                              ? 'bg-[#0F4C3A]/6 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/15 dark:ring-[#86C7AE]/40'
+                              : ''
                     }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">

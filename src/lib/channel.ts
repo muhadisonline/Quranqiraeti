@@ -87,7 +87,7 @@ interface SurahMeta {
 
 const SURAH_METADATA_MAP: Array<{ keys: string[]; meta: SurahMeta; defaultAyah?: [number, number] }> = [
   {
-    keys: ['bakara', 'bəqərə', 'baqarah'],
+    keys: ['bakara', 'bəqərə', 'baqarah', 'baqara'],
     meta: {
       surahNumber: 2,
       canonical: 'Bəqərə surəsi',
@@ -513,7 +513,7 @@ const SURAH_METADATA_MAP: Array<{ keys: string[]; meta: SurahMeta; defaultAyah?:
       surahNumber: 1,
       canonical: 'Fatihə surəsi',
       arabic: 'سورة الفاتحة',
-      category: 'mekke',
+      category: 'qisa',
       revelationPlace: 'Məkkə',
       reflection: 'Quranın açılışı: həmd, rübubiyyət, ibadət və doğru yol (Siratəl-Müstəqim) duası.',
       seoFocus: 'Fatihə surəsi tilavəti və Əlixan Musayevin Azərbaycan dilinə tərcüməsi.',
@@ -580,6 +580,42 @@ const SURAH_METADATA_MAP: Array<{ keys: string[]; meta: SurahMeta; defaultAyah?:
     },
   },
   {
+    keys: ['serh', 'şərh', 'inshirah'],
+    meta: {
+      surahNumber: 94,
+      canonical: 'Şərh surəsi',
+      arabic: 'سورة الشرح',
+      category: 'qisa',
+      revelationPlace: 'Məkkə',
+      reflection: 'Hər çətinliklə yanaşı bir asanlıq olduğu müjdəsi və qəlb rahatlığı.',
+      seoFocus: '94. Şərh surəsi tilavəti, Maher Al-Muaiqly qiraəti və Azərbaycan tərcüməsi.',
+    },
+  },
+  {
+    keys: ['tin'],
+    meta: {
+      surahNumber: 95,
+      canonical: 'Tin surəsi',
+      arabic: 'سورة التين',
+      category: 'qisa',
+      revelationPlace: 'Məkkə',
+      reflection: 'İnsanın ən gözəl biçimdə yaradılması, iman və saleh əməlin əbədi mükafatı.',
+      seoFocus: '95. Tin surəsi tilavəti, Maher Al-Muaiqly qiraəti və Azərbaycan tərcüməsi.',
+    },
+  },
+  {
+    keys: ['eleq', 'ələq', 'alaq'],
+    meta: {
+      surahNumber: 96,
+      canonical: 'Ələq surəsi',
+      arabic: 'سورة العلق',
+      category: 'qisa',
+      revelationPlace: 'Məkkə',
+      reflection: 'İlk vəhy: Yaradan Rəbbin adı ilə oxumaq, elm və Rəbbə səcdə edib yaxınlaşmaq.',
+      seoFocus: '96. Ələq surəsi tilavəti, Maher Al-Muaiqly qiraəti və Azərbaycan tərcüməsi.',
+    },
+  },
+  {
     keys: ['qadr', 'qədr'],
     meta: {
       surahNumber: 97,
@@ -592,6 +628,66 @@ const SURAH_METADATA_MAP: Array<{ keys: string[]; meta: SurahMeta; defaultAyah?:
     },
   },
   {
+    keys: ['beyyine', 'bəyyinə', 'bayyinah'],
+    meta: {
+      surahNumber: 98,
+      canonical: 'Bəyyinə surəsi',
+      arabic: 'سورة البينة',
+      category: 'qisa',
+      revelationPlace: 'Mədinə',
+      reflection: 'Aydın dəlil, ixlaslı ibadət və iman gətirib saleh əməl edənlərin Ədn cənnətləri.',
+      seoFocus: '98. Bəyyinə surəsi tilavəti, Maher Al-Muaiqly qiraəti və Azərbaycan tərcüməsi.',
+    },
+  },
+  {
+    keys: ['zelzele', 'zəlzələ', 'zalzalah'],
+    meta: {
+      surahNumber: 99,
+      canonical: 'Zəlzələ surəsi',
+      arabic: 'سورة الزلزلة',
+      category: 'qisa',
+      revelationPlace: 'Mədinə',
+      reflection: 'Zərrə qədər xeyir və ya şərin belə qarşılığının görüləcəyi hesab günü.',
+      seoFocus: '99. Zəlzələ surəsi tilavəti, Maher Al-Muaiqly qiraəti və Azərbaycan tərcüməsi.',
+    },
+  },
+  {
+    keys: ['adiyat'],
+    meta: {
+      surahNumber: 100,
+      canonical: 'Adiyat surəsi',
+      arabic: 'سورة العاديات',
+      category: 'qisa',
+      revelationPlace: 'Məkkə',
+      reflection: 'İnsanın nankorluqdan çəkinməsi və qəlblərdə olanların aşkara çıxacağı gün.',
+      seoFocus: '100. Adiyat surəsi tilavəti, Maher Al-Muaiqly qiraəti və Azərbaycan tərcüməsi.',
+    },
+  },
+  {
+    keys: ['qarie', 'qariə', 'qariah'],
+    meta: {
+      surahNumber: 101,
+      canonical: 'Qariə surəsi',
+      arabic: 'سورة القارعة',
+      category: 'qisa',
+      revelationPlace: 'Məkkə',
+      reflection: 'Qiyamət gününün dəhşəti və əməl tərəzisinin ağır və ya yüngül gəlməsi.',
+      seoFocus: '101. Qariə surəsi tilavəti, Maher Al-Muaiqly qiraəti və Azərbaycan tərcüməsi.',
+    },
+  },
+  {
+    keys: ['tekasur', 'təkasur', 'takathur'],
+    meta: {
+      surahNumber: 102,
+      canonical: 'Təkasur surəsi',
+      arabic: 'سورة التكاثر',
+      category: 'qisa',
+      revelationPlace: 'Məkkə',
+      reflection: 'Çoxluq yarışı ilə qəflətə düşməmək və nemətlər barədə sorğu-sual xəbərdarlığı.',
+      seoFocus: '102. Təkasur surəsi tilavəti, Maher Al-Muaiqly qiraəti və Azərbaycan tərcüməsi.',
+    },
+  },
+  {
     keys: ['esr', 'əsr', 'asr'],
     meta: {
       surahNumber: 103,
@@ -601,6 +697,42 @@ const SURAH_METADATA_MAP: Array<{ keys: string[]; meta: SurahMeta; defaultAyah?:
       revelationPlace: 'Məkkə',
       reflection: 'Zaman şahidliyi: iman, saleh əməl, haqqı və səbri tövsiyə etməklə nicat.',
       seoFocus: 'Əsr surəsi tilavəti və Əlixan Musayevin Azərbaycan dilinə tərcüməsi.',
+    },
+  },
+  {
+    keys: ['humeze', 'huməzə', 'humazah'],
+    meta: {
+      surahNumber: 104,
+      canonical: 'Huməzə surəsi',
+      arabic: 'سورة الهمزة',
+      category: 'qisa',
+      revelationPlace: 'Məkkə',
+      reflection: 'Qeybət, tənə və mal-dövlət hərisliyindən çəkindirən ibrətli surə.',
+      seoFocus: '104. Huməzə surəsi tilavəti, Maher Al-Muaiqly qiraəti və Azərbaycan tərcüməsi.',
+    },
+  },
+  {
+    keys: ['fil'],
+    meta: {
+      surahNumber: 105,
+      canonical: 'Fil surəsi',
+      arabic: 'سورة الفيل',
+      category: 'qisa',
+      revelationPlace: 'Məkkə',
+      reflection: 'Kəbəni dağıtmaq istəyən Fil ordusunun İlahi qüdrətlə məğlub edilməsi.',
+      seoFocus: '105. Fil surəsi tilavəti, Maher Al-Muaiqly qiraəti və Azərbaycan tərcüməsi.',
+    },
+  },
+  {
+    keys: ['qureys', 'qureyş', 'quraysh'],
+    meta: {
+      surahNumber: 106,
+      canonical: 'Qureyş surəsi',
+      arabic: 'سورة قريش',
+      category: 'qisa',
+      revelationPlace: 'Məkkə',
+      reflection: 'Əmin-amanlıq və ruzi nemətinə şükür olaraq Kəbənin Rəbbinə ibadət etməyə çağırış.',
+      seoFocus: '106. Qureyş surəsi tilavəti, Maher Al-Muaiqly qiraəti və Azərbaycan tərcüməsi.',
     },
   },
 ];
@@ -970,7 +1102,7 @@ export function parseYouTubeVideosPage(html: string): RecitationVideo[] {
       const publishedLabel = parts[1] ?? '';
 
       const seconds = parseDurationToSeconds(duration);
-      if (!rawTitle || seconds < 120) continue;
+      if (!rawTitle || seconds <= 0) continue;
 
       videos.push(
         buildRecitationVideo({
@@ -1118,6 +1250,37 @@ export function filterRecitations(
     );
     return haystack.includes(q);
   });
+}
+
+export const FEATURED_SURAH_VIDEO_IDS = {
+  fatiha: 'WuoDn6idrAk',
+  baqara: 'iCzBmN_pBs8',
+} as const;
+
+export function prioritizeFeaturedSurahs(videos: RecitationVideo[]): RecitationVideo[] {
+  if (videos.length === 0) return videos;
+
+  const fatiha =
+    videos.find((v) => v.videoId === FEATURED_SURAH_VIDEO_IDS.fatiha) ??
+    videos.find((v) => v.surahNumber === 1 && !v.ayahStart);
+
+  const baqara =
+    videos.find((v) => v.videoId === FEATURED_SURAH_VIDEO_IDS.baqara) ??
+    videos.find((v) => v.surahNumber === 2 && !v.ayahStart && v.videoId !== fatiha?.videoId);
+
+  const pinned: RecitationVideo[] = [];
+  const pinnedIds = new Set<string>();
+
+  if (fatiha) {
+    pinned.push(fatiha);
+    pinnedIds.add(fatiha.videoId);
+  }
+  if (baqara && !pinnedIds.has(baqara.videoId)) {
+    pinned.push(baqara);
+    pinnedIds.add(baqara.videoId);
+  }
+
+  return [...pinned, ...videos.filter((v) => !pinnedIds.has(v.videoId))];
 }
 
 export function formatAzerbaijaniDate(isoDate: string): string {

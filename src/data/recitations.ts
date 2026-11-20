@@ -15,6 +15,24 @@ export const DEFAULT_CHANNEL_STATS: ChannelStats = {
 
 export const SEED_LONG_VIDEOS: RecitationVideo[] = [
   buildRecitationVideo({
+    videoId: 'WuoDn6idrAk',
+    rawTitle: '1. Fatihə Surəsi - Maher al Muaiqly',
+    format: 'long',
+    duration: '0:39',
+    published: '2026-11-17T12:00:00Z',
+    publishedLabel: '3 gün əvvəl',
+    views: 8,
+  }),
+  buildRecitationVideo({
+    videoId: 'iCzBmN_pBs8',
+    rawTitle: '2. Bəqərə surəsi - Maher al Muaiqly',
+    format: 'long',
+    duration: '1:47:59',
+    published: '2026-11-20T18:00:00Z',
+    publishedLabel: 'Yeni',
+    views: 4,
+  }),
+  buildRecitationVideo({
     videoId: 'kH8iG4KpDBA',
     rawTitle: 'Loqman Surəsi - İslam Subhi',
     format: 'long',

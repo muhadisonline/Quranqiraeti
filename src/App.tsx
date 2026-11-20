@@ -21,10 +21,12 @@ import {
   RecitationVideo,
   SurahRequestRecord,
   filterRecitations,
+  prioritizeFeaturedSurahs,
 } from './lib/channel';
 import { parseJsonSafely } from './lib/quranClient';
 import { recordPageTelemetryEvent } from './lib/firebase';
 import { AdminPage } from './pages/AdminPage';
+import { ArabicAlphabetPage } from './pages/ArabicAlphabetPage';
 import { MuhaffizPage } from './pages/MuhaffizPage';
 import { PrayerTimesPage } from './pages/PrayerTimesPage';
 import { QuranDirectoryPage } from './pages/QuranDirectoryPage';
@@ -101,7 +103,9 @@ function AppContent() {
   const [routeHash, setRouteHash] = useState<string>(() => window.location.hash || '');
 
   const [stats, setStats] = useState<ChannelStats>(DEFAULT_CHANNEL_STATS);
-  const [longVideos, setLongVideos] = useState<RecitationVideo[]>(SEED_LONG_VIDEOS);
+  const [longVideos, setLongVideos] = useState<RecitationVideo[]>(() =>
+    prioritizeFeaturedSurahs(SEED_LONG_VIDEOS)
+  );
   const [shorts, setShorts] = useState<RecitationVideo[]>(SEED_SHORTS);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -214,7 +218,7 @@ function AppContent() {
         if (!cancelled && data) {
           if (data.stats) setStats(data.stats);
           if (Array.isArray(data.longVideos) && data.longVideos.length > 0) {
-            setLongVideos(data.longVideos);
+            setLongVideos(prioritizeFeaturedSurahs(data.longVideos));
           }
           if (Array.isArray(data.shorts) && data.shorts.length > 0) {
             setShorts(data.shorts);
@@ -345,8 +349,10 @@ function AppContent() {
         <TopBar
           currentPath={currentPath}
           subscribeUrl={stats.subscribeUrl}
+          isDark={isDark}
           onNavigate={navigate}
           onOpenQuickSearch={() => setIsQuickJumpOpen(true)}
+          onToggleTheme={() => setIsDark((prev) => !prev)}
         />
       )}
 
@@ -410,6 +416,12 @@ function AppContent() {
           />
         ) : currentPath === '/zikr' ? (
           <ZikrPage
+            isDark={isDark}
+            onNavigate={navigate}
+            onToggleTheme={() => setIsDark((prev) => !prev)}
+          />
+        ) : currentPath === '/elifba' ? (
+          <ArabicAlphabetPage
             isDark={isDark}
             onNavigate={navigate}
             onToggleTheme={() => setIsDark((prev) => !prev)}
@@ -502,15 +514,6 @@ function AppContent() {
                 },
               ]}
             />
-            <HeroSection
-              stats={stats}
-              featuredVideo={featuredLongVideo}
-              longVideoCount={longVideos.length}
-              shortsCount={shorts.length}
-              onPlayFeatured={setActiveVideo}
-              onNavigate={navigate}
-            />
-            <QuranJourneySection onNavigate={navigate} />
             <RecitationArchive
               videos={longVideos}
               filteredVideos={filteredLongVideos}
@@ -520,6 +523,7 @@ function AppContent() {
               isLoading={isLoading}
               isDark={isDark}
               showAll={showAll}
+              asPageHeading
               onTabChange={(tab) => {
                 setActiveTab(tab);
                 setShowAll(false);
@@ -534,6 +538,15 @@ function AppContent() {
               onToggleTheme={() => setIsDark((prev) => !prev)}
               onToggleShowAll={() => setShowAll((prev) => !prev)}
               onResetFilters={handleResetFilters}
+            />
+            <QuranJourneySection onNavigate={navigate} />
+            <HeroSection
+              stats={stats}
+              featuredVideo={featuredLongVideo}
+              longVideoCount={longVideos.length}
+              shortsCount={shorts.length}
+              onPlayFeatured={setActiveVideo}
+              onNavigate={navigate}
             />
           </>
         ) : (

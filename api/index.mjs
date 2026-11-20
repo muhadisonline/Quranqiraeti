@@ -6,7 +6,7 @@ import path from "node:path";
 // src/lib/channel.ts
 var SURAH_METADATA_MAP = [
   {
-    keys: ["bakara", "b\u0259q\u0259r\u0259", "baqarah"],
+    keys: ["bakara", "b\u0259q\u0259r\u0259", "baqarah", "baqara"],
     meta: {
       surahNumber: 2,
       canonical: "B\u0259q\u0259r\u0259 sur\u0259si",
@@ -432,7 +432,7 @@ var SURAH_METADATA_MAP = [
       surahNumber: 1,
       canonical: "Fatih\u0259 sur\u0259si",
       arabic: "\u0633\u0648\u0631\u0629 \u0627\u0644\u0641\u0627\u062A\u062D\u0629",
-      category: "mekke",
+      category: "qisa",
       revelationPlace: "M\u0259kk\u0259",
       reflection: "Quran\u0131n a\xE7\u0131l\u0131\u015F\u0131: h\u0259md, r\xFCbubiyy\u0259t, ibad\u0259t v\u0259 do\u011Fru yol (Sirat\u0259l-M\xFCst\u0259qim) duas\u0131.",
       seoFocus: "Fatih\u0259 sur\u0259si tilav\u0259ti v\u0259 \u018Flixan Musayevin Az\u0259rbaycan dilin\u0259 t\u0259rc\xFCm\u0259si."
@@ -499,6 +499,42 @@ var SURAH_METADATA_MAP = [
     }
   },
   {
+    keys: ["serh", "\u015F\u0259rh", "inshirah"],
+    meta: {
+      surahNumber: 94,
+      canonical: "\u015E\u0259rh sur\u0259si",
+      arabic: "\u0633\u0648\u0631\u0629 \u0627\u0644\u0634\u0631\u062D",
+      category: "qisa",
+      revelationPlace: "M\u0259kk\u0259",
+      reflection: "H\u0259r \xE7\u0259tinlikl\u0259 yana\u015F\u0131 bir asanl\u0131q oldu\u011Fu m\xFCjd\u0259si v\u0259 q\u0259lb rahatl\u0131\u011F\u0131.",
+      seoFocus: "94. \u015E\u0259rh sur\u0259si tilav\u0259ti, Maher Al-Muaiqly qira\u0259ti v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si."
+    }
+  },
+  {
+    keys: ["tin"],
+    meta: {
+      surahNumber: 95,
+      canonical: "Tin sur\u0259si",
+      arabic: "\u0633\u0648\u0631\u0629 \u0627\u0644\u062A\u064A\u0646",
+      category: "qisa",
+      revelationPlace: "M\u0259kk\u0259",
+      reflection: "\u0130nsan\u0131n \u0259n g\xF6z\u0259l bi\xE7imd\u0259 yarad\u0131lmas\u0131, iman v\u0259 saleh \u0259m\u0259lin \u0259b\u0259di m\xFCkafat\u0131.",
+      seoFocus: "95. Tin sur\u0259si tilav\u0259ti, Maher Al-Muaiqly qira\u0259ti v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si."
+    }
+  },
+  {
+    keys: ["eleq", "\u0259l\u0259q", "alaq"],
+    meta: {
+      surahNumber: 96,
+      canonical: "\u018Fl\u0259q sur\u0259si",
+      arabic: "\u0633\u0648\u0631\u0629 \u0627\u0644\u0639\u0644\u0642",
+      category: "qisa",
+      revelationPlace: "M\u0259kk\u0259",
+      reflection: "\u0130lk v\u0259hy: Yaradan R\u0259bbin ad\u0131 il\u0259 oxumaq, elm v\u0259 R\u0259bb\u0259 s\u0259cd\u0259 edib yax\u0131nla\u015Fmaq.",
+      seoFocus: "96. \u018Fl\u0259q sur\u0259si tilav\u0259ti, Maher Al-Muaiqly qira\u0259ti v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si."
+    }
+  },
+  {
     keys: ["qadr", "q\u0259dr"],
     meta: {
       surahNumber: 97,
@@ -511,6 +547,66 @@ var SURAH_METADATA_MAP = [
     }
   },
   {
+    keys: ["beyyine", "b\u0259yyin\u0259", "bayyinah"],
+    meta: {
+      surahNumber: 98,
+      canonical: "B\u0259yyin\u0259 sur\u0259si",
+      arabic: "\u0633\u0648\u0631\u0629 \u0627\u0644\u0628\u064A\u0646\u0629",
+      category: "qisa",
+      revelationPlace: "M\u0259din\u0259",
+      reflection: "Ayd\u0131n d\u0259lil, ixlasl\u0131 ibad\u0259t v\u0259 iman g\u0259tirib saleh \u0259m\u0259l ed\u0259nl\u0259rin \u018Fdn c\u0259nn\u0259tl\u0259ri.",
+      seoFocus: "98. B\u0259yyin\u0259 sur\u0259si tilav\u0259ti, Maher Al-Muaiqly qira\u0259ti v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si."
+    }
+  },
+  {
+    keys: ["zelzele", "z\u0259lz\u0259l\u0259", "zalzalah"],
+    meta: {
+      surahNumber: 99,
+      canonical: "Z\u0259lz\u0259l\u0259 sur\u0259si",
+      arabic: "\u0633\u0648\u0631\u0629 \u0627\u0644\u0632\u0644\u0632\u0644\u0629",
+      category: "qisa",
+      revelationPlace: "M\u0259din\u0259",
+      reflection: "Z\u0259rr\u0259 q\u0259d\u0259r xeyir v\u0259 ya \u015F\u0259rin bel\u0259 qar\u015F\u0131l\u0131\u011F\u0131n\u0131n g\xF6r\xFCl\u0259c\u0259yi hesab g\xFCn\xFC.",
+      seoFocus: "99. Z\u0259lz\u0259l\u0259 sur\u0259si tilav\u0259ti, Maher Al-Muaiqly qira\u0259ti v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si."
+    }
+  },
+  {
+    keys: ["adiyat"],
+    meta: {
+      surahNumber: 100,
+      canonical: "Adiyat sur\u0259si",
+      arabic: "\u0633\u0648\u0631\u0629 \u0627\u0644\u0639\u0627\u062F\u064A\u0627\u062A",
+      category: "qisa",
+      revelationPlace: "M\u0259kk\u0259",
+      reflection: "\u0130nsan\u0131n nankorluqdan \xE7\u0259kinm\u0259si v\u0259 q\u0259lbl\u0259rd\u0259 olanlar\u0131n a\u015Fkara \xE7\u0131xaca\u011F\u0131 g\xFCn.",
+      seoFocus: "100. Adiyat sur\u0259si tilav\u0259ti, Maher Al-Muaiqly qira\u0259ti v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si."
+    }
+  },
+  {
+    keys: ["qarie", "qari\u0259", "qariah"],
+    meta: {
+      surahNumber: 101,
+      canonical: "Qari\u0259 sur\u0259si",
+      arabic: "\u0633\u0648\u0631\u0629 \u0627\u0644\u0642\u0627\u0631\u0639\u0629",
+      category: "qisa",
+      revelationPlace: "M\u0259kk\u0259",
+      reflection: "Qiyam\u0259t g\xFCn\xFCn\xFCn d\u0259h\u015F\u0259ti v\u0259 \u0259m\u0259l t\u0259r\u0259zisinin a\u011F\u0131r v\u0259 ya y\xFCng\xFCl g\u0259lm\u0259si.",
+      seoFocus: "101. Qari\u0259 sur\u0259si tilav\u0259ti, Maher Al-Muaiqly qira\u0259ti v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si."
+    }
+  },
+  {
+    keys: ["tekasur", "t\u0259kasur", "takathur"],
+    meta: {
+      surahNumber: 102,
+      canonical: "T\u0259kasur sur\u0259si",
+      arabic: "\u0633\u0648\u0631\u0629 \u0627\u0644\u062A\u0643\u0627\u062B\u0631",
+      category: "qisa",
+      revelationPlace: "M\u0259kk\u0259",
+      reflection: "\xC7oxluq yar\u0131\u015F\u0131 il\u0259 q\u0259fl\u0259t\u0259 d\xFC\u015Fm\u0259m\u0259k v\u0259 nem\u0259tl\u0259r bar\u0259d\u0259 sor\u011Fu-sual x\u0259b\u0259rdarl\u0131\u011F\u0131.",
+      seoFocus: "102. T\u0259kasur sur\u0259si tilav\u0259ti, Maher Al-Muaiqly qira\u0259ti v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si."
+    }
+  },
+  {
     keys: ["esr", "\u0259sr", "asr"],
     meta: {
       surahNumber: 103,
@@ -520,6 +616,42 @@ var SURAH_METADATA_MAP = [
       revelationPlace: "M\u0259kk\u0259",
       reflection: "Zaman \u015Fahidliyi: iman, saleh \u0259m\u0259l, haqq\u0131 v\u0259 s\u0259bri t\xF6vsiy\u0259 etm\u0259kl\u0259 nicat.",
       seoFocus: "\u018Fsr sur\u0259si tilav\u0259ti v\u0259 \u018Flixan Musayevin Az\u0259rbaycan dilin\u0259 t\u0259rc\xFCm\u0259si."
+    }
+  },
+  {
+    keys: ["humeze", "hum\u0259z\u0259", "humazah"],
+    meta: {
+      surahNumber: 104,
+      canonical: "Hum\u0259z\u0259 sur\u0259si",
+      arabic: "\u0633\u0648\u0631\u0629 \u0627\u0644\u0647\u0645\u0632\u0629",
+      category: "qisa",
+      revelationPlace: "M\u0259kk\u0259",
+      reflection: "Qeyb\u0259t, t\u0259n\u0259 v\u0259 mal-d\xF6vl\u0259t h\u0259risliyind\u0259n \xE7\u0259kindir\u0259n ibr\u0259tli sur\u0259.",
+      seoFocus: "104. Hum\u0259z\u0259 sur\u0259si tilav\u0259ti, Maher Al-Muaiqly qira\u0259ti v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si."
+    }
+  },
+  {
+    keys: ["fil"],
+    meta: {
+      surahNumber: 105,
+      canonical: "Fil sur\u0259si",
+      arabic: "\u0633\u0648\u0631\u0629 \u0627\u0644\u0641\u064A\u0644",
+      category: "qisa",
+      revelationPlace: "M\u0259kk\u0259",
+      reflection: "K\u0259b\u0259ni da\u011F\u0131tmaq ist\u0259y\u0259n Fil ordusunun \u0130lahi q\xFCdr\u0259tl\u0259 m\u0259\u011Flub edilm\u0259si.",
+      seoFocus: "105. Fil sur\u0259si tilav\u0259ti, Maher Al-Muaiqly qira\u0259ti v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si."
+    }
+  },
+  {
+    keys: ["qureys", "qurey\u015F", "quraysh"],
+    meta: {
+      surahNumber: 106,
+      canonical: "Qurey\u015F sur\u0259si",
+      arabic: "\u0633\u0648\u0631\u0629 \u0642\u0631\u064A\u0634",
+      category: "qisa",
+      revelationPlace: "M\u0259kk\u0259",
+      reflection: "\u018Fmin-amanl\u0131q v\u0259 ruzi nem\u0259tin\u0259 \u015F\xFCk\xFCr olaraq K\u0259b\u0259nin R\u0259bbin\u0259 ibad\u0259t etm\u0259y\u0259 \xE7a\u011F\u0131r\u0131\u015F.",
+      seoFocus: "106. Qurey\u015F sur\u0259si tilav\u0259ti, Maher Al-Muaiqly qira\u0259ti v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si."
     }
   }
 ];
@@ -694,7 +826,7 @@ function parseYouTubeVideosPage(html) {
       const views = parseCompactViewCount(parts[0] ?? "0");
       const publishedLabel = parts[1] ?? "";
       const seconds = parseDurationToSeconds(duration);
-      if (!rawTitle || seconds < 120) continue;
+      if (!rawTitle || seconds <= 0) continue;
       videos.push(
         buildRecitationVideo({
           videoId,
@@ -765,6 +897,26 @@ function parseYouTubeShortsContinuation(payload) {
     (action) => action.appendContinuationItemsAction?.continuationItems || []
   );
   return extractShortsFromItems(items);
+}
+var FEATURED_SURAH_VIDEO_IDS = {
+  fatiha: "WuoDn6idrAk",
+  baqara: "iCzBmN_pBs8"
+};
+function prioritizeFeaturedSurahs(videos) {
+  if (videos.length === 0) return videos;
+  const fatiha = videos.find((v) => v.videoId === FEATURED_SURAH_VIDEO_IDS.fatiha) ?? videos.find((v) => v.surahNumber === 1 && !v.ayahStart);
+  const baqara = videos.find((v) => v.videoId === FEATURED_SURAH_VIDEO_IDS.baqara) ?? videos.find((v) => v.surahNumber === 2 && !v.ayahStart && v.videoId !== fatiha?.videoId);
+  const pinned = [];
+  const pinnedIds = /* @__PURE__ */ new Set();
+  if (fatiha) {
+    pinned.push(fatiha);
+    pinnedIds.add(fatiha.videoId);
+  }
+  if (baqara && !pinnedIds.has(baqara.videoId)) {
+    pinned.push(baqara);
+    pinnedIds.add(baqara.videoId);
+  }
+  return [...pinned, ...videos.filter((v) => !pinnedIds.has(v.videoId))];
 }
 function validateSurahRequest(input) {
   const errors = {};
@@ -1929,6 +2081,7 @@ function buildCoreSitemapXml(origin, todayIsoDate = (/* @__PURE__ */ new Date())
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.9" },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
     { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.85" },
+    { loc: `${baseUrl}/elifba`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.85" },
     { loc: `${baseUrl}/zikr`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.85" },
     { loc: `${baseUrl}/namaz-vaxtlari`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.9" },
     { loc: `${baseUrl}/teqvim`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.85" },
@@ -2402,6 +2555,23 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
         }
       ]),
       noscriptHtml: isCalendar ? "<h1>Hicri\u2013Miladi T\u0259qvim \xC7eviricisi v\u0259 M\xFCbar\u0259k G\xFCnl\u0259r</h1><p>\xDCmm\xFCl-Qura t\u0259qvimi \u0259sas\u0131nda Hicri v\u0259 Miladi tarixl\u0259rin \xE7evrilm\u0259si v\u0259 qar\u015F\u0131dak\u0131 bayramlar\u0131n say\u011Fac\u0131.</p>" : "<h1>Namaz Vaxtlar\u0131 \u2014 \xDCmm\xFCl-Qura v\u0259 X\u0259rit\u0259 Se\xE7imi</h1><p>Az\u0259rbaycan v\u0259 d\xFCnya \u015F\u0259h\u0259rl\u0259ri \xFCzr\u0259 g\xFCnd\u0259lik S\xFCbh, G\xFCn\u0259\u015F, Z\xF6hr, \u018Fsr, M\u0259\u011Frib v\u0259 \u0130\u015Fa vaxtlar\u0131.</p>"
+    };
+  }
+  if (cleanPath === "/elifba") {
+    return {
+      httpStatus: 200,
+      robots: robotsIndex,
+      title: "\u018Fr\u0259b \u018Flifbas\u0131, H\u0259r\u0259k\u0259l\u0259r v\u0259 T\u0259cvid B\u0259l\u0259d\xE7isi | Quran Qiraeti",
+      description: "28 \u0259r\u0259b h\u0259rfinin t\u0259k, ba\u015Fda, ortada v\u0259 sonda yaz\u0131l\u0131\u015F formalar\u0131, m\u0259xr\u0259cl\u0259ri, canl\u0131 h\u0259r\u0259k\u0259 qurucusu, \u0259sas t\u0259cvid qaydalar\u0131 v\u0259 Quran ay\u0259l\u0259rind\u0259n s\u0259sli n\xFCmun\u0259l\u0259r.",
+      canonicalUrl: `${baseUrl}/elifba`,
+      ogImage: defaultOg,
+      ogType: "website",
+      jsonLd: buildBreadcrumbJsonLd(baseUrl, [
+        { name: "Ana s\u0259hif\u0259", path: "/" },
+        { name: "Qurani-K\u0259rim", path: "/quran" },
+        { name: "\u018Flifba v\u0259 T\u0259cvid", path: "/elifba" }
+      ]),
+      noscriptHtml: "<h1>\u0130nteraktiv \u018Fr\u0259b \u018Flifbas\u0131 v\u0259 T\u0259cvid B\u0259l\u0259d\xE7isi</h1><p>28 \u0259r\u0259b h\u0259rfinin yaz\u0131l\u0131\u015F formalar\u0131, m\u0259xr\u0259c n\xF6qt\u0259l\u0259ri, h\u0259r\u0259k\u0259l\u0259r v\u0259 \u0259sas t\u0259cvid qaydalar\u0131.</p>"
     };
   }
   if (cleanPath === "/zikr") {
@@ -3330,6 +3500,24 @@ var DEFAULT_CHANNEL_STATS = {
 };
 var SEED_LONG_VIDEOS = [
   buildRecitationVideo({
+    videoId: "WuoDn6idrAk",
+    rawTitle: "1. Fatih\u0259 Sur\u0259si - Maher al Muaiqly",
+    format: "long",
+    duration: "0:39",
+    published: "2026-11-17T12:00:00Z",
+    publishedLabel: "3 g\xFCn \u0259vv\u0259l",
+    views: 8
+  }),
+  buildRecitationVideo({
+    videoId: "iCzBmN_pBs8",
+    rawTitle: "2. B\u0259q\u0259r\u0259 sur\u0259si - Maher al Muaiqly",
+    format: "long",
+    duration: "1:47:59",
+    published: "2026-11-20T18:00:00Z",
+    publishedLabel: "Yeni",
+    views: 4
+  }),
+  buildRecitationVideo({
     videoId: "kH8iG4KpDBA",
     rawTitle: "Loqman Sur\u0259si - \u0130slam Subhi",
     format: "long",
@@ -3959,7 +4147,11 @@ async function fetchLiveChannelData() {
       if (videosHtml) {
         const parsedLong = parseYouTubeVideosPage(videosHtml);
         if (parsedLong.length > 0) {
-          longVideos = parsedLong;
+          const existingIds = new Set(parsedLong.map((v) => v.videoId));
+          const featuredSeeds = SEED_LONG_VIDEOS.filter(
+            (v) => (v.videoId === FEATURED_SURAH_VIDEO_IDS.fatiha || v.videoId === FEATURED_SURAH_VIDEO_IDS.baqara) && !existingIds.has(v.videoId)
+          );
+          longVideos = prioritizeFeaturedSurahs([...parsedLong, ...featuredSeeds]);
           hasLiveLong = true;
         }
         const subMatch = videosHtml.match(/(\d+(?:\.\d+)?[KM]?)\s+subscribers/i)?.[1];
@@ -3967,6 +4159,7 @@ async function fetchLiveChannelData() {
         if (subMatch) subscribersLabel = subMatch;
         if (vidMatch) videoCountLabel = `${vidMatch}+`;
       }
+      longVideos = prioritizeFeaturedSurahs(longVideos);
       if (shortsHtml) {
         const parsedShorts = await fetchAllYouTubeShorts(shortsHtml, startedAt);
         if (parsedShorts.length > 0) {

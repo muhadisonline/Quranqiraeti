@@ -310,6 +310,14 @@ export function QuranJourneySection({ onNavigate }: QuranJourneySectionProps) {
               <ArrowRight className="h-3 w-3" aria-hidden="true" />
             </a>
             <a
+              href="/elifba"
+              onClick={(e) => handleNav(e, '/elifba')}
+              data-testid="ribbon-elifba-link"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-[#FAF9F6] px-3 py-1.5 text-xs font-medium text-stone-700 whitespace-nowrap hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
+            >
+              <span>Əlifba və Təcvid</span>
+            </a>
+            <a
               href="/zikr"
               onClick={(e) => handleNav(e, '/zikr')}
               data-testid="ribbon-zikr-link"

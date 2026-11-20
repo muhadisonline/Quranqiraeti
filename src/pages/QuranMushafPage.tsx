@@ -1,5 +1,6 @@
-import { ArrowLeft, ArrowRight, Bookmark, Check, Copy, Crosshair, ImageDown, Moon, Play, Square, Sun, Timer, Volume2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bookmark, Check, Copy, Crosshair, Eye, ImageDown, Moon, Play, Square, Sun, Timer, Volume2 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LineFocusBar } from '../components/LineFocusBar';
 import { ReaderAudioBar } from '../components/ReaderAudioBar';
 import { SeoHead } from '../components/SeoHead';
 import { TajweedArabicText, TajweedLegendBar } from '../components/TajweedArabicText';
@@ -7,6 +8,7 @@ import {
   useAudioPlaybackPrefs,
   useAudioSleepTimer,
   useAutoFocusAyah,
+  useLineFocusReader,
   useReaderDisplayMode,
   useReaderTajweed,
   useReaderTextScale,
@@ -14,6 +16,11 @@ import {
   useReadingGoal,
   useSavedAyahs,
 } from '../hooks/useReaderPreferences';
+import {
+  formatLineFocusProgress,
+  resolveFocusedAyahKey,
+  stepFocusedAyahKey,
+} from '../lib/readingFocus';
 import {
   formatSleepTimerPresetLabel,
   formatSleepTimerRemaining,
@@ -90,6 +97,8 @@ export function QuranMushafPage({
   const { playbackSpeed, setPlaybackSpeed, repeatCount, setRepeatCount } = useAudioPlaybackPrefs();
   const { recordPageRead } = useReadingGoal();
   const { autoFocus, setAutoFocus } = useAutoFocusAyah();
+  const { lineFocus, setLineFocus } = useLineFocusReader();
+  const [manualFocusedKey, setManualFocusedKey] = useState<string | null>(null);
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -124,6 +133,7 @@ export function QuranMushafPage({
   useEffect(() => {
     setJumpInput(String(pageNumber));
     setAudioError(null);
+    setManualFocusedKey(null);
     stopAudio();
     if (isValidPage) {
       saveLastReadToStorage(
@@ -240,6 +250,74 @@ export function QuranMushafPage({
     }, 80);
     return () => window.clearTimeout(timer);
   }, [payload, highlightedAnchorId]);
+
+  const ayahKeys = useMemo(
+    () => (payload?.ayahs ?? []).map((a) => `${a.surahNumber}:${a.ayahNumber}`),
+    [payload]
+  );
+
+  const highlightedKey = useMemo(() => {
+    if (!highlightedAnchorId) return null;
+    const match = highlightedAnchorId.match(/^ayah-(\d+)-(\d+)$/);
+    return match ? `${match[1]}:${match[2]}` : null;
+  }, [highlightedAnchorId]);
+
+  const activeLineFocusKey = useMemo(
+    () =>
+      resolveFocusedAyahKey(ayahKeys, {
+        playingKey,
+        manualKey: manualFocusedKey,
+        highlightedKey,
+      }),
+    [ayahKeys, playingKey, manualFocusedKey, highlightedKey]
+  );
+
+  const lineFocusProgress = useMemo(
+    () => formatLineFocusProgress(ayahKeys, activeLineFocusKey),
+    [ayahKeys, activeLineFocusKey]
+  );
+
+  const stepLineFocus = useCallback(
+    (delta: -1 | 1) => {
+      const nextKey = stepFocusedAyahKey(ayahKeys, activeLineFocusKey, delta);
+      if (!nextKey) return;
+      setManualFocusedKey(nextKey);
+      const [sStr, aStr] = nextKey.split(':');
+      const el = document.querySelector(`[data-ayah-anchor="${sStr}-${aStr}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    },
+    [ayahKeys, activeLineFocusKey]
+  );
+
+  useEffect(() => {
+    if (!lineFocus) return;
+    function handleFocusKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        stepLineFocus(1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        stepLineFocus(-1);
+      } else if (e.key === 'Escape') {
+        setLineFocus(false);
+      }
+    }
+    window.addEventListener('keydown', handleFocusKeyDown);
+    return () => window.removeEventListener('keydown', handleFocusKeyDown);
+  }, [lineFocus, stepLineFocus, setLineFocus]);
 
   const playAyahAtIndex = useCallback(
     (index: number, remainingRepeats?: number) => {
@@ -729,6 +807,21 @@ export function QuranMushafPage({
               </button>
               <button
                 type="button"
+                onClick={() => setLineFocus(!lineFocus)}
+                aria-pressed={lineFocus}
+                data-testid="mushaf-line-focus-toggle"
+                title="Sətir Fokus (Qaranlıq Pərdə): Yalnız aktiv ayəni aydın saxla"
+                className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                  lineFocus
+                    ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                    : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                }`}
+              >
+                <Eye className="h-3 w-3" aria-hidden="true" />
+                <span>Pərdə</span>
+              </button>
+              <button
+                type="button"
                 onClick={cycleSleepMinutes}
                 data-testid="mushaf-sleep-timer-btn"
                 aria-label={`Yuxu taymeri: ${sleepMinutes > 0 && sleepRemainingSec > 0 ? formatSleepTimerRemaining(sleepRemainingSec) : formatSleepTimerPresetLabel(sleepMinutes)}`}
@@ -802,35 +895,61 @@ export function QuranMushafPage({
             </button>
           </div>
         ) : payload ? (
-          <div
-            data-testid="mushaf-page-ayahs"
-            className="mt-6 divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-[#141916]"
-          >
-            {payload.ayahs.map((ayah, idx) => {
-              const prevAyah = idx > 0 ? payload.ayahs[idx - 1] : undefined;
-              const isNewSurah = !prevAyah || prevAyah.surahNumber !== ayah.surahNumber;
-              const showBismillah =
-                ayah.ayahNumber === 1 && ayah.surahNumber !== 1 && ayah.surahNumber !== 9;
-              const key = `${ayah.surahNumber}:${ayah.ayahNumber}`;
-              const anchorId = `ayah-${ayah.surahNumber}-${ayah.ayahNumber}`;
-              const isCopied = copiedKey === key;
-              const isPlaying = playingKey === key;
-              const isHighlighted = highlightedAnchorId === anchorId;
+          <>
+            {lineFocus && payload.ayahs.length > 0 && (
+              <LineFocusBar
+                focusedKey={activeLineFocusKey}
+                progressLabel={lineFocusProgress.label}
+                canStepPrev={lineFocusProgress.index > 1}
+                canStepNext={lineFocusProgress.index < lineFocusProgress.total}
+                onStepPrev={() => stepLineFocus(-1)}
+                onStepNext={() => stepLineFocus(1)}
+                onClose={() => setLineFocus(false)}
+              />
+            )}
+            <div
+              data-testid="mushaf-page-ayahs"
+              className="mt-6 divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-[#141916]"
+            >
+              {payload.ayahs.map((ayah, idx) => {
+                const prevAyah = idx > 0 ? payload.ayahs[idx - 1] : undefined;
+                const isNewSurah = !prevAyah || prevAyah.surahNumber !== ayah.surahNumber;
+                const showBismillah =
+                  ayah.ayahNumber === 1 && ayah.surahNumber !== 1 && ayah.surahNumber !== 9;
+                const key = `${ayah.surahNumber}:${ayah.ayahNumber}`;
+                const anchorId = `ayah-${ayah.surahNumber}-${ayah.ayahNumber}`;
+                const isCopied = copiedKey === key;
+                const isPlaying = playingKey === key;
+                const isHighlighted = highlightedAnchorId === anchorId;
+                const isLineFocused = lineFocus && activeLineFocusKey === key;
+                const isLineDimmed = lineFocus && activeLineFocusKey !== key;
 
-              return (
-                <div
-                  key={key}
-                  id={anchorId}
-                  data-ayah-anchor={`${ayah.surahNumber}-${ayah.ayahNumber}`}
-                  data-auto-focused={isPlaying && autoFocus ? 'true' : undefined}
-                  className={`p-6 sm:p-7 transition-colors ${
-                    isPlaying
-                      ? 'bg-[#0F4C3A]/8 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/20 dark:ring-[#86C7AE]/45'
-                      : isHighlighted
-                        ? 'bg-[#0F4C3A]/6 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/15 dark:ring-[#86C7AE]/40'
-                        : ''
-                  }`}
-                >
+                return (
+                  <div
+                    key={key}
+                    id={anchorId}
+                    data-ayah-anchor={`${ayah.surahNumber}-${ayah.ayahNumber}`}
+                    data-auto-focused={isPlaying && autoFocus ? 'true' : undefined}
+                    data-line-focused={isLineFocused ? 'true' : undefined}
+                    data-line-dimmed={isLineDimmed ? 'true' : undefined}
+                    onClick={(e) => {
+                      if (!lineFocus) return;
+                      const targetEl = e.target as HTMLElement | null;
+                      if (targetEl?.closest('a, button, input, select')) return;
+                      setManualFocusedKey(key);
+                    }}
+                    className={`p-6 sm:p-7 transition-all duration-200 ${
+                      isLineFocused
+                        ? 'relative z-10 bg-white opacity-100 ring-2 ring-inset ring-[#0F4C3A]/65 shadow-sm dark:bg-[#141916] dark:ring-[#86C7AE]/65'
+                        : isLineDimmed
+                          ? 'cursor-pointer opacity-30 hover:opacity-75'
+                          : isPlaying
+                            ? 'bg-[#0F4C3A]/8 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/20 dark:ring-[#86C7AE]/45'
+                            : isHighlighted
+                              ? 'bg-[#0F4C3A]/6 ring-2 ring-inset ring-[#0F4C3A]/45 dark:bg-[#196B52]/15 dark:ring-[#86C7AE]/40'
+                              : ''
+                    }`}
+                  >
                   {isNewSurah && (
                     <div className="mb-5 flex flex-col gap-2 border-b border-stone-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-stone-800">
                       <a
@@ -1014,6 +1133,7 @@ export function QuranMushafPage({
               );
             })}
           </div>
+          </>
         ) : null}
 
         {/* Prev / Next Mushaf Page Navigation */}

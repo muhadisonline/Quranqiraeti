@@ -542,6 +542,18 @@ export function QuranDirectoryPage({
               </span>
             </a>
 
+            <a
+              href="/elifba"
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate('/elifba');
+              }}
+              data-testid="directory-elifba-link"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3.5 py-2 text-xs font-medium text-stone-700 whitespace-nowrap transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200 dark:hover:border-[#86C7AE] min-h-[40px]"
+            >
+              <span>Əlifba və Təcvid</span>
+            </a>
+
             <button
               type="button"
               onClick={onToggleTheme}

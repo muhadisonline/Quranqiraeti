@@ -38,9 +38,9 @@ export function HeroSection({
                 {stats.handle} · Uzun Tilavətlər Arxivi
               </p>
 
-              <h1 className="font-display mt-5 text-[clamp(2.25rem,4vw,3.5rem)] leading-[1.08] font-semibold tracking-tight text-stone-900 text-balance dark:text-stone-100">
+              <h2 className="font-display mt-5 text-[clamp(2rem,3.5vw,3rem)] leading-[1.08] font-semibold tracking-tight text-stone-900 text-balance dark:text-stone-100">
                 Quran Qiraeti
-              </h1>
+              </h2>
 
               <p className="mt-6 max-w-xl text-base leading-relaxed text-stone-600 dark:text-stone-300">
                 {stats.description}

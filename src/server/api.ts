@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import {
   ChannelStats,
+  FEATURED_SURAH_VIDEO_IDS,
   RecitationVideo,
   SurahRequestRecord,
   SurahTranslationPayload,
@@ -8,6 +9,7 @@ import {
   parseQuranEncSurah,
   parseYouTubeShortsContinuation,
   parseYouTubeVideosPage,
+  prioritizeFeaturedSurahs,
   validateSurahRequest,
 } from '../lib/channel';
 import {
@@ -474,7 +476,14 @@ export async function fetchLiveChannelData(): Promise<{
       if (videosHtml) {
         const parsedLong = parseYouTubeVideosPage(videosHtml);
         if (parsedLong.length > 0) {
-          longVideos = parsedLong;
+          const existingIds = new Set(parsedLong.map((v) => v.videoId));
+          const featuredSeeds = SEED_LONG_VIDEOS.filter(
+            (v) =>
+              (v.videoId === FEATURED_SURAH_VIDEO_IDS.fatiha ||
+                v.videoId === FEATURED_SURAH_VIDEO_IDS.baqara) &&
+              !existingIds.has(v.videoId)
+          );
+          longVideos = prioritizeFeaturedSurahs([...parsedLong, ...featuredSeeds]);
           hasLiveLong = true;
         }
         const subMatch = videosHtml.match(/(\d+(?:\.\d+)?[KM]?)\s+subscribers/i)?.[1];
@@ -482,6 +491,8 @@ export async function fetchLiveChannelData(): Promise<{
         if (subMatch) subscribersLabel = subMatch;
         if (vidMatch) videoCountLabel = `${vidMatch}+`;
       }
+
+      longVideos = prioritizeFeaturedSurahs(longVideos);
 
       if (shortsHtml) {
         const parsedShorts = await fetchAllYouTubeShorts(shortsHtml, startedAt);

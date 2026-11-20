@@ -13,6 +13,7 @@ import {
   parseDurationToSeconds,
   parseQuranEncSurah,
   parseYouTubeShortsContinuation,
+  prioritizeFeaturedSurahs,
   validateSurahRequest,
 } from './channel';
 import { SEED_LONG_VIDEOS, SEED_SHORTS } from '../data/recitations';
@@ -114,9 +115,13 @@ test('getMentionedSurahs detects multi-surah compilations and filterSurahAyahs f
   );
 });
 
-test('SEED_LONG_VIDEOS contains only long-form videos (>= 2 min) and SEED_SHORTS contains shorts', () => {
+test('SEED_LONG_VIDEOS starts with Fatihə then Bəqərə and SEED_SHORTS contains shorts', () => {
   assert.ok(SEED_LONG_VIDEOS.length >= 15);
-  assert.ok(SEED_LONG_VIDEOS.every((v) => v.format === 'long' && v.durationSeconds >= 120));
+  assert.equal(SEED_LONG_VIDEOS[0].videoId, 'WuoDn6idrAk');
+  assert.equal(SEED_LONG_VIDEOS[0].surahNumber, 1);
+  assert.equal(SEED_LONG_VIDEOS[1].videoId, 'iCzBmN_pBs8');
+  assert.equal(SEED_LONG_VIDEOS[1].surahNumber, 2);
+  assert.ok(SEED_LONG_VIDEOS.every((v) => v.format === 'long' && v.durationSeconds > 0));
   assert.ok(SEED_SHORTS.length >= 10);
   assert.ok(SEED_SHORTS.every((v) => v.format === 'short' && v.durationSeconds < 120));
 });
@@ -125,8 +130,30 @@ test('buildVideoJsonLd produces valid Schema.org VideoObject metadata', () => {
   const firstLong = SEED_LONG_VIDEOS[0];
   const jsonLd = buildVideoJsonLd(firstLong, 'https://quranqiraeti.az');
   assert.equal(jsonLd['@type'], 'VideoObject');
-  assert.equal(jsonLd.duration, 'PT10M49S');
+  assert.equal(jsonLd.duration, 'PT39S');
   assert.equal(jsonLd.url, `https://quranqiraeti.az/video/${firstLong.videoId}`);
+});
+
+test('prioritizeFeaturedSurahs puts Fatihə first and Bəqərə second regardless of upload order', () => {
+  const baqaraFirst = SEED_LONG_VIDEOS.slice(0, 5).reverse();
+  const ordered = prioritizeFeaturedSurahs(baqaraFirst);
+  assert.equal(ordered[0].videoId, 'WuoDn6idrAk');
+  assert.equal(ordered[1].videoId, 'iCzBmN_pBs8');
+  assert.equal(ordered.length, baqaraFirst.length);
+
+  const baqaraSpell = classifyVideoTitle('2. Baqara surəsi - Maher al Muaiqly', {
+    format: 'long',
+    duration: '1:47:59',
+  });
+  assert.equal(baqaraSpell.surahNumber, 2);
+  assert.equal(baqaraSpell.surahName, 'Bəqərə surəsi');
+
+  const sharh = classifyVideoTitle('94. Şərh Surəsi — Maher Al-Muaiqly | Qurani-Kərim', {
+    format: 'long',
+    duration: '0:29',
+  });
+  assert.equal(sharh.surahNumber, 94);
+  assert.equal(sharh.category, 'qisa');
 });
 
 test('filterRecitations filters by search query, category tab, and saved IDs', () => {

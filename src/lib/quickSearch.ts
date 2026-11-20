@@ -260,6 +260,28 @@ export function searchGlobalQuickIndex(
     });
   }
 
+  if (
+    norm.includes('elifba') ||
+    norm.includes('ereb') ||
+    norm.includes('herf') ||
+    norm.includes('mexrec') ||
+    norm.includes('hereke') ||
+    norm.includes('fethe') ||
+    norm.includes('kesre') ||
+    norm.includes('zemme') ||
+    norm.includes('tecvid') ||
+    norm.includes('tajweed')
+  ) {
+    pushUnique({
+      id: 'tool-elifba',
+      kind: 'page',
+      kindLabel: 'Əlifba & Təcvid',
+      title: 'İnteraktiv Ərəb Əlifbası və Təcvid Bələdçisi',
+      subtitle: '28 ərəb hərfi, məxrəc filtrləri, canlı hərəkə qurucusu və hərf testi',
+      path: '/elifba',
+    });
+  }
+
   if (norm.includes('tecvid') || norm.includes('tajweed')) {
     pushUnique({
       id: 'tool-tajweed',

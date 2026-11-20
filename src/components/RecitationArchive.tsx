@@ -11,6 +11,7 @@ interface RecitationArchiveProps {
   isLoading: boolean;
   isDark: boolean;
   showAll: boolean;
+  asPageHeading?: boolean;
   onTabChange: (tab: FilterTab) => void;
   onSearchChange: (query: string) => void;
   onToggleSave: (videoId: string) => void;
@@ -30,6 +31,7 @@ export function RecitationArchive({
   isLoading,
   isDark,
   showAll,
+  asPageHeading = false,
   onTabChange,
   onSearchChange,
   onToggleSave,
@@ -46,22 +48,25 @@ export function RecitationArchive({
   ];
 
   const visibleVideos = showAll ? filteredVideos : filteredVideos.slice(0, 9);
+  const HeadingTag = asPageHeading ? 'h1' : 'h2';
 
   return (
     <section
       id="qiraetler"
-      className="border-b border-stone-200/80 py-16 lg:py-20 dark:border-stone-800/80"
+      className={`border-b border-stone-200/80 dark:border-stone-800/80 ${
+        asPageHeading ? 'pt-8 pb-14 lg:pt-10 lg:pb-16' : 'py-16 lg:py-20'
+      }`}
     >
       <div className="mx-auto max-w-6xl px-6">
         {/* Section Heading & Theme Utility */}
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-medium tracking-widest text-stone-500 dark:text-stone-400">
-              Uzun Videolar Arxivi
+              Quran Qiraeti · Surələr Arxivi
             </p>
-            <h2 className="font-display mt-2 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl text-balance dark:text-stone-100">
-              Tam surələr və uzun tilavətlər
-            </h2>
+            <HeadingTag className="font-display mt-2 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl text-balance dark:text-stone-100">
+              Tam surələr və tilavətlər
+            </HeadingTag>
           </div>
 
           <button
