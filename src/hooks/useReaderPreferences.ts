@@ -37,6 +37,7 @@ import {
   summarizeReadingGoal,
 } from '../lib/readingGoal';
 import {
+  ReaderLayoutMode,
   AudioPlaybackSpeed,
   AyahRepeatCount,
   LAST_READ_EVENT,
@@ -48,8 +49,10 @@ import {
   isAyahBookmarked,
   loadAudioRepeatFromStorage,
   loadAudioSpeedFromStorage,
+  loadContinuousMushafAudioFromStorage,
   loadLastReadFromStorage,
   loadReaderDisplayFromStorage,
+  loadReaderLayoutFromStorage,
   loadReaderScaleFromStorage,
   loadReaderTajweedFromStorage,
   loadReaderTranslitFromStorage,
@@ -58,7 +61,9 @@ import {
   removeSavedAyahItem,
   saveAudioRepeatToStorage,
   saveAudioSpeedToStorage,
+  saveContinuousMushafAudioToStorage,
   saveReaderDisplayToStorage,
+  saveReaderLayoutToStorage,
   saveReaderScaleToStorage,
   saveReaderTajweedToStorage,
   saveReaderTranslitToStorage,
@@ -80,6 +85,27 @@ import {
   loadWorshipReminderPrefs,
   saveWorshipReminderPrefs,
 } from '../lib/reminders';
+import {
+  AYAH_HIGHLIGHTS_EVENT,
+  AyahHighlightColor,
+  AyahHighlightMap,
+  loadAyahHighlightsFromStorage,
+  saveAyahHighlightsToStorage,
+  toggleAyahHighlightInMap,
+} from '../lib/ayahHighlighter';
+import {
+  VerseCopyTemplateId,
+  loadCopyTemplateFromStorage,
+  saveCopyTemplateToStorage,
+} from '../lib/verseCopyTemplates';
+import {
+  EMPTY_LISTENING_STATS,
+  LISTENING_STATS_EVENT,
+  ListeningStatsState,
+  loadListeningStatsFromStorage,
+  saveListeningStatsToStorage,
+  summarizeListeningStats,
+} from '../lib/listeningStats';
 
 export function useSavedAyahs() {
   const [savedAyahs, setSavedAyahs] = useState<SavedAyahRecord[]>(() =>
@@ -667,3 +693,116 @@ export function useAudioSleepTimer(onExpire: () => void) {
     clearSleepTimer,
   };
 }
+
+export function useReaderLayoutMode() {
+  const [layoutMode, setLayoutModeState] = useState<ReaderLayoutMode>(() =>
+    loadReaderLayoutFromStorage()
+  );
+
+  const setLayoutMode = useCallback((next: ReaderLayoutMode) => {
+    setLayoutModeState(next);
+    saveReaderLayoutToStorage(next);
+  }, []);
+
+  return { layoutMode, setLayoutMode };
+}
+
+export function useContinuousMushafAudio() {
+  const [continuousPageAudio, setContinuousState] = useState<boolean>(() =>
+    loadContinuousMushafAudioFromStorage()
+  );
+
+  const setContinuousPageAudio = useCallback((next: boolean) => {
+    setContinuousState(next);
+    saveContinuousMushafAudioToStorage(next);
+  }, []);
+
+  return { continuousPageAudio, setContinuousPageAudio };
+}
+
+export function useAyahHighlights() {
+  const [highlights, setHighlights] = useState<AyahHighlightMap>(() =>
+    loadAyahHighlightsFromStorage()
+  );
+
+  useEffect(() => {
+    function sync() {
+      setHighlights(loadAyahHighlightsFromStorage());
+    }
+    window.addEventListener(AYAH_HIGHLIGHTS_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(AYAH_HIGHLIGHTS_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+
+  const toggleHighlight = useCallback(
+    (surahNumber: number, ayahNumber: number, color: AyahHighlightColor) => {
+      setHighlights((prev) => {
+        const next = toggleAyahHighlightInMap(prev, surahNumber, ayahNumber, color);
+        saveAyahHighlightsToStorage(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  const getHighlightColor = useCallback(
+    (surahNumber: number, ayahNumber: number): AyahHighlightColor | undefined =>
+      highlights[`${surahNumber}:${ayahNumber}`],
+    [highlights]
+  );
+
+  return {
+    highlights,
+    toggleHighlight,
+    getHighlightColor,
+  };
+}
+
+export function useVerseCopyTemplate() {
+  const [copyTemplate, setCopyTemplateState] = useState<VerseCopyTemplateId>(() =>
+    loadCopyTemplateFromStorage()
+  );
+
+  const setCopyTemplate = useCallback((next: VerseCopyTemplateId) => {
+    setCopyTemplateState(next);
+    saveCopyTemplateToStorage(next);
+  }, []);
+
+  return { copyTemplate, setCopyTemplate };
+}
+
+export function useListeningStats() {
+  const [statsState, setStatsState] = useState<ListeningStatsState>(() =>
+    loadListeningStatsFromStorage()
+  );
+
+  useEffect(() => {
+    function sync() {
+      setStatsState(loadListeningStatsFromStorage());
+    }
+    window.addEventListener(LISTENING_STATS_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(LISTENING_STATS_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+
+  const resetStats = useCallback(() => {
+    const empty = { ...EMPTY_LISTENING_STATS };
+    setStatsState(empty);
+    saveListeningStatsToStorage(empty);
+  }, []);
+
+  const summary = summarizeListeningStats(statsState);
+
+  return {
+    statsState,
+    summary,
+    resetStats,
+  };
+}
+

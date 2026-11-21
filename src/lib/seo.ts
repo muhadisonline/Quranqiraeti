@@ -1,6 +1,12 @@
-import { ChannelStats, RecitationVideo, parseDurationToSeconds } from './channel';
+import {
+  ChannelStats,
+  RecitationVideo,
+  SurahTranslationPayload,
+  parseDurationToSeconds,
+} from './channel';
 import {
   JUZ_PAGE_RANGES,
+  MushafPagePayload,
   SURAH_CATALOG,
   SurahCatalogEntry,
   TOTAL_QURAN_PAGES,
@@ -10,7 +16,13 @@ import {
   getSurahByNumber,
 } from './quran';
 import { clampMuhaffizPage } from './muhaffiz';
+import { getActiveRubForPage } from './rubHizb';
 import { QURAN_DUAS } from '../data/quranDuas';
+
+export interface SsrContentExtras {
+  surahPayload?: SurahTranslationPayload;
+  mushafPayload?: MushafPagePayload;
+}
 
 function escapeXml(value: string): string {
   return value
@@ -282,6 +294,7 @@ export function buildCoreSitemapXml(
     { loc: `${baseUrl}/elifba`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.85' },
     { loc: `${baseUrl}/zikr`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.85' },
     { loc: `${baseUrl}/namaz-vaxtlari`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.9' },
+    { loc: `${baseUrl}/qible`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.8' },
     { loc: `${baseUrl}/teqvim`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.85' },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.8' },
@@ -406,8 +419,10 @@ export function buildSitemapXml(
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.9' },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
     { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.85' },
+    { loc: `${baseUrl}/elifba`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.85' },
     { loc: `${baseUrl}/zikr`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.85' },
     { loc: `${baseUrl}/namaz-vaxtlari`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.9' },
+    { loc: `${baseUrl}/qible`, lastmod: todayIsoDate, changefreq: 'monthly', priority: '0.8' },
     { loc: `${baseUrl}/teqvim`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.85' },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: 'weekly', priority: '0.9' },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: 'daily', priority: '0.8' },
@@ -592,7 +607,8 @@ export interface RouteSeoMetadata {
 export function resolveRouteSeoMetadata(
   pathname: string,
   origin: string,
-  videos: RecitationVideo[] = []
+  videos: RecitationVideo[] = [],
+  extras?: SsrContentExtras
 ): RouteSeoMetadata {
   const baseUrl = normalizeBaseUrl(origin);
   const cleanPath = !pathname || pathname === '/' ? '/' : pathname.split('?')[0].replace(/\/+$/, '') || '/';
@@ -678,8 +694,17 @@ export function resolveRouteSeoMetadata(
             ]
           : []),
       ],
-      noscriptHtml:
-        '<h1>Quran Qiraeti — Uzun Tilavətlər və Tam Qurani-Kərim</h1><p>Azərbaycan dilində mənaca tərcümə, 114 surə, 604 Mədinə Mushafı səhifəsi və Mühafiz əzbər aləti.</p><nav><a href="/quran">Qurani-Kərim (114 Surə)</a> · <a href="/dualar">Qurandakı Dualar</a> · <a href="/muhaffiz">Mühafiz Əzbər</a> · <a href="/shorts">Shorts</a> · <a href="/quran/cuz/1">1-ci Cüz</a> · <a href="/quran/cuz/30">30-cu Cüz</a></nav>',
+      noscriptHtml: `<h1>Quran Qiraeti — Uzun Tilavətlər və Tam Qurani-Kərim</h1><p>Azərbaycan dilində mənaca tərcümə (Əlixan Musayev v1.0.4), 114 surə, 604 Mədinə Mushafı səhifəsi və Mühafiz əzbər aləti.</p><nav><a href="/quran">Qurani-Kərim (114 Surə)</a> · <a href="/quran/sure/1">Fatihə surəsi</a> · <a href="/quran/sure/2">Bəqərə surəsi</a> · <a href="/quran/sure/18">Kəhf surəsi</a> · <a href="/quran/sure/36">Yasin surəsi</a> · <a href="/quran/sure/67">Mülk surəsi</a> · <a href="/dualar">Qurandakı Dualar</a> · <a href="/elifba">Əlifba və Təcvid</a> · <a href="/namaz-vaxtlari">Namaz Vaxtları</a> · <a href="/teqvim">Hicri Təqvim</a> · <a href="/zikr">Zikr və Təsbih</a> · <a href="/muhaffiz">Mühafiz Əzbər</a> · <a href="/shorts">Shorts</a></nav>${
+        videos.length > 0
+          ? `<ul>${videos
+              .slice(0, 12)
+              .map(
+                (v) =>
+                  `<li><a href="/video/${escapeHtmlAttr(v.videoId)}">${escapeHtmlText(v.title)}</a> — ${escapeHtmlText(v.surahName)} (${escapeHtmlText(v.ayahRange)})</li>`
+              )
+              .join('')}</ul>`
+          : ''
+      }`,
     };
   }
 
@@ -987,6 +1012,22 @@ export function resolveRouteSeoMetadata(
     }
     const faq = buildSurahFaqEntries(surah);
     const startJuz = getJuzForPage(surah.startPage);
+    const faqHtml = `<section><h2>${escapeHtmlText(surah.name)} surəsi haqqında tez-tez verilən suallar</h2><dl>${faq
+      .map(
+        (item) =>
+          `<dt>${escapeHtmlText(item.question)}</dt><dd>${escapeHtmlText(item.answer)}</dd>`
+      )
+      .join('')}</dl></section>`;
+    const ayahsHtml =
+      extras?.surahPayload && extras.surahPayload.surahNumber === surah.number
+        ? `<article>${extras.surahPayload.ayahs
+            .map(
+              (a) =>
+                `<div><p dir="rtl" lang="ar">${escapeHtmlText(a.arabicText)} ﴿${a.ayahNumber}﴾</p><p lang="az">${a.ayahNumber}. ${escapeHtmlText(a.translation)}</p></div>`
+            )
+            .join('')}</article>`
+        : '';
+
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -1018,7 +1059,7 @@ export function resolveRouteSeoMetadata(
         ]),
         buildFaqPageJsonLd(faq),
       ],
-      noscriptHtml: `<h1>${escapeHtmlText(`${surah.number}. ${surah.name} surəsi (${surah.arabicName})`)}</h1><p>${escapeHtmlText(`${surah.ayahCount} ayə · ${surah.revelationPlace} · ${startJuz}-ci Cüz · Mədinə çapı Səhifə ${surah.startPage} · Əlixan Musayev tərcüməsi`)}</p><nav><a href="/quran/sehife/${surah.startPage}">Mədinə səhifəsi ${surah.startPage}</a> · <a href="/muhaffiz/${surah.startPage}">Mühafizdə əzbərlə</a> · <a href="/quran/cuz/${startJuz}">${startJuz}-ci Cüz</a></nav>`,
+      noscriptHtml: `<h1>${escapeHtmlText(`${surah.number}. ${surah.name} surəsi (${surah.arabicName})`)}</h1><p>${escapeHtmlText(`${surah.ayahCount} ayə · ${surah.revelationPlace} · ${startJuz}-ci Cüz · Mədinə çapı Səhifə ${surah.startPage} · Əlixan Musayev tərcüməsi`)}</p><nav><a href="/quran/sehife/${surah.startPage}">Mədinə səhifəsi ${surah.startPage}</a> · <a href="/muhaffiz/${surah.startPage}">Mühafizdə əzbərlə</a> · <a href="/quran/cuz/${startJuz}">${startJuz}-ci Cüz</a></nav>${ayahsHtml}${faqHtml}`,
     };
   }
 
@@ -1097,11 +1138,22 @@ export function resolveRouteSeoMetadata(
     }
     const juz = getJuzForPage(pageNum);
     const ordinal = formatAzerbaijaniOrdinal(pageNum);
+    const activeRub = getActiveRubForPage(pageNum);
+    const mushafAyahsHtml =
+      extras?.mushafPayload && extras.mushafPayload.pageNumber === pageNum
+        ? `<article>${extras.mushafPayload.ayahs
+            .map(
+              (a) =>
+                `<div><p><strong>${escapeHtmlText(a.surahName)} ${a.surahNumber}:${a.ayahNumber}</strong></p><p dir="rtl" lang="ar">${escapeHtmlText(a.arabicText)}</p><p lang="az">${escapeHtmlText(a.translation)}</p></div>`
+            )
+            .join('')}</article>`
+        : '';
+
     return {
       httpStatus: 200,
       robots: robotsIndex,
       title: `Qurani-Kərim — ${ordinal} səhifə (Mədinə çapı) | Quran Qiraeti`,
-      description: `Mədinə çapı üzrə Qurani-Kərimin ${pageNum}-ci səhifəsi (${juz}-ci Cüz): ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi.`,
+      description: `Mədinə çapı üzrə Qurani-Kərimin ${pageNum}-ci səhifəsi (${juz}-ci Cüz, Rüb ${activeRub.rub}/240): ərəbcə mətn və Əlixan Musayevin Azərbaycan tərcüməsi.`,
       canonicalUrl: `${baseUrl}/quran/sehife/${pageNum}`,
       ogImage: defaultOg,
       ogType: 'article',
@@ -1121,7 +1173,7 @@ export function resolveRouteSeoMetadata(
           { name: `Səhifə ${pageNum}`, path: `/quran/sehife/${pageNum}` },
         ]),
       ],
-      noscriptHtml: `<h1>Qurani-Kərim — ${escapeHtmlText(ordinal)} səhifə (${juz}-ci Cüz)</h1>`,
+      noscriptHtml: `<h1>Qurani-Kərim — ${escapeHtmlText(ordinal)} səhifə (${juz}-ci Cüz · Rüb ${activeRub.rub}/240)</h1><nav>${pageNum > 1 ? `<a href="/quran/sehife/${pageNum - 1}">Əvvəlki səhifə (${pageNum - 1})</a> · ` : ''}<a href="/muhaffiz/${pageNum}">Mühafizdə əzbərlə</a>${pageNum < TOTAL_QURAN_PAGES ? ` · <a href="/quran/sehife/${pageNum + 1}">Növbəti səhifə (${pageNum + 1})</a>` : ''}</nav>${mushafAyahsHtml}`,
     };
   }
 
@@ -1245,13 +1297,18 @@ export function resolveRouteSeoMetadata(
   };
 }
 
-export function injectRouteSeoIntoHtml(html: string, meta: RouteSeoMetadata): string {
+export function injectRouteSeoIntoHtml(
+  html: string,
+  meta: RouteSeoMetadata,
+  options?: { googleSiteVerification?: string }
+): string {
   const safeTitle = escapeHtmlText(meta.title);
   const safeDesc = escapeHtmlAttr(meta.description);
   const safeRobots = escapeHtmlAttr(meta.robots);
   const safeCanonical = escapeHtmlAttr(meta.canonicalUrl);
   const safeOgImage = escapeHtmlAttr(meta.ogImage);
   const safeOgType = escapeHtmlAttr(meta.ogType);
+  const verificationToken = (options?.googleSiteVerification ?? '').trim();
 
   let out = html
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${safeTitle}</title>`)
@@ -1287,6 +1344,7 @@ export function injectRouteSeoIntoHtml(html: string, meta: RouteSeoMetadata): st
       /<meta\s+name="twitter:image"\s+content="[^"]*"\s*\/?>/i,
       `<meta name="twitter:image" content="${safeOgImage}" />`
     )
+    .replace(/<meta\s+name="google-site-verification"\s+content="[^"]*"\s*\/?>\s*/gi, '')
     .replace(/<meta\s+property="og:(?:url|image:alt)"\s+content="[^"]*"\s*\/?>\s*/gi, '')
     .replace(/<meta\s+name="twitter:(?:title|description)"\s+content="[^"]*"\s*\/?>\s*/gi, '')
     .replace(/<link\s+rel="(?:canonical|prev|next)"\s+href="[^"]*"\s*\/?>\s*/gi, '')
@@ -1294,6 +1352,9 @@ export function injectRouteSeoIntoHtml(html: string, meta: RouteSeoMetadata): st
     .replace(/<script\s+id="quran-qiraeti-ssr-jsonld"\s+type="application\/ld\+json">[\s\S]*?<\/script>\s*/gi, '');
 
   const extraHeadTags = [
+    verificationToken
+      ? `<meta name="google-site-verification" content="${escapeHtmlAttr(verificationToken)}" />`
+      : '',
     `<link rel="canonical" href="${safeCanonical}" />`,
     `<meta property="og:url" content="${safeCanonical}" />`,
     `<meta property="og:image:alt" content="${escapeHtmlAttr(meta.title)}" />`,

@@ -3,6 +3,7 @@ import { MouseEvent } from 'react';
 import { useWorshipReminders } from '../hooks/useReaderPreferences';
 import { PrayerLocation } from '../lib/prayerTimes';
 import { getContextualReminders } from '../lib/reminders';
+import { CalendarReminderCard } from './CalendarReminderCard';
 
 interface WorshipRemindersPanelProps {
   location: PrayerLocation;
@@ -190,6 +191,8 @@ export function WorshipRemindersPanel({
             {noticeMessage}
           </p>
         )}
+
+        <CalendarReminderCard className="mt-4" />
       </div>
     </section>
   );

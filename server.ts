@@ -9,6 +9,7 @@ import {
   fetchLiveChannelData,
   getChannelDataForSeo,
   getRequestOrigin,
+  getRouteSeoExtras,
 } from './src/server/api';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -54,9 +55,14 @@ async function startServer() {
         const rawHtml = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
         const transformed = await vite.transformIndexHtml(req.originalUrl, rawHtml);
         const origin = getRequestOrigin(req);
-        const { longVideos, shorts } = await getChannelDataForSeo();
-        const seoMeta = resolveRouteSeoMetadata(req.path, origin, [...longVideos, ...shorts]);
-        const html = injectRouteSeoIntoHtml(transformed, seoMeta);
+        const [{ longVideos, shorts }, extras] = await Promise.all([
+          getChannelDataForSeo(),
+          getRouteSeoExtras(req.path),
+        ]);
+        const seoMeta = resolveRouteSeoMetadata(req.path, origin, [...longVideos, ...shorts], extras);
+        const html = injectRouteSeoIntoHtml(transformed, seoMeta, {
+          googleSiteVerification: process.env.GOOGLE_SITE_VERIFICATION,
+        });
         res.status(seoMeta.httpStatus).setHeader('Content-Type', 'text/html; charset=utf-8').send(html);
       } catch (err) {
         vite.ssrFixStacktrace(err as Error);
@@ -70,9 +76,14 @@ async function startServer() {
 
     app.get('*', async (req, res) => {
       const origin = getRequestOrigin(req);
-      const { longVideos, shorts } = await getChannelDataForSeo();
-      const seoMeta = resolveRouteSeoMetadata(req.path, origin, [...longVideos, ...shorts]);
-      const html = injectRouteSeoIntoHtml(templateHtml, seoMeta);
+      const [{ longVideos, shorts }, extras] = await Promise.all([
+        getChannelDataForSeo(),
+        getRouteSeoExtras(req.path),
+      ]);
+      const seoMeta = resolveRouteSeoMetadata(req.path, origin, [...longVideos, ...shorts], extras);
+      const html = injectRouteSeoIntoHtml(templateHtml, seoMeta, {
+        googleSiteVerification: process.env.GOOGLE_SITE_VERIFICATION,
+      });
       res.status(seoMeta.httpStatus).setHeader('Content-Type', 'text/html; charset=utf-8').send(html);
     });
   }

@@ -39,6 +39,8 @@ test('buildSitemapXml and split sitemaps cover core routes, 30 Juz, 114 surahs, 
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/shorts</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/dualar</loc>'));
+  assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/elifba</loc>'));
+  assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/qible</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/muhaffiz</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/quran/cuz/1</loc>'));
   assert.ok(xml.includes('<loc>https://quranqiraeti.vercel.app/quran/cuz/30</loc>'));
@@ -49,6 +51,8 @@ test('buildSitemapXml and split sitemaps cover core routes, 30 Juz, 114 surahs, 
   assert.ok(xml.includes(`<loc>https://quranqiraeti.vercel.app/video/${SEED_LONG_VIDEOS[0].videoId}</loc>`));
 
   const coreXml = buildCoreSitemapXml('https://quranqiraeti.vercel.app', '2026-11-15');
+  assert.ok(coreXml.includes('<loc>https://quranqiraeti.vercel.app/elifba</loc>'));
+  assert.ok(coreXml.includes('<loc>https://quranqiraeti.vercel.app/qible</loc>'));
   assert.ok(coreXml.includes('<loc>https://quranqiraeti.vercel.app/quran/cuz/1</loc>'));
   assert.ok(coreXml.includes('<loc>https://quranqiraeti.vercel.app/quran/cuz/30</loc>'));
 
@@ -86,10 +90,27 @@ test('resolveRouteSeoMetadata & injectRouteSeoIntoHtml handle Home, Juz, Surah, 
   assert.ok(homeSerialized.includes('"@type":"Organization"'));
   assert.ok(homeSerialized.includes('"@type":"SearchAction"'));
 
-  const surahMeta = resolveRouteSeoMetadata('/quran/sure/36', 'https://quranqiraeti.vercel.app', []);
+  const surahMeta = resolveRouteSeoMetadata('/quran/sure/36', 'https://quranqiraeti.vercel.app', [], {
+    surahPayload: {
+      surahNumber: 36,
+      translatorName: 'Əlixan Musayev',
+      editionVersion: '1.0.4',
+      ayahs: [
+        {
+          surahNumber: 36,
+          ayahNumber: 1,
+          arabicText: 'يسٓ',
+          translation: 'Ya Sin!',
+          footnotes: '',
+        },
+      ],
+    },
+  });
   assert.equal(surahMeta.httpStatus, 200);
   assert.ok(surahMeta.title.includes('Yasin'));
   assert.ok(surahMeta.ogImage.endsWith('/og-default.png'));
+  assert.ok(surahMeta.noscriptHtml.includes('Ya Sin!'));
+  assert.ok(surahMeta.noscriptHtml.includes('Yasin surəsi neçə ayədir'));
 
   const juz1Meta = resolveRouteSeoMetadata('/quran/cuz/1', 'https://quranqiraeti.vercel.app', []);
   assert.equal(juz1Meta.httpStatus, 200);
@@ -132,9 +153,12 @@ test('resolveRouteSeoMetadata & injectRouteSeoIntoHtml handle Home, Juz, Surah, 
 
   const sampleIndexHtml = `<html><head><title>Old</title><meta name="description" content="Old" /><meta name="robots" content="index" /><meta name="googlebot" content="index" /><meta property="og:title" content="Old" /><meta property="og:description" content="Old" /><meta property="og:type" content="website" /><meta property="og:image" content="/old.png" /><meta property="og:image:alt" content="Old Alt" /><meta name="twitter:title" content="Old" /><meta name="twitter:description" content="Old" /><meta name="twitter:image" content="/old.png" /><script id="quran-qiraeti-ssr-jsonld" type="application/ld+json">{"@type":"WebSite"}</script></head><body><div id="root"></div></body></html>`;
 
-  const injected = injectRouteSeoIntoHtml(sampleIndexHtml, surahMeta);
+  const injected = injectRouteSeoIntoHtml(sampleIndexHtml, surahMeta, {
+    googleSiteVerification: 'verify-token-123',
+  });
   assert.ok(injected.includes('<title>36. Yasin surəsi'));
   assert.ok(injected.includes('<link rel="canonical" href="https://quranqiraeti.vercel.app/quran/sure/36" />'));
+  assert.ok(injected.includes('<meta name="google-site-verification" content="verify-token-123" />'));
   assert.equal(injected.match(/type="application\/ld\+json"/g)?.length, 1);
   assert.equal(injected.match(/name="twitter:title"/g)?.length, 1);
   assert.equal(injected.match(/property="og:image:alt"/g)?.length, 1);

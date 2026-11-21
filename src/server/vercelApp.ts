@@ -7,6 +7,7 @@ import {
   createSeoRouter,
   getChannelDataForSeo,
   getRequestOrigin,
+  getRouteSeoExtras,
 } from './api';
 
 const app = express();
@@ -58,9 +59,14 @@ app.get('*', async (req: Request, res: Response, next: NextFunction) => {
       return;
     }
     const origin = getRequestOrigin(req);
-    const { longVideos, shorts } = await getChannelDataForSeo();
-    const seoMeta = resolveRouteSeoMetadata(req.path, origin, [...longVideos, ...shorts]);
-    const html = injectRouteSeoIntoHtml(templateHtml, seoMeta);
+    const [{ longVideos, shorts }, extras] = await Promise.all([
+      getChannelDataForSeo(),
+      getRouteSeoExtras(req.path),
+    ]);
+    const seoMeta = resolveRouteSeoMetadata(req.path, origin, [...longVideos, ...shorts], extras);
+    const html = injectRouteSeoIntoHtml(templateHtml, seoMeta, {
+      googleSiteVerification: process.env.GOOGLE_SITE_VERIFICATION,
+    });
     res
       .status(seoMeta.httpStatus)
       .setHeader('Content-Type', 'text/html; charset=utf-8')

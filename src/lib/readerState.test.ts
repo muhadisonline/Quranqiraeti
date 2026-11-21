@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildLastReadRecord,
+  evaluateHorizontalSwipe,
   formatSavedAyahsForExport,
   isAyahBookmarked,
   parseAlQuranSearchPayload,
@@ -161,3 +162,11 @@ test('pickDailyCuratedIndex and pickRandomGlobalAyahTarget select valid Quran ta
   const lastAyah = pickRandomGlobalAyahTarget(undefined, () => 0.999999);
   assert.deepEqual(lastAyah, { surahNumber: 114, ayahNumber: 6 });
 });
+
+test('evaluateHorizontalSwipe distinguishes page-turn swipes from vertical scrolling', () => {
+  assert.equal(evaluateHorizontalSwipe(300, 200, 180, 210), 'next');
+  assert.equal(evaluateHorizontalSwipe(120, 200, 250, 210), 'prev');
+  assert.equal(evaluateHorizontalSwipe(200, 200, 180, 205), null);
+  assert.equal(evaluateHorizontalSwipe(200, 100, 110, 240), null);
+});
+

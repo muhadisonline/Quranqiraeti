@@ -321,9 +321,11 @@ function AppContent() {
     if (
       raw === 'pages' ||
       raw === 'surahs' ||
+      raw === 'rub' ||
       raw === 'search' ||
       raw === 'duas' ||
-      raw === 'saved'
+      raw === 'saved' ||
+      raw === 'stats'
     ) {
       return raw;
     }
@@ -386,9 +388,11 @@ function AppContent() {
         ) : quranPageNumber !== undefined ? (
           <QuranMushafPage
             pageNumber={quranPageNumber}
+            channelVideos={allVideos}
             activeHash={routeHash}
             isDark={isDark}
             onNavigate={navigate}
+            onPlayVideo={setActiveVideo}
             onToggleTheme={() => setIsDark((prev) => !prev)}
           />
         ) : currentPath === '/quran' || quranCuzNumber !== undefined ? (

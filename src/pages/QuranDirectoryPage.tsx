@@ -1,11 +1,13 @@
 import {
   ArrowRight,
+  BarChart3,
   BookOpen,
   Bookmark,
   Check,
   Copy,
   Download,
   Flame,
+  Headphones,
   ImageDown,
   Moon,
   Pencil,
@@ -19,11 +21,13 @@ import {
   X,
 } from 'lucide-react';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarReminderCard } from '../components/CalendarReminderCard';
 import { KhatmPlannerCard } from '../components/KhatmPlannerCard';
 import { SeoHead } from '../components/SeoHead';
 import { DUA_CATEGORIES, DuaCategory, QURAN_DUAS } from '../data/quranDuas';
 import {
   useLastRead,
+  useListeningStats,
   useReaderTransliteration,
   useReadingGoal,
   useSavedAyahs,
@@ -35,6 +39,7 @@ import {
 } from '../lib/backup';
 import { transliterateArabicToAz } from '../lib/transliteration';
 import { EMPTY_HIFZ_PROGRESS, HifzProgressState, sanitizeHifzProgress, summarizeHifzProgress, summarizeJuzHifzProgress } from '../lib/hifzProgress';
+import { formatListeningDurationAz } from '../lib/listeningStats';
 import {
   MUHAFFIZ_RECITERS,
   MuhaffizReciterId,
@@ -53,10 +58,11 @@ import {
 import { searchQuranVersesWithFallback } from '../lib/quranClient';
 import { QuranSearchMatch, formatSavedAyahsForExport, parseQuickQuranTarget } from '../lib/readerState';
 import { DailyGoalPages } from '../lib/readingGoal';
+import { RUB_HIZB_ENTRIES, filterRubHizbEntries } from '../lib/rubHizb';
 import { POPULAR_QURAN_TOPICS, buildBreadcrumbJsonLd } from '../lib/seo';
 import { downloadVerseImageCard } from '../lib/verseCard';
 
-type DirectoryBrowseMode = 'pages' | 'surahs' | 'search' | 'duas' | 'saved';
+type DirectoryBrowseMode = 'pages' | 'surahs' | 'rub' | 'search' | 'duas' | 'saved' | 'stats';
 
 const DAILY_GOAL_OPTIONS: DailyGoalPages[] = [2, 4, 10, 20];
 
@@ -82,6 +88,8 @@ export function QuranDirectoryPage({
   );
   const [surahQuery, setSurahQuery] = useState('');
   const [selectedJuz, setSelectedJuz] = useState<number | 'all'>(initialJuz ?? 'all');
+  const [rubJuzFilter, setRubJuzFilter] = useState<number | 'all'>('all');
+  const [rubQuery, setRubQuery] = useState('');
   const [jumpPageInput, setJumpPageInput] = useState('');
   const [jumpFeedback, setJumpFeedback] = useState('');
 
@@ -115,6 +123,7 @@ export function QuranDirectoryPage({
     setDailyGoalPages,
     resetKhatm,
   } = useReadingGoal();
+  const { summary: listeningSummary, resetStats: resetListeningStats } = useListeningStats();
 
   const prevInitialJuzRef = useRef<number | undefined>(initialJuz);
   useEffect(() => {
@@ -214,6 +223,15 @@ export function QuranDirectoryPage({
         place: 'all',
       }),
     [surahQuery]
+  );
+
+  const filteredRubs = useMemo(
+    () =>
+      filterRubHizbEntries(RUB_HIZB_ENTRIES, {
+        juz: rubJuzFilter,
+        query: rubQuery,
+      }),
+    [rubJuzFilter, rubQuery]
   );
 
   const visiblePages = useMemo(() => getPagesForJuz(selectedJuz), [selectedJuz]);
@@ -770,6 +788,8 @@ export function QuranDirectoryPage({
 
             <KhatmPlannerCard goalState={goalState} onNavigate={onNavigate} />
 
+            <CalendarReminderCard goalPages={readingGoalSummary.goalPages} className="mt-4" />
+
             <div className="mt-4 flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-stone-800">
               <div>
                 <p className="text-xs font-medium text-stone-800 dark:text-stone-200">
@@ -1000,6 +1020,20 @@ export function QuranDirectoryPage({
             <button
               type="button"
               role="tab"
+              aria-selected={browseMode === 'rub'}
+              onClick={() => setBrowseMode('rub')}
+              data-testid="tab-rub-nav"
+              className={`rounded-md px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                browseMode === 'rub'
+                  ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
+                  : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+              }`}
+            >
+              240 Rüb (ربع الحزب)
+            </button>
+            <button
+              type="button"
+              role="tab"
               aria-selected={browseMode === 'search'}
               onClick={() => setBrowseMode('search')}
               data-testid="tab-verse-search"
@@ -1038,6 +1072,20 @@ export function QuranDirectoryPage({
               }`}
             >
               Saxlanılan ayələr (<span className="font-mono-tabular">{savedAyahs.length}</span>)
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={browseMode === 'stats'}
+              onClick={() => setBrowseMode('stats')}
+              data-testid="tab-listening-stats"
+              className={`rounded-md px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                browseMode === 'stats'
+                  ? 'bg-white text-stone-900 shadow-xs dark:bg-[#242D28] dark:text-stone-100'
+                  : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+              }`}
+            >
+              Dinləmə Statistikası
             </button>
           </div>
 
@@ -1093,7 +1141,7 @@ export function QuranDirectoryPage({
                 />
                 <input
                   id="surah-directory-search"
-                  type="search"
+                  type="text"
                   value={surahQuery}
                   onChange={(e) => setSurahQuery(e.target.value)}
                   placeholder="Surə adı və ya nömrəsi (məs. 36, Yasin)"
@@ -1305,6 +1353,156 @@ export function QuranDirectoryPage({
                 );
               })}
             </div>
+          </div>
+        ) : browseMode === 'rub' ? (
+          /* 240 Rüb (ربع الحزب ۞) Navigation Panel */
+          <div className="mt-6" data-testid="rub-nav-panel">
+            <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-[#F7F5F0] p-4 sm:flex-row sm:items-center sm:justify-between dark:border-stone-800 dark:bg-[#141916]">
+              <div className="flex flex-wrap items-center gap-3">
+                <label
+                  htmlFor="rub-juz-filter"
+                  className="text-xs font-medium text-stone-600 dark:text-stone-400 whitespace-nowrap"
+                >
+                  Cüz üzrə:
+                </label>
+                <select
+                  id="rub-juz-filter"
+                  value={rubJuzFilter}
+                  onChange={(e) =>
+                    setRubJuzFilter(
+                      e.target.value === 'all' ? 'all' : Number.parseInt(e.target.value, 10)
+                    )
+                  }
+                  data-testid="rub-juz-filter"
+                  className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100"
+                >
+                  <option value="all">Bütün 240 Rüb (30 Cüz · 60 Hizb)</option>
+                  {JUZ_PAGE_RANGES.map((range) => (
+                    <option key={range.juz} value={range.juz}>
+                      {range.juz}. Cüz (Rüb {(range.juz - 1) * 8 + 1}–{range.juz * 8})
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-stone-500 dark:text-stone-400">
+                  <span className="font-mono-tabular font-semibold text-stone-900 dark:text-stone-100">
+                    {filteredRubs.length}
+                  </span>{' '}
+                  Rüb göstərilir
+                </span>
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <label htmlFor="rub-search-input" className="sr-only">
+                  Surə, Rüb, Hizb və ya səhifə axtar
+                </label>
+                <Search
+                  className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-stone-400"
+                  aria-hidden="true"
+                />
+                <input
+                  id="rub-search-input"
+                  type="text"
+                  value={rubQuery}
+                  onChange={(e) => setRubQuery(e.target.value)}
+                  data-testid="rub-search-input"
+                  placeholder="Surə, Rüb, Hizb və ya səhifə..."
+                  className="w-full rounded-lg border border-stone-200 bg-white py-2 pr-8 pl-9 text-xs text-stone-900 placeholder:text-stone-400 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100"
+                />
+                {rubQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setRubQuery('')}
+                    aria-label="Rüb axtarışını təmizlə"
+                    className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {filteredRubs.length > 0 ? (
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredRubs.map((entry) => (
+                  <article
+                    key={entry.rub}
+                    data-testid={`rub-card-${entry.rub}`}
+                    className="flex flex-col justify-between rounded-xl border border-stone-200 bg-white p-4 transition-colors hover:border-[#0F4C3A]/60 dark:border-stone-800 dark:bg-[#141916] dark:hover:border-[#86C7AE]/50"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="font-mono-tabular font-semibold text-[#0F4C3A] dark:text-[#86C7AE]">
+                          Rüb {entry.rub} · Hizb {entry.hizb}
+                        </span>
+                        <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400">
+                          {entry.quarterLabel}
+                        </span>
+                      </div>
+
+                      <div className="mt-2.5 flex items-baseline justify-between gap-3">
+                        <h3 className="font-display text-lg font-semibold text-stone-900 dark:text-stone-100">
+                          {entry.surahName} {entry.surahNumber}:{entry.ayahNumber}
+                        </h3>
+                        {entry.arabicSurahName && (
+                          <span
+                            dir="rtl"
+                            lang="ar"
+                            className="font-arabic shrink-0 text-base text-stone-700 dark:text-stone-300"
+                          >
+                            {entry.arabicSurahName}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="mt-1 font-mono-tabular text-[11px] text-stone-500 dark:text-stone-400">
+                        {entry.juz}. Cüz · Səhifə {entry.pageNumber}
+                      </p>
+                    </div>
+
+                    <div className="mt-3.5 flex items-center justify-between border-t border-stone-100 pt-2.5 text-xs dark:border-stone-800">
+                      <a
+                        href={`/muhaffiz/${entry.pageNumber}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onNavigate(`/muhaffiz/${entry.pageNumber}`);
+                        }}
+                        className="font-medium text-stone-600 hover:text-[#0F4C3A] dark:text-stone-400 dark:hover:text-[#86C7AE]"
+                      >
+                        Mühafiz
+                      </a>
+                      <a
+                        href={`/quran/sehife/${entry.pageNumber}#ayah-${entry.surahNumber}-${entry.ayahNumber}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onNavigate(
+                            `/quran/sehife/${entry.pageNumber}#ayah-${entry.surahNumber}-${entry.ayahNumber}`
+                          );
+                        }}
+                        className="font-medium text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                      >
+                        Oxu →
+                      </a>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-6 rounded-xl border border-stone-200 bg-[#F3F1EC] p-8 text-center dark:border-stone-800 dark:bg-[#141916]">
+                <p className="font-display text-xl font-medium text-stone-900 dark:text-stone-100">
+                  Axtarışa uyğun Rüb tapılmadı
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRubJuzFilter('all');
+                    setRubQuery('');
+                  }}
+                  className="mt-4 rounded-lg bg-[#0F4C3A] px-4 py-2 text-xs font-medium text-white dark:bg-[#196B52]"
+                >
+                  Bütün 240 Rübü göstər
+                </button>
+              </div>
+            )}
           </div>
         ) : browseMode === 'search' ? (
           /* Full-Quran Keyword Search View */
@@ -1630,7 +1828,7 @@ export function QuranDirectoryPage({
               })}
             </div>
           </div>
-        ) : (
+        ) : browseMode === 'saved' ? (
           /* Saved Favorite Ayahs Tab */
           <div className="mt-6" data-testid="saved-ayahs-panel">
             {savedAyahs.length === 0 ? (
@@ -1880,6 +2078,182 @@ export function QuranDirectoryPage({
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Personal Listening Statistics Panel (#8) */
+          <div className="mt-6" data-testid="listening-stats-panel">
+            <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-[#F7F5F0] p-5 sm:flex-row sm:items-center sm:justify-between dark:border-stone-800 dark:bg-[#141916]">
+              <div>
+                <div className="inline-flex items-center gap-1.5 text-xs font-medium text-[#0F4C3A] dark:text-[#86C7AE]">
+                  <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Şəxsi Qiraət Dinləmə Statistikası</span>
+                </div>
+                <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
+                  Surə, Mushaf, Mühafiz və video pleyerdə dinlədiyiniz tilavət müddəti, ən çox dinlədiyiniz surələr və qarilər.
+                </p>
+              </div>
+
+              {listeningSummary.totalSeconds > 0 && (
+                <button
+                  type="button"
+                  onClick={resetListeningStats}
+                  data-testid="reset-listening-stats-btn"
+                  className="inline-flex items-center gap-1.5 self-start rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 whitespace-nowrap transition-colors hover:border-red-300 hover:text-red-700 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200 dark:hover:text-red-400"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Statistikanı sıfırla</span>
+                </button>
+              )}
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-[#141916]">
+                <p className="text-[11px] font-medium text-stone-500 dark:text-stone-400">Ümumi dinləmə</p>
+                <p
+                  data-testid="stats-total-duration"
+                  className="font-mono-tabular mt-1.5 text-2xl font-semibold text-stone-900 dark:text-stone-100"
+                >
+                  {listeningSummary.formattedTotal}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-[#141916]">
+                <p className="text-[11px] font-medium text-stone-500 dark:text-stone-400">Bu gün</p>
+                <p
+                  data-testid="stats-today-duration"
+                  className="font-mono-tabular mt-1.5 text-2xl font-semibold text-[#0F4C3A] dark:text-[#86C7AE]"
+                >
+                  {formatListeningDurationAz(listeningSummary.todaySeconds)}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-[#141916]">
+                <p className="text-[11px] font-medium text-stone-500 dark:text-stone-400">Son 7 gün</p>
+                <p
+                  data-testid="stats-7d-duration"
+                  className="font-mono-tabular mt-1.5 text-2xl font-semibold text-stone-900 dark:text-stone-100"
+                >
+                  {formatListeningDurationAz(listeningSummary.last7DaysSeconds)}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-[#141916]">
+                <p className="text-[11px] font-medium text-stone-500 dark:text-stone-400">Dinləmə sessiyası</p>
+                <p
+                  data-testid="stats-sessions-count"
+                  className="font-mono-tabular mt-1.5 text-2xl font-semibold text-stone-900 dark:text-stone-100"
+                >
+                  {listeningSummary.sessionsCount}
+                </p>
+              </div>
+            </div>
+
+            {listeningSummary.totalSeconds === 0 ? (
+              <div className="mt-5 rounded-xl border border-stone-200 bg-[#F3F1EC] p-8 text-center dark:border-stone-800 dark:bg-[#141916]">
+                <Headphones className="mx-auto h-6 w-6 text-stone-400" aria-hidden="true" />
+                <p className="font-display mt-3 text-xl font-medium text-stone-900 dark:text-stone-100">
+                  Hələ qiraət dinləmə məlumatı yoxdur
+                </p>
+                <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-stone-600 dark:text-stone-400">
+                  Surə, Mushaf, Mühafiz və ya video pleyerdə tilavət dinlədikcə statistikanız avtomatik olaraq burada toplanacaq.
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2.5">
+                  <a
+                    href="/quran/sure/1"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onNavigate('/quran/sure/1');
+                    }}
+                    className="rounded-lg bg-[#0F4C3A] px-4 py-2 text-xs font-medium text-white dark:bg-[#196B52]"
+                  >
+                    Fatihə surəsini dinlə
+                  </a>
+                  <a
+                    href="/"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onNavigate('/');
+                    }}
+                    className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-xs font-medium text-stone-800 dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
+                  >
+                    Qiraət videolarına bax
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+                <div className="rounded-xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-[#141916]">
+                  <h3 className="font-display text-lg font-semibold text-stone-900 dark:text-stone-100">
+                    Ən Çox Dinlədiyiniz Surələr
+                  </h3>
+                  {listeningSummary.topSurahs.length === 0 ? (
+                    <p className="mt-3 text-xs text-stone-500 dark:text-stone-400">
+                      Hələ surə üzrə dinləmə qeydə alınmayıb.
+                    </p>
+                  ) : (
+                    <div className="mt-4 space-y-3">
+                      {listeningSummary.topSurahs.map((item) => (
+                        <div key={item.surahNumber}>
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <a
+                              href={`/quran/sure/${item.surahNumber}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                onNavigate(`/quran/sure/${item.surahNumber}`);
+                              }}
+                              className="font-medium text-stone-800 hover:text-[#0F4C3A] hover:underline dark:text-stone-200 dark:hover:text-[#86C7AE]"
+                            >
+                              {item.surahName}
+                            </a>
+                            <span className="font-mono-tabular text-stone-500 dark:text-stone-400">
+                              {item.formatted} ({item.sharePercent}%)
+                            </span>
+                          </div>
+                          <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-stone-100 dark:bg-stone-800">
+                            <div
+                              style={{ width: `${Math.max(4, item.sharePercent)}%` }}
+                              className="h-full bg-[#0F4C3A] dark:bg-[#86C7AE]"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-[#141916]">
+                  <h3 className="font-display text-lg font-semibold text-stone-900 dark:text-stone-100">
+                    Ən Çox Dinlədiyiniz Qarilər
+                  </h3>
+                  {listeningSummary.topReciters.length === 0 ? (
+                    <p className="mt-3 text-xs text-stone-500 dark:text-stone-400">
+                      Hələ qari üzrə dinləmə qeydə alınmayıb.
+                    </p>
+                  ) : (
+                    <div className="mt-4 space-y-3">
+                      {listeningSummary.topReciters.map((item) => (
+                        <div key={item.reciterName}>
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="font-medium text-stone-800 dark:text-stone-200">
+                              {item.reciterName}
+                            </span>
+                            <span className="font-mono-tabular text-stone-500 dark:text-stone-400">
+                              {item.formatted} ({item.sharePercent}%)
+                            </span>
+                          </div>
+                          <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-stone-100 dark:bg-stone-800">
+                            <div
+                              style={{ width: `${Math.max(4, item.sharePercent)}%` }}
+                              className="h-full bg-[#C6A769]"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -16,6 +16,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  Sparkles,
   Trash2,
   Volume2,
   VolumeX,
@@ -24,9 +25,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SeoHead } from '../components/SeoHead';
 import { MuhaffizIndexOverlay } from '../components/muhaffiz/MuhaffizIndexOverlay';
+import { MuhaffizPracticeModal } from '../components/muhaffiz/MuhaffizPracticeModal';
 import { MuhaffizSelfRecordPanel } from '../components/muhaffiz/MuhaffizSelfRecordPanel';
 import { MuhaffizSettingsSheet } from '../components/muhaffiz/MuhaffizSettingsSheet';
 import { useAudioPlaybackPrefs, useReadingGoal } from '../hooks/useReaderPreferences';
+import { recordListeningProgress } from '../lib/listeningStats';
 import {
   EMPTY_HIFZ_PROGRESS,
   HifzProgressState,
@@ -205,6 +208,7 @@ export function MuhaffizPage({
   const [indexOpen, setIndexOpen] = useState(false);
   const [mistakesOpen, setMistakesOpen] = useState(false);
   const [selfRecordOpen, setSelfRecordOpen] = useState(false);
+  const [practiceOpen, setPracticeOpen] = useState(false);
 
   // Qari Audio playback state
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -450,6 +454,37 @@ export function MuhaffizPage({
       stopMic();
     };
   }, [stopAudio, stopMic]);
+
+  const isAudioPlaying = Boolean(playingKey);
+  const activeListeningSurahRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!playingKey) {
+      activeListeningSurahRef.current = undefined;
+      return;
+    }
+    const sNum = Number.parseInt(playingKey.split(':')[0] ?? '', 10);
+    activeListeningSurahRef.current = Number.isInteger(sNum) ? sNum : undefined;
+  }, [playingKey]);
+
+  useEffect(() => {
+    if (!isAudioPlaying) return;
+    const reciterLabel =
+      MUHAFFIZ_RECITERS.find((r) => r.id === prefs.reciter)?.label ?? prefs.reciter;
+    recordListeningProgress({
+      surahNumber: activeListeningSurahRef.current,
+      reciterLabel,
+      seconds: 0,
+      isNewSession: true,
+    });
+    const timer = window.setInterval(() => {
+      recordListeningProgress({
+        surahNumber: activeListeningSurahRef.current,
+        reciterLabel,
+        seconds: 5,
+      });
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [isAudioPlaying, prefs.reciter]);
 
   const ayahs = useMemo(() => pageData?.ayahs ?? [], [pageData]);
   const wordTokens = useMemo(() => orderedWordTokens(pageData?.rows ?? []), [pageData]);
@@ -714,6 +749,7 @@ export function MuhaffizPage({
     setSettingsOpen(false);
     setMistakesOpen(false);
     setSelfRecordOpen(false);
+    setPracticeOpen(false);
     if (typeof window !== 'undefined') {
       const nextPath = clean === 1 ? '/muhaffiz' : `/muhaffiz/${clean}`;
       if (window.location.pathname !== nextPath) {
@@ -759,9 +795,10 @@ export function MuhaffizPage({
         setSettingsOpen(false);
         setIndexOpen(false);
         setMistakesOpen(false);
+        setPracticeOpen(false);
         return;
       }
-      if (isTyping || indexOpen || settingsOpen) return;
+      if (isTyping || indexOpen || settingsOpen || practiceOpen) return;
 
       if (e.key === '+' || e.key === '=') {
         e.preventDefault();
@@ -798,6 +835,7 @@ export function MuhaffizPage({
     indexOpen,
     lastRevealedTokenId,
     pageNumber,
+    practiceOpen,
     prefs.silentMode,
     settingsOpen,
     stopAudio,
@@ -933,8 +971,25 @@ export function MuhaffizPage({
           {cleanSurahTitle(primarySurahName)} · Səh. {pageNumber} · Cüz {pageData?.juzNumber ?? 1}
         </button>
 
-        {/* Right group: [Səssiz təkrar Eye-off] [Surə və səhifə Book + Xəta badge] */}
+        {/* Right group: [Test Məşq] [Səssiz təkrar Eye-off] [Surə və səhifə Book + Xəta badge] */}
         <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              stopAudio();
+              stopMic();
+              setPracticeOpen(true);
+            }}
+            aria-label="Əzbər testi və ardıcıllıq məşqi"
+            title="Boşluq doldurma və Növbəti ayə testi"
+            data-testid="muhaffiz-practice-btn"
+            style={{ borderColor: palette.line, color: palette.green, backgroundColor: palette.chip }}
+            className="inline-flex h-8 items-center gap-1 rounded-xl border px-2.5 text-[11px] font-semibold whitespace-nowrap transition-opacity hover:opacity-80"
+          >
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Test</span>
+          </button>
+
           <button
             type="button"
             onClick={handleToggleSilentMode}
@@ -1778,6 +1833,16 @@ export function MuhaffizPage({
           setIndexOpen(false);
           setSettingsOpen(true);
         }}
+      />
+
+      {/* Interactive Hifz Cloze (#1) & Next Ayah (#10) Practice Modal */}
+      <MuhaffizPracticeModal
+        isOpen={practiceOpen}
+        pageNumber={pageNumber}
+        ayahs={ayahs}
+        paperTheme={prefs.paperTheme}
+        reciter={prefs.reciter}
+        onClose={() => setPracticeOpen(false)}
       />
     </section>
   );

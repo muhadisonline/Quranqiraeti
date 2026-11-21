@@ -5,6 +5,7 @@ import {
   formatAzerbaijaniDate,
   formatViewCount,
 } from '../lib/channel';
+import { recordListeningProgress } from '../lib/listeningStats';
 
 interface TheaterModalProps {
   video: RecitationVideo | null;
@@ -35,6 +36,24 @@ export function TheaterModal({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [video, onClose]);
+
+  useEffect(() => {
+    if (!video) return;
+    recordListeningProgress({
+      surahNumber: video.surahNumber,
+      reciterLabel: video.reciter,
+      seconds: 0,
+      isNewSession: true,
+    });
+    const timer = window.setInterval(() => {
+      recordListeningProgress({
+        surahNumber: video.surahNumber,
+        reciterLabel: video.reciter,
+        seconds: 5,
+      });
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [video]);
 
   if (!video) return null;
 

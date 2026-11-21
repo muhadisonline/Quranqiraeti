@@ -28,6 +28,7 @@ export interface LastReadRecord {
 
 export type ReaderTextScale = 'compact' | 'normal' | 'large';
 export type ReaderDisplayMode = 'both' | 'arabic';
+export type ReaderLayoutMode = 'stacked' | 'book';
 export type AudioPlaybackSpeed = 0.75 | 1 | 1.25;
 export type AyahRepeatCount = 1 | 3 | 0; // 0 = continuous single-ayah loop
 
@@ -69,6 +70,9 @@ export const AUDIO_SPEED_STORAGE_KEY = 'quranqiraeti_audio_speed_v1';
 export const AUDIO_REPEAT_STORAGE_KEY = 'quranqiraeti_audio_repeat_v1';
 export const READER_TRANSLIT_STORAGE_KEY = 'quranqiraeti_reader_translit_v1';
 export const READER_TAJWEED_STORAGE_KEY = 'quranqiraeti_reader_tajweed_v1';
+export const READER_LAYOUT_STORAGE_KEY = 'quranqiraeti_reader_layout_v1';
+export const MUSHAF_CONTINUOUS_AUDIO_KEY = 'quranqiraeti_mushaf_continuous_audio_v1';
+export const MUSHAF_AUTOPLAY_NEXT_KEY = 'quranqiraeti_mushaf_autoplay_page_v1';
 
 export const READER_SCALE_LABELS: Record<ReaderTextScale, string> = {
   compact: 'Kiçik',
@@ -553,3 +557,59 @@ export function pickRandomGlobalAyahTarget(
   }
   return { surahNumber: 1, ayahNumber: 1 };
 }
+
+export function loadReaderLayoutFromStorage(): ReaderLayoutMode {
+  if (typeof window === 'undefined') return 'stacked';
+  try {
+    const raw = window.localStorage.getItem(READER_LAYOUT_STORAGE_KEY);
+    if (raw === 'book' || raw === 'stacked') return raw;
+  } catch {
+    // ignore storage error
+  }
+  return 'stacked';
+}
+
+export function saveReaderLayoutToStorage(mode: ReaderLayoutMode): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(READER_LAYOUT_STORAGE_KEY, mode);
+  } catch {
+    // ignore storage error
+  }
+}
+
+export function loadContinuousMushafAudioFromStorage(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const raw = window.localStorage.getItem(MUSHAF_CONTINUOUS_AUDIO_KEY);
+    if (raw === '0') return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+export function saveContinuousMushafAudioToStorage(enabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(MUSHAF_CONTINUOUS_AUDIO_KEY, enabled ? '1' : '0');
+  } catch {
+    // ignore storage error
+  }
+}
+
+export function evaluateHorizontalSwipe(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  minDistance = 64
+): 'next' | 'prev' | null {
+  const dx = endX - startX;
+  const dy = endY - startY;
+  if (Math.abs(dx) < minDistance) return null;
+  if (Math.abs(dx) < Math.abs(dy) * 1.4) return null;
+  // Swiping right-to-left (dx < 0) turns forward to the next page; left-to-right turns back
+  return dx < 0 ? 'next' : 'prev';
+}
+

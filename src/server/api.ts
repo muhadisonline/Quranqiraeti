@@ -30,6 +30,7 @@ import {
 } from '../lib/muhaffiz';
 import { parseAlQuranSearchPayload } from '../lib/readerState';
 import {
+  SsrContentExtras,
   buildAiIndexJson,
   buildCoreSitemapXml,
   buildDynamicOgSvg,
@@ -43,6 +44,7 @@ import {
   buildSitemapXml,
   buildSurahsSitemapXml,
   buildVideoSitemapXml,
+  normalizeBaseUrl,
   submitIndexNowPing,
 } from '../lib/seo';
 import {
@@ -75,6 +77,8 @@ let inflightChannelPromise: Promise<{
   longVideos: RecitationVideo[];
   shorts: RecitationVideo[];
 }> | null = null;
+
+let startupIndexNowSent = false;
 
 const surahTranslationCache = new Map<number, SurahTranslationPayload>();
 const mushafPageCache = new Map<number, MushafPagePayload>();
@@ -518,6 +522,27 @@ export async function fetchLiveChannelData(): Promise<{
         shorts,
       };
 
+      const indexNowKey = String(process.env.INDEXNOW_KEY ?? '').trim();
+      const canonicalOrigin = String(process.env.CANONICAL_ORIGIN ?? '').trim();
+      if (
+        !startupIndexNowSent &&
+        indexNowKey &&
+        canonicalOrigin &&
+        /^https?:\/\//i.test(canonicalOrigin)
+      ) {
+        startupIndexNowSent = true;
+        const baseUrl = normalizeBaseUrl(canonicalOrigin);
+        void submitIndexNowPing(baseUrl, indexNowKey, [
+          `${baseUrl}/`,
+          `${baseUrl}/shorts`,
+          `${baseUrl}/quran`,
+          `${baseUrl}/elifba`,
+          `${baseUrl}/muhaffiz`,
+          ...longVideos.slice(0, 8).map((v) => `${baseUrl}/video/${v.videoId}`),
+          ...shorts.slice(0, 8).map((v) => `${baseUrl}/video/${v.videoId}`),
+        ]).catch(() => undefined);
+      }
+
       return { stats, longVideos, shorts };
     } catch {
       return {
@@ -705,6 +730,10 @@ export function createApiRouter() {
 }
 
 export function getRequestOrigin(req: Request): string {
+  const configuredCanonical = String(process.env.CANONICAL_ORIGIN ?? '').trim();
+  if (configuredCanonical && /^https?:\/\//i.test(configuredCanonical)) {
+    return normalizeBaseUrl(configuredCanonical);
+  }
   const forwardedProto = String(req.headers['x-forwarded-proto'] ?? '')
     .split(',')[0]
     .trim();
@@ -716,6 +745,58 @@ export function getRequestOrigin(req: Request): string {
     forwardedProto ||
     (host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https');
   return `${proto}://${host}`;
+}
+
+export async function getRouteSeoExtras(pathname: string): Promise<SsrContentExtras> {
+  const cleanPath = pathname.replace(/\/+$/, '') || '/';
+  const ssrTimeoutMs = process.env.VERCEL ? 1600 : 2200;
+
+  const surahMatch = cleanPath.match(/^\/quran\/(?:sure\/)?(\d+)$/);
+  if (surahMatch) {
+    const surahNumber = Number.parseInt(surahMatch[1], 10);
+    if (surahNumber >= 1 && surahNumber <= 114) {
+      const cached = surahTranslationCache.get(surahNumber);
+      if (cached && cached.ayahs.length > 0) {
+        return { surahPayload: cached };
+      }
+      try {
+        const surahPayload = await Promise.race([
+          fetchSurahTranslation(surahNumber),
+          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ssrTimeoutMs)),
+        ]);
+        if (surahPayload && surahPayload.ayahs.length > 0) {
+          return { surahPayload };
+        }
+      } catch {
+        // Keep fast SSR response without blocking on upstream timeout
+      }
+    }
+    return {};
+  }
+
+  const mushafMatch = cleanPath.match(/^\/quran\/sehife\/(\d+)$/);
+  if (mushafMatch) {
+    const pageNumber = Number.parseInt(mushafMatch[1], 10);
+    if (pageNumber >= 1 && pageNumber <= TOTAL_QURAN_PAGES) {
+      const cached = mushafPageCache.get(pageNumber);
+      if (cached && cached.ayahs.length > 0) {
+        return { mushafPayload: cached };
+      }
+      try {
+        const mushafPayload = await Promise.race([
+          fetchMushafPage(pageNumber),
+          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ssrTimeoutMs)),
+        ]);
+        if (mushafPayload && mushafPayload.ayahs.length > 0) {
+          return { mushafPayload };
+        }
+      } catch {
+        // Keep fast SSR response without blocking on upstream timeout
+      }
+    }
+  }
+
+  return {};
 }
 
 export async function getChannelDataForSeo(): Promise<{
@@ -825,6 +906,29 @@ export function createSeoRouter() {
     res.send(buildDynamicOgSvg(kind, id));
   });
 
+  router.get('/api/seo/readiness', (req: Request, res: Response) => {
+    const origin = getRequestOrigin(req);
+    const configuredCanonical = String(process.env.CANONICAL_ORIGIN ?? '').trim();
+    const indexNowKey = String(process.env.INDEXNOW_KEY ?? '').trim();
+    const googleVerification = String(process.env.GOOGLE_SITE_VERIFICATION ?? '').trim();
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      canonicalOrigin: origin,
+      canonicalOriginConfigured: Boolean(configuredCanonical && /^https?:\/\//i.test(configuredCanonical)),
+      indexNowConfigured: Boolean(indexNowKey),
+      googleVerificationConfigured: Boolean(googleVerification),
+      endpoints: [
+        `${origin}/robots.txt`,
+        `${origin}/sitemap.xml`,
+        `${origin}/sitemap-index.xml`,
+        `${origin}/sitemap-videos.xml`,
+        `${origin}/rss.xml`,
+        `${origin}/llms.txt`,
+        `${origin}/ai-index.json`,
+      ],
+    });
+  });
+
   router.get('/api/seo/indexnow-ping', async (req: Request, res: Response) => {
     const key = String(process.env.INDEXNOW_KEY ?? '').trim();
     if (!key) {
@@ -841,6 +945,7 @@ export function createSeoRouter() {
         `${origin}/`,
         `${origin}/shorts`,
         `${origin}/quran`,
+        `${origin}/elifba`,
         `${origin}/dualar`,
         `${origin}/muhaffiz`,
         ...longVideos.slice(0, 10).map((v) => `${origin}/video/${v.videoId}`),
