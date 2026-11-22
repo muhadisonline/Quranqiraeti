@@ -193,6 +193,55 @@
         "lastCheckedAt",
         "checkedByUid"
       ]
+    },
+    "TelegramSubscriptionEvent": {
+      "title": "TelegramSubscriptionEvent",
+      "description": "Encrypted append-only Telegram notification preference event written when a user updates /abune settings in the bot.",
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique subscription event identifier."
+        },
+        "chatHash": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]+$",
+          "description": "Server HMAC-SHA256 hash identifying the subscriber without storing plaintext chat ID."
+        },
+        "encryptedPayload": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 1024,
+          "pattern": "^[a-zA-Z0-9+/=:\\-]+$",
+          "description": "AES-256-GCM ciphertext containing subscriber chat ID, city, schedule hour, and reminder flags."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether notifications are currently active."
+        },
+        "hourBaku": {
+          "type": "integer",
+          "description": "Preferred Asia/Baku hour (0-23) for daily digest delivery."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": [
+        "eventId",
+        "chatHash",
+        "encryptedPayload",
+        "active",
+        "hourBaku",
+        "createdAt"
+      ]
     }
   },
   "firestore": {
@@ -207,6 +256,10 @@
     "/page_health/{pageKey}": {
       "schema": { "$ref": "#/entities/PageHealthRecord" },
       "description": "Per-page health check status snapshots saved by the admin monitor."
+    },
+    "/telegram_sub_events/{eventId}": {
+      "schema": { "$ref": "#/entities/TelegramSubscriptionEvent" },
+      "description": "Encrypted append-only Telegram /abune subscription state events."
     }
   }
 }

@@ -5,9 +5,15 @@
   "outputDirectory": "dist",
   "functions": {
     "api/index.mjs": {
-      "includeFiles": "dist/index.html"
+      "includeFiles": "{dist/index.html,dist/fonts/*}"
     }
   },
+  "crons": [
+    {
+      "path": "/api/telegram/cron?all=1",
+      "schedule": "0 5 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { QURAN_DUAS } from '../data/quranDuas';
 import { SEED_LONG_VIDEOS, SEED_SHORTS } from '../data/recitations';
 import {
   TELEGRAM_BOT_COMMANDS,
@@ -9,7 +8,7 @@ import {
   findCityForTelegramQuery,
   findSurahForTelegramQuery,
   formatAlphabetMessage,
-  formatDuaMessage,
+  formatAudioSelectorMessage,
   formatHijriCalendarMessage,
   formatMushafPageMessage,
   formatPrayerTimesMessage,
@@ -18,10 +17,13 @@ import {
   formatVerseMessage,
   formatZikrMessage,
   getTelegramAyahAudioUrl,
+  getTelegramSurahAudioUrl,
   normalizeAzSearchText,
+  parseAudioQueryArgs,
   parseTelegramCommand,
   resolveTelegramStartParamPath,
 } from './telegramBot';
+import { MUHAFFIZ_RECITERS, getFullSurahAudioUrl, resolveMuhaffizReciter } from './muhaffiz';
 import { getSurahByNumber } from './quran';
 
 test('parseTelegramCommand parses commands with bot mention and Azerbaijani args', () => {
@@ -86,10 +88,22 @@ test('formatters generate Mini App keyboards, audio callbacks, Mushaf nav, Zikr,
     translation: 'Allah — Ondan başqa ibadətə layiq məbud yoxdur.',
   });
   assert.ok(verseMsg.text.includes('2:255'));
-  assert.equal(verseMsg.reply_markup?.inline_keyboard[0][0].callback_data, 'audio:2:255');
+  assert.equal(verseMsg.reply_markup?.inline_keyboard[0][0].callback_data, 'amenu:2:255:afasy');
   assert.equal(
     getTelegramAyahAudioUrl(2, 255),
     'https://everyayah.com/data/Alafasy_128kbps/002255.mp3'
+  );
+  assert.equal(
+    getTelegramAyahAudioUrl(2, 255, 'maher'),
+    'https://everyayah.com/data/MaherAlMuaiqly128kbps/002255.mp3'
+  );
+  assert.equal(
+    getTelegramSurahAudioUrl(36, 'yasser'),
+    'https://cdn.mp3quran.net/audio/yasser-dosari/r1/036.mp3'
+  );
+  assert.equal(
+    getFullSurahAudioUrl(1, 'Abdul_Basit_Murattal_192kbps'),
+    'https://cdn.mp3quran.net/audio/abdulbasit-abdulsamad/r3/001.mp3'
   );
 
   const mushafMsg = formatMushafPageMessage(origin, 42, 'Bəqərə (253–256)');
@@ -103,8 +117,15 @@ test('formatters generate Mini App keyboards, audio callbacks, Mushaf nav, Zikr,
   assert.ok(prayerMsg.text.includes('Zöhr'));
   assert.ok(prayerMsg.text.includes('Qiblə bucağı'));
 
-  const duaMsg = formatDuaMessage(origin, QURAN_DUAS[0]);
-  assert.ok(duaMsg.text.includes(QURAN_DUAS[0].title));
+  assert.equal(TELEGRAM_BOT_COMMANDS.some((c) => c.command === 'dua'), false);
+  assert.equal(
+    start.reply_markup?.inline_keyboard.flat().some((b) => b.callback_data === 'dua:next'),
+    false
+  );
+  assert.equal(
+    verseMsg.reply_markup?.inline_keyboard.flat().some((b) => b.callback_data === 'dua:next'),
+    false
+  );
 
   const zikrMsg = formatZikrMessage(origin, 'seher', 0);
   assert.ok(zikrMsg.text.includes('Səhər zikrləri'));
@@ -134,4 +155,38 @@ test('buildInlineQueryResults and resolveTelegramStartParamPath handle search an
   assert.equal(resolveTelegramStartParamPath('muhaffiz_18'), '/muhaffiz/18');
   assert.equal(resolveTelegramStartParamPath('namaz'), '/namaz-vaxtlari');
   assert.equal(resolveTelegramStartParamPath('invalid_param'), '/');
+});
+
+test('audio selector offers Ayah, Full Surah, and all 6 Qarilər plus /ses parser', () => {
+  assert.equal(MUHAFFIZ_RECITERS.length, 6);
+  assert.equal(resolveMuhaffizReciter('Mahir').id, 'MaherAlMuaiqly128kbps');
+  assert.equal(resolveMuhaffizReciter('Dövsəri').id, 'Yasser_Ad-Dussary_128kbps');
+
+  const selector = formatAudioSelectorMessage('https://quranqiraeti.vercel.app', {
+    surahNumber: 36,
+    ayahNumber: 1,
+    reciterInput: 'maher',
+    showPresets: true,
+  });
+  const rows = selector.reply_markup?.inline_keyboard ?? [];
+  assert.equal(rows[0][0].callback_data, 'aplay:ayah:36:1:maher');
+  assert.equal(rows[0][1].callback_data, 'aplay:surah:36:1:maher');
+  assert.equal(rows[1].length + rows[2].length, 6);
+  assert.ok(rows[1].some((btn) => btn.text.startsWith('✓ ') && btn.callback_data === 'asrc:36:1:maher'));
+
+  const parsedYasinMaher = parseAudioQueryArgs('Yasin maher');
+  assert.equal(parsedYasinMaher.surahNumber, 36);
+  assert.equal(parsedYasinMaher.ayahNumber, 1);
+  assert.equal(parsedYasinMaher.reciterId, 'MaherAlMuaiqly128kbps');
+  assert.equal(parsedYasinMaher.hasExplicitTarget, true);
+
+  const parsedBaqaraAyah = parseAudioQueryArgs('Bəqərə 255 yasir');
+  assert.equal(parsedBaqaraAyah.surahNumber, 2);
+  assert.equal(parsedBaqaraAyah.ayahNumber, 255);
+  assert.equal(parsedBaqaraAyah.reciterId, 'Yasser_Ad-Dussary_128kbps');
+
+  const parsedRef = parseAudioQueryArgs('2:255 basit');
+  assert.equal(parsedRef.surahNumber, 2);
+  assert.equal(parsedRef.ayahNumber, 255);
+  assert.equal(parsedRef.reciterId, 'Abdul_Basit_Murattal_192kbps');
 });

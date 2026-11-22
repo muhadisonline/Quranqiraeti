@@ -130,6 +130,31 @@ service cloud.firestore {
         data.checkedByUid == request.auth.uid;
     }
 
+    function isValidTelegramSubEvent(data) {
+      return data.keys().hasAll([
+          'eventId',
+          'chatHash',
+          'encryptedPayload',
+          'active',
+          'hourBaku',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'eventId',
+          'chatHash',
+          'encryptedPayload',
+          'active',
+          'hourBaku',
+          'createdAt'
+        ]) &&
+        isValidId(data.eventId) &&
+        data.chatHash is string && data.chatHash.size() >= 16 && data.chatHash.size() <= 64 && data.chatHash.matches('^[a-f0-9]+$') &&
+        data.encryptedPayload is string && data.encryptedPayload.size() >= 16 && data.encryptedPayload.size() <= 1024 && data.encryptedPayload.matches('^[a-zA-Z0-9+/=:\\-]+$') &&
+        data.active is bool &&
+        data.hourBaku is int && data.hourBaku >= 0 && data.hourBaku <= 23 &&
+        data.createdAt == request.time;
+    }
+
     // Admins Registry: Only verified admins can read/manage
     match /admins/{adminUid} {
       allow get: if isValidId(adminUid) && (isAdmin() || (isSignedIn() && request.auth.uid == adminUid));
@@ -182,6 +207,17 @@ service cloud.firestore {
           'checkedByUid'
         ]);
       allow delete: if isValidPageKey(pageKey) && isAdmin();
+    }
+
+    // Encrypted Telegram /abune subscription events: Append-only validated writes; admin-only reads/deletes
+    match /telegram_sub_events/{eventId} {
+      allow get: if isValidId(eventId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(eventId) &&
+        isValidTelegramSubEvent(incoming()) &&
+        incoming().eventId == eventId;
+      allow update: if false;
+      allow delete: if isValidId(eventId) && isAdmin();
     }
   }
 }

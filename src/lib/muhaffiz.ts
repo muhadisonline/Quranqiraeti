@@ -10,8 +10,27 @@ export type MuhaffizRevealMode = 'word' | 'ayah';
 export type MuhaffizPaperTheme = 'cream' | 'white' | 'black';
 export type MuhaffizReciterId =
   | 'Alafasy_128kbps'
+  | 'MaherAlMuaiqly128kbps'
+  | 'Yasser_Ad-Dussary_128kbps'
   | 'Husary_128kbps'
-  | 'Minshawy_Murattal_128kbps';
+  | 'Minshawy_Murattal_128kbps'
+  | 'Abdul_Basit_Murattal_192kbps';
+
+export type ReciterShortCode =
+  | 'afasy'
+  | 'maher'
+  | 'yasser'
+  | 'husary'
+  | 'minshawy'
+  | 'basit';
+
+export interface MuhaffizReciterSpec {
+  id: MuhaffizReciterId;
+  code: ReciterShortCode;
+  label: string;
+  shortLabel: string;
+  surahCdnSlug: string;
+}
 
 export interface MuhaffizPreferences {
   revealMode: MuhaffizRevealMode;
@@ -102,11 +121,92 @@ export const DEFAULT_MUHAFFIZ_PREFS: MuhaffizPreferences = {
   reciter: 'Alafasy_128kbps',
 };
 
-export const MUHAFFIZ_RECITERS: Array<{ id: MuhaffizReciterId; label: string }> = [
-  { id: 'Alafasy_128kbps', label: 'Mişari Rəşid əl-Əfəsi' },
-  { id: 'Husary_128kbps', label: 'Mahmud Xəlil əl-Husəri' },
-  { id: 'Minshawy_Murattal_128kbps', label: 'Məhəmməd Siddiq əl-Minşavi' },
+export const MUHAFFIZ_RECITERS: MuhaffizReciterSpec[] = [
+  {
+    id: 'Alafasy_128kbps',
+    code: 'afasy',
+    label: 'Mişari Rəşid əl-Əfəsi',
+    shortLabel: 'Mişari Əfəsi',
+    surahCdnSlug: 'mishary-alafasy/r1',
+  },
+  {
+    id: 'MaherAlMuaiqly128kbps',
+    code: 'maher',
+    label: 'Mahir əl-Muəyqili',
+    shortLabel: 'Mahir Muəyqili',
+    surahCdnSlug: 'maher-muaiqly/r1',
+  },
+  {
+    id: 'Yasser_Ad-Dussary_128kbps',
+    code: 'yasser',
+    label: 'Yasir əd-Dövsəri',
+    shortLabel: 'Yasir Dövsəri',
+    surahCdnSlug: 'yasser-dosari/r1',
+  },
+  {
+    id: 'Husary_128kbps',
+    code: 'husary',
+    label: 'Mahmud Xəlil əl-Husəri',
+    shortLabel: 'Mahmud Husəri',
+    surahCdnSlug: 'mahmoud-husary/r1',
+  },
+  {
+    id: 'Minshawy_Murattal_128kbps',
+    code: 'minshawy',
+    label: 'Məhəmməd Siddiq əl-Minşavi',
+    shortLabel: 'Siddiq Minşavi',
+    surahCdnSlug: 'muhammad-minshawi/r1',
+  },
+  {
+    id: 'Abdul_Basit_Murattal_192kbps',
+    code: 'basit',
+    label: 'Əbdülbasit Əbdüssəməd',
+    shortLabel: 'Əbdülbasit',
+    surahCdnSlug: 'abdulbasit-abdulsamad/r3',
+  },
 ];
+
+export function resolveMuhaffizReciter(input?: string): MuhaffizReciterSpec {
+  const raw = String(input ?? '').trim();
+  if (!raw) return MUHAFFIZ_RECITERS[0];
+
+  const direct = MUHAFFIZ_RECITERS.find(
+    (r) => r.id === raw || r.code === raw.toLowerCase()
+  );
+  if (direct) return direct;
+
+  const clean = raw
+    .toLowerCase()
+    .replace(/ə/g, 'e')
+    .replace(/ö/g, 'o')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ç/g, 'c')
+    .replace(/ğ/g, 'g')
+    .replace(/ı/g, 'i')
+    .trim();
+
+  if (clean.includes('maher') || clean.includes('mahir') || clean.includes('mueyq')) {
+    return MUHAFFIZ_RECITERS[1];
+  }
+  if (clean.includes('yass') || clean.includes('yasir') || clean.includes('dovs') || clean.includes('duss')) {
+    return MUHAFFIZ_RECITERS[2];
+  }
+  if (clean.includes('hus') || clean.includes('xalil') || clean.includes('xelil')) {
+    return MUHAFFIZ_RECITERS[3];
+  }
+  if (clean.includes('minsh') || clean.includes('mins') || clean.includes('siddiq')) {
+    return MUHAFFIZ_RECITERS[4];
+  }
+  if (clean.includes('basit') || clean.includes('abdul') || clean.includes('ebdul')) {
+    return MUHAFFIZ_RECITERS[5];
+  }
+  if (clean.includes('afas') || clean.includes('efes') || clean.includes('misar') || clean.includes('mishar')) {
+    return MUHAFFIZ_RECITERS[0];
+  }
+
+  return MUHAFFIZ_RECITERS[0];
+}
 
 export interface MushafWordToken {
   id: string;
@@ -728,6 +828,15 @@ export function getEveryAyahAudioUrl(
   const s = String(Math.max(1, Math.min(114, surahNumber))).padStart(3, '0');
   const a = String(Math.max(1, ayahNumber)).padStart(3, '0');
   return `https://everyayah.com/data/${reciter}/${s}${a}.mp3`;
+}
+
+export function getFullSurahAudioUrl(
+  surahNumber: number,
+  reciter: MuhaffizReciterId = 'Alafasy_128kbps'
+): string {
+  const spec = resolveMuhaffizReciter(reciter);
+  const s = String(Math.max(1, Math.min(114, surahNumber))).padStart(3, '0');
+  return `https://cdn.mp3quran.net/audio/${spec.surahCdnSlug}/${s}.mp3`;
 }
 
 export const FATIHAT_PAGE_1_VERSES_SEED: QuranComRawVerseWithWords[] = [

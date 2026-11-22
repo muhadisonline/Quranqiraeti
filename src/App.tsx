@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode, useEffect, useMemo, useState } from 'react';
 import { AboutChannelSection, VerseOfTheDaySection } from './components/ChannelStorySection';
 import { Footer } from './components/Footer';
+import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
 import { HeroSection } from './components/HeroSection';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { QuickJumpModal } from './components/QuickJumpModal';
@@ -10,6 +11,7 @@ import { SeoHead } from './components/SeoHead';
 import { SurahRequestSection } from './components/SurahRequestSection';
 import { TheaterModal } from './components/TheaterModal';
 import { TopBar } from './components/TopBar';
+import { GlobalAudioProvider } from './contexts/GlobalAudioContext';
 import {
   DEFAULT_CHANNEL_STATS,
   SEED_LONG_VIDEOS,
@@ -95,7 +97,9 @@ const THEME_STORAGE_KEY = 'quranqiraeti_theme_v1';
 export default function App() {
   return (
     <AppErrorBoundary>
-      <AppContent />
+      <GlobalAudioProvider>
+        <AppContent />
+      </GlobalAudioProvider>
     </AppErrorBoundary>
   );
 }
@@ -681,6 +685,8 @@ function AppContent() {
         onClose={() => setIsQuickJumpOpen(false)}
         onNavigate={navigate}
       />
+
+      <GlobalAudioPlayer currentPath={currentPath} onNavigate={navigate} />
 
       <OfflineIndicator />
     </div>

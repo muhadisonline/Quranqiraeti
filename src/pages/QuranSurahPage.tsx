@@ -18,16 +18,13 @@ import {
   Volume2,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LineFocusBar } from '../components/LineFocusBar';
 import { MatchingShortsStrip } from '../components/MatchingShortsStrip';
-import { ReaderAudioBar } from '../components/ReaderAudioBar';
 import { SeoHead } from '../components/SeoHead';
 import { TajweedArabicText, TajweedLegendBar } from '../components/TajweedArabicText';
+import { useGlobalAudio } from '../contexts/GlobalAudioContext';
 import {
-  useAudioPlaybackPrefs,
-  useAudioSleepTimer,
-  useAutoFocusAyah,
   useAyahHighlights,
   useLineFocusReader,
   useReaderDisplayMode,
@@ -42,7 +39,6 @@ import {
   HIGHLIGHT_COLOR_META,
   getAyahHighlightMarkClass,
 } from '../lib/ayahHighlighter';
-import { recordListeningProgress } from '../lib/listeningStats';
 import {
   formatLineFocusProgress,
   resolveFocusedAyahKey,
@@ -67,7 +63,7 @@ import {
 import {
   MUHAFFIZ_RECITERS,
   MuhaffizReciterId,
-  getEveryAyahAudioUrl,
+  resolveMuhaffizReciter,
 } from '../lib/muhaffiz';
 import {
   AudioPlaybackSpeed,
@@ -91,8 +87,6 @@ import {
   buildSurahFaqEntries,
 } from '../lib/seo';
 import { downloadVerseImageCard } from '../lib/verseCard';
-
-const READER_RECITER_KEY = 'quranqiraeti_reader_reciter_v1';
 
 interface QuranSurahPageProps {
   surahNumber: number;
@@ -127,20 +121,24 @@ export function QuranSurahPage({
   const [showAllPages, setShowAllPages] = useState<boolean>(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const [reciter, setReciter] = useState<MuhaffizReciterId>(() => {
-    try {
-      const saved = localStorage.getItem(READER_RECITER_KEY);
-      if (saved && MUHAFFIZ_RECITERS.some((r) => r.id === saved)) {
-        return saved as MuhaffizReciterId;
-      }
-    } catch {
-      // ignore storage error
-    }
-    return 'Alafasy_128kbps';
-  });
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [playingKey, setPlayingKey] = useState<string | null>(null);
-  const [audioError, setAudioError] = useState<string | null>(null);
+  const {
+    reciter,
+    setReciter,
+    playingKey,
+    audioError,
+    playbackSpeed,
+    setPlaybackSpeed,
+    repeatCount,
+    setRepeatCount,
+    autoFocus,
+    setAutoFocus,
+    sleepMinutes,
+    sleepRemainingSec,
+    cycleSleepMinutes,
+    playAyahQueue,
+    playFullSurah,
+    stop: stopGlobalAudio,
+  } = useGlobalAudio();
 
   const { isSaved, toggleAyahBookmark } = useSavedAyahs();
   const { textScale, setTextScale } = useReaderTextScale();
@@ -148,42 +146,23 @@ export function QuranSurahPage({
   const { layoutMode, setLayoutMode } = useReaderLayoutMode();
   const { showTranslit, setShowTranslit } = useReaderTransliteration();
   const { showTajweed, setShowTajweed } = useReaderTajweed();
-  const { playbackSpeed, setPlaybackSpeed, repeatCount, setRepeatCount } = useAudioPlaybackPrefs();
-  const { autoFocus, setAutoFocus } = useAutoFocusAyah();
   const { lineFocus, setLineFocus } = useLineFocusReader();
   const { getHighlightColor, toggleHighlight } = useAyahHighlights();
   const { copyTemplate, setCopyTemplate } = useVerseCopyTemplate();
   const [manualFocusedKey, setManualFocusedKey] = useState<string | null>(null);
 
-  const stopAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.onended = null;
-      audioRef.current.onerror = null;
-      audioRef.current = null;
-    }
-    setPlayingKey(null);
-  }, []);
-
-  const {
-    sleepMinutes,
-    remainingSec: sleepRemainingSec,
-    cycleSleepMinutes,
-  } = useAudioSleepTimer(stopAudio);
-
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = playbackSpeed;
+    if (typeof window === 'undefined') return;
+    const paramReciter = new URLSearchParams(window.location.search).get('reciter');
+    if (paramReciter) {
+      const resolved = resolveMuhaffizReciter(paramReciter);
+      if (resolved.id !== reciter) {
+        setReciter(resolved.id);
+      }
     }
-  }, [playbackSpeed]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(READER_RECITER_KEY, reciter);
-    } catch {
-      // ignore storage error
-    }
-  }, [reciter]);
+    // Sync only on surah entry if URL explicitly requests a reciter
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [surahNumber]);
 
   useEffect(() => {
     if (surah) {
@@ -197,45 +176,18 @@ export function QuranSurahPage({
     setQuery('');
     setSelectedMushafPage(null);
     setShowAllPages(false);
-    setAudioError(null);
     setManualFocusedKey(null);
-    stopAudio();
-  }, [surahNumber, stopAudio]);
-
-  useEffect(() => {
-    return () => {
-      stopAudio();
-    };
-  }, [stopAudio]);
-
-  const isAudioPlaying = Boolean(playingKey);
-  useEffect(() => {
-    if (!isAudioPlaying) return;
-    const reciterLabel = MUHAFFIZ_RECITERS.find((r) => r.id === reciter)?.label ?? reciter;
-    recordListeningProgress({
-      surahNumber,
-      reciterLabel,
-      seconds: 0,
-      isNewSession: true,
-    });
-    const timer = window.setInterval(() => {
-      recordListeningProgress({
-        surahNumber,
-        reciterLabel,
-        seconds: 5,
-      });
-    }, 5000);
-    return () => window.clearInterval(timer);
-  }, [isAudioPlaying, surahNumber, reciter]);
+  }, [surahNumber]);
 
   useEffect(() => {
     if (!playingKey || !autoFocus) return;
+    if (!playingKey.startsWith(`${surahNumber}:`)) return;
     const [, ayahStr] = playingKey.split(':');
     const el = document.getElementById(`ayah-${ayahStr}`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [playingKey, autoFocus]);
+  }, [playingKey, autoFocus, surahNumber]);
 
   useEffect(() => {
     if (!surah) return;
@@ -439,94 +391,58 @@ export function QuranSurahPage({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [query, showAllPages, pageGroups, activeGroupIndex]);
 
-  const playAyahAtIndex = useCallback(
-    (index: number, remainingRepeats?: number) => {
-      if (index < 0 || index >= displayedAyahs.length) {
-        stopAudio();
-        return;
-      }
-      const repeatsLeft = remainingRepeats ?? repeatCount;
-      const ayah = displayedAyahs[index];
-      const key = `${ayah.surahNumber}:${ayah.ayahNumber}`;
-      stopAudio();
-      setAudioError(null);
-
-      const audio = new Audio(getEveryAyahAudioUrl(ayah.surahNumber, ayah.ayahNumber, reciter));
-      audio.playbackRate = playbackSpeed;
-      audioRef.current = audio;
-      setPlayingKey(key);
-
-      audio.onended = () => {
-        if (audioRef.current !== audio) return;
-        if (repeatsLeft === 0) {
-          playAyahAtIndex(index, 0);
-        } else if (repeatsLeft > 1) {
-          playAyahAtIndex(index, repeatsLeft - 1);
-        } else if (index + 1 < displayedAyahs.length) {
-          playAyahAtIndex(index + 1, repeatCount);
-        } else {
-          stopAudio();
-        }
-      };
-
-      audio.onerror = () => {
-        if (audioRef.current !== audio) return;
-        stopAudio();
-        setAudioError('Bu ayənin səs faylı hazırda oxuna bilmədi.');
-      };
-
-      void audio.play().catch(() => {
-        if (audioRef.current !== audio) return;
-        stopAudio();
-        setAudioError('Səs oxutma brauzer tərəfindən dayandırıldı. Yenidən toxunun.');
-      });
-    },
-    [displayedAyahs, reciter, playbackSpeed, repeatCount, stopAudio]
-  );
+  const isThisSurahPlayingAyah = Boolean(playingKey && playingKey.startsWith(`${surahNumber}:`));
+  const isFullSurahPlayingHere = playingKey === `full-surah:${surahNumber}`;
 
   function handleToggleAyahAudio(ayahNumber: number) {
     const key = `${surahNumber}:${ayahNumber}`;
     if (playingKey === key) {
-      stopAudio();
+      stopGlobalAudio();
       return;
     }
     const idx = displayedAyahs.findIndex((a) => a.ayahNumber === ayahNumber);
     if (idx >= 0) {
-      playAyahAtIndex(idx);
+      playAyahQueue(
+        displayedAyahs.map((a) => ({
+          surahNumber: a.surahNumber,
+          surahName: surah?.name ?? `Surə ${surahNumber}`,
+          ayahNumber: a.ayahNumber,
+        })),
+        idx,
+        { sourcePath: `/quran/sure/${surahNumber}#ayah-${ayahNumber}` }
+      );
     }
   }
 
   function handlePlayAllDisplayed() {
-    if (playingKey) {
-      stopAudio();
+    if (isThisSurahPlayingAyah) {
+      stopGlobalAudio();
       return;
     }
     if (displayedAyahs.length === 0) return;
+    const queue = displayedAyahs.map((a) => ({
+      surahNumber: a.surahNumber,
+      surahName: surah?.name ?? `Surə ${surahNumber}`,
+      ayahNumber: a.ayahNumber,
+    }));
     if (highlightedAyahNumber !== null) {
       const startIdx = displayedAyahs.findIndex((a) => a.ayahNumber === highlightedAyahNumber);
       if (startIdx >= 0) {
-        playAyahAtIndex(startIdx);
+        playAyahQueue(queue, startIdx, {
+          sourcePath: `/quran/sure/${surahNumber}#ayah-${highlightedAyahNumber}`,
+        });
         return;
       }
     }
-    playAyahAtIndex(0);
+    playAyahQueue(queue, 0, { sourcePath: `/quran/sure/${surahNumber}` });
   }
 
-  const playingDisplayIndex = useMemo(() => {
-    if (!playingKey) return -1;
-    return displayedAyahs.findIndex((a) => `${a.surahNumber}:${a.ayahNumber}` === playingKey);
-  }, [playingKey, displayedAyahs]);
-
-  function handleCycleSpeed() {
-    const order: AudioPlaybackSpeed[] = [0.75, 1, 1.25];
-    const nextIdx = (order.indexOf(playbackSpeed) + 1) % order.length;
-    setPlaybackSpeed(order[nextIdx] ?? 1);
-  }
-
-  function handleCycleRepeat() {
-    const order: AyahRepeatCount[] = [1, 3, 0];
-    const nextIdx = (order.indexOf(repeatCount) + 1) % order.length;
-    setRepeatCount(order[nextIdx] ?? 1);
+  function handlePlayFullSurah() {
+    if (isFullSurahPlayingHere) {
+      stopGlobalAudio();
+      return;
+    }
+    playFullSurah(surahNumber, `/quran/sure/${surahNumber}`);
   }
 
   const firstPage = pageGroups[0]?.pageNumber ?? surah?.startPage;
@@ -820,7 +736,6 @@ export function QuranSurahPage({
                     id="surah-reciter-select"
                     value={reciter}
                     onChange={(e) => {
-                      stopAudio();
                       setReciter(e.target.value as MuhaffizReciterId);
                     }}
                     data-testid="surah-reciter-select"
@@ -840,24 +755,47 @@ export function QuranSurahPage({
                     onClick={handlePlayAllDisplayed}
                     data-testid="surah-play-all"
                     className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
-                      playingKey
+                      isThisSurahPlayingAyah
                         ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
                         : 'border border-stone-200 bg-white text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200'
                     }`}
                   >
-                    {playingKey ? (
+                    {isThisSurahPlayingAyah ? (
                       <>
                         <Square className="h-3 w-3 fill-current" aria-hidden="true" />
-                        <span>Dayandır</span>
+                        <span>Ayələri dayandır</span>
                       </>
                     ) : (
                       <>
                         <Play className="h-3 w-3 fill-current" aria-hidden="true" />
-                        <span>Hamısını dinlə</span>
+                        <span>Ayə-ayə dinlə</span>
                       </>
                     )}
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={handlePlayFullSurah}
+                  data-testid="surah-play-full-mp3"
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                    isFullSurahPlayingHere
+                      ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                      : 'border border-stone-200 bg-white text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200'
+                  }`}
+                >
+                  {isFullSurahPlayingHere ? (
+                    <>
+                      <Square className="h-3 w-3 fill-current" aria-hidden="true" />
+                      <span>Dayandır</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                      <span>Tam surə</span>
+                    </>
+                  )}
+                </button>
 
                 <div
                   role="group"
@@ -1640,33 +1578,6 @@ export function QuranSurahPage({
           )}
         </nav>
       </div>
-
-      {playingKey && (
-        <ReaderAudioBar
-          playingLabel={`${surah.name} · ${playingKey}`}
-          reciterLabel={MUHAFFIZ_RECITERS.find((r) => r.id === reciter)?.label ?? reciter}
-          hasPrev={playingDisplayIndex > 0}
-          hasNext={playingDisplayIndex >= 0 && playingDisplayIndex < displayedAyahs.length - 1}
-          playbackSpeed={playbackSpeed}
-          repeatCount={repeatCount}
-          sleepMinutes={sleepMinutes}
-          sleepRemainingSec={sleepRemainingSec}
-          autoFocusEnabled={autoFocus}
-          onPrev={() => {
-            if (playingDisplayIndex > 0) playAyahAtIndex(playingDisplayIndex - 1);
-          }}
-          onNext={() => {
-            if (playingDisplayIndex >= 0 && playingDisplayIndex < displayedAyahs.length - 1) {
-              playAyahAtIndex(playingDisplayIndex + 1);
-            }
-          }}
-          onStop={stopAudio}
-          onCycleSpeed={handleCycleSpeed}
-          onCycleRepeat={handleCycleRepeat}
-          onCycleSleepTimer={cycleSleepMinutes}
-          onToggleAutoFocus={() => setAutoFocus(!autoFocus)}
-        />
-      )}
     </article>
   );
 }

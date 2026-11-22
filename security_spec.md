@@ -6,6 +6,7 @@
 3. **Anti-Privilege Escalation**: No non-admin user can create, update, or delete `/admins/{adminUid}` or assign themselves `role: "admin"`.
 4. **Telemetry Schema Integrity**: Public/visitor `create` on `/page_events/{eventId}` is strictly append-only (no `update`, `delete`, or `read`/`list` by non-admins) and validates every field type, regex (`eventId`, `path`, `sessionId`), enum allowlist (`pageKey`, `status`, `referrerType`), numeric bounds (`loadTimeMs`, `httpStatus`), exact allowed keys (`hasAll` + `hasOnly`), and server timestamp (`createdAt == request.time`).
 5. **Health Snapshot Ownership**: `/page_health/{pageKey}` can only be read, created, updated, or deleted by verified admins, with `checkedByUid == request.auth.uid` and `lastCheckedAt == request.time`.
+6. **Telegram Subscription Event Privacy**: `/telegram_sub_events/{eventId}` is append-only (`create` strictly validated with regex, `encryptedPayload` ciphertext <= 1024 chars, `active is bool`, `hourBaku` int 0..23, and `createdAt == request.time`). Only verified admins can `get`, `list`, or `delete`, and `update` is strictly forbidden. Raw Telegram `chatId` is never stored in plaintext.
 
 ## 2. The "Dirty Dozen" Payloads (Expected: PERMISSION_DENIED)
 1. Unauthenticated read (`get`/`list`) on `/page_events` or `/page_events/ev-1`.
@@ -16,7 +17,7 @@
 6. Shadow field injection on `/page_events`: adding `"isAdmin": true` alongside valid telemetry fields.
 7. Invalid `pageKey` (e.g., `"hacked_route"`) on `/page_events`.
 8. Resource poisoning: 1.5KB path string (`path.size() > 180`) on `/page_events`.
-9. Oversized/invalid `eventId` containing `/` or spaces on `/page_events/{eventId}`.
-10. Forged client timestamp (`createdAt != request.time`) on `/page_events` create.
-11. Unauthenticated or non-admin `update`/`delete` on `/page_events/{eventId}` (immutable telemetry log).
+9. Oversized/invalid `eventId` containing `/` or spaces on `/page_events/{eventId}` or `/telegram_sub_events/{eventId}`.
+10. Forged client timestamp (`createdAt != request.time`) on `/page_events` or `/telegram_sub_events` create.
+11. Unauthenticated or non-admin `read`/`list`/`update`/`delete` on `/telegram_sub_events/{eventId}` or shadow field injection (`role: "admin"`).
 12. Non-admin `create` or `update` on `/page_health/home`, or admin writing `checkedByUid != request.auth.uid`.

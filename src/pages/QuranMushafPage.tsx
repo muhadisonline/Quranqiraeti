@@ -19,13 +19,10 @@ import {
 import { FormEvent, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LineFocusBar } from '../components/LineFocusBar';
 import { MatchingShortsStrip } from '../components/MatchingShortsStrip';
-import { ReaderAudioBar } from '../components/ReaderAudioBar';
 import { SeoHead } from '../components/SeoHead';
 import { TajweedArabicText, TajweedLegendBar } from '../components/TajweedArabicText';
+import { useGlobalAudio } from '../contexts/GlobalAudioContext';
 import {
-  useAudioPlaybackPrefs,
-  useAudioSleepTimer,
-  useAutoFocusAyah,
   useAyahHighlights,
   useContinuousMushafAudio,
   useLineFocusReader,
@@ -43,7 +40,6 @@ import {
   getAyahHighlightMarkClass,
 } from '../lib/ayahHighlighter';
 import { RecitationVideo } from '../lib/channel';
-import { recordListeningProgress } from '../lib/listeningStats';
 import {
   formatLineFocusProgress,
   resolveFocusedAyahKey,
@@ -64,7 +60,6 @@ import {
 import {
   MUHAFFIZ_RECITERS,
   MuhaffizReciterId,
-  getEveryAyahAudioUrl,
 } from '../lib/muhaffiz';
 import {
   MushafPagePayload,
@@ -86,8 +81,6 @@ import {
   saveLastReadToStorage,
 } from '../lib/readerState';
 import { downloadVerseImageCard } from '../lib/verseCard';
-
-const READER_RECITER_KEY = 'quranqiraeti_reader_reciter_v1';
 
 interface QuranMushafPageProps {
   pageNumber: number;
@@ -116,78 +109,50 @@ export function QuranMushafPage({
   const [jumpInput, setJumpInput] = useState<string>(String(pageNumber));
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const [reciter, setReciter] = useState<MuhaffizReciterId>(() => {
-    try {
-      const saved = localStorage.getItem(READER_RECITER_KEY);
-      if (saved && MUHAFFIZ_RECITERS.some((r) => r.id === saved)) {
-        return saved as MuhaffizReciterId;
-      }
-    } catch {
-      // ignore storage error
-    }
-    return 'Alafasy_128kbps';
-  });
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const {
+    reciter,
+    setReciter,
+    playingKey,
+    audioError,
+    playbackSpeed,
+    setPlaybackSpeed,
+    repeatCount,
+    setRepeatCount,
+    autoFocus,
+    setAutoFocus,
+    sleepMinutes,
+    sleepRemainingSec,
+    cycleSleepMinutes,
+    playAyahQueue,
+    stop: stopGlobalAudio,
+  } = useGlobalAudio();
+
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const [playingKey, setPlayingKey] = useState<string | null>(null);
-  const [audioError, setAudioError] = useState<string | null>(null);
   const { isSaved: isAyahSaved, toggleAyahBookmark } = useSavedAyahs();
   const { textScale, setTextScale } = useReaderTextScale();
   const { displayMode, setDisplayMode } = useReaderDisplayMode();
   const { layoutMode, setLayoutMode } = useReaderLayoutMode();
   const { showTranslit, setShowTranslit } = useReaderTransliteration();
   const { showTajweed, setShowTajweed } = useReaderTajweed();
-  const { playbackSpeed, setPlaybackSpeed, repeatCount, setRepeatCount } = useAudioPlaybackPrefs();
   const { continuousPageAudio, setContinuousPageAudio } = useContinuousMushafAudio();
+  const continuousRef = useRef(continuousPageAudio);
+  continuousRef.current = continuousPageAudio;
   const { recordPageRead } = useReadingGoal();
-  const { autoFocus, setAutoFocus } = useAutoFocusAyah();
   const { lineFocus, setLineFocus } = useLineFocusReader();
   const { getHighlightColor, toggleHighlight } = useAyahHighlights();
   const { copyTemplate, setCopyTemplate } = useVerseCopyTemplate();
   const [manualFocusedKey, setManualFocusedKey] = useState<string | null>(null);
 
-  const stopAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.onended = null;
-      audioRef.current.onerror = null;
-      audioRef.current = null;
-    }
-    setPlayingKey(null);
-  }, []);
-
-  const {
-    sleepMinutes,
-    remainingSec: sleepRemainingSec,
-    cycleSleepMinutes,
-  } = useAudioSleepTimer(stopAudio);
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = playbackSpeed;
-    }
-  }, [playbackSpeed]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(READER_RECITER_KEY, reciter);
-    } catch {
-      // ignore storage error
-    }
-  }, [reciter]);
-
   useEffect(() => {
     setJumpInput(String(pageNumber));
-    setAudioError(null);
     setManualFocusedKey(null);
-    stopAudio();
     if (isValidPage) {
       saveLastReadToStorage(
         buildLastReadRecord('page', pageNumber, `Mədinə səhifəsi ${pageNumber}`)
       );
       recordPageRead(pageNumber);
     }
-  }, [pageNumber, isValidPage, stopAudio, recordPageRead]);
+  }, [pageNumber, isValidPage, recordPageRead]);
 
   useEffect(() => {
     if (!isValidPage) return;
@@ -223,42 +188,6 @@ export function QuranMushafPage({
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [playingKey, autoFocus]);
-
-  useEffect(() => {
-    return () => {
-      stopAudio();
-    };
-  }, [stopAudio]);
-
-  const isAudioPlaying = Boolean(playingKey);
-  const activeListeningSurahRef = useRef<number | undefined>(undefined);
-  useEffect(() => {
-    if (!playingKey) {
-      activeListeningSurahRef.current = undefined;
-      return;
-    }
-    const sNum = Number.parseInt(playingKey.split(':')[0] ?? '', 10);
-    activeListeningSurahRef.current = Number.isInteger(sNum) ? sNum : undefined;
-  }, [playingKey]);
-
-  useEffect(() => {
-    if (!isAudioPlaying) return;
-    const reciterLabel = MUHAFFIZ_RECITERS.find((r) => r.id === reciter)?.label ?? reciter;
-    recordListeningProgress({
-      surahNumber: activeListeningSurahRef.current,
-      reciterLabel,
-      seconds: 0,
-      isNewSession: true,
-    });
-    const timer = window.setInterval(() => {
-      recordListeningProgress({
-        surahNumber: activeListeningSurahRef.current,
-        reciterLabel,
-        seconds: 5,
-      });
-    }, 5000);
-    return () => window.clearInterval(timer);
-  }, [isAudioPlaying, reciter]);
 
   useEffect(() => {
     if (!isValidPage) return;
@@ -395,67 +324,36 @@ export function QuranMushafPage({
     return () => window.removeEventListener('keydown', handleFocusKeyDown);
   }, [lineFocus, stepLineFocus, setLineFocus]);
 
-  const playAyahAtIndex = useCallback(
-    (index: number, remainingRepeats?: number) => {
+  const startPageAudioFromIndex = useCallback(
+    (startIndex: number) => {
       const list = payload?.ayahs ?? [];
-      if (index < 0 || index >= list.length) {
-        stopAudio();
+      if (startIndex < 0 || startIndex >= list.length) {
+        stopGlobalAudio();
         return;
       }
-      const repeatsLeft = remainingRepeats ?? repeatCount;
-      const ayah = list[index];
-      const key = `${ayah.surahNumber}:${ayah.ayahNumber}`;
-      stopAudio();
-      setAudioError(null);
-
-      const audio = new Audio(getEveryAyahAudioUrl(ayah.surahNumber, ayah.ayahNumber, reciter));
-      audio.playbackRate = playbackSpeed;
-      audioRef.current = audio;
-      setPlayingKey(key);
-
-      audio.onended = () => {
-        if (audioRef.current !== audio) return;
-        if (repeatsLeft === 0) {
-          playAyahAtIndex(index, 0);
-        } else if (repeatsLeft > 1) {
-          playAyahAtIndex(index, repeatsLeft - 1);
-        } else if (index + 1 < list.length) {
-          playAyahAtIndex(index + 1, repeatCount);
-        } else if (continuousPageAudio && pageNumber < TOTAL_QURAN_PAGES) {
-          stopAudio();
-          try {
-            window.sessionStorage.setItem(MUSHAF_AUTOPLAY_NEXT_KEY, String(pageNumber + 1));
-          } catch {
-            // ignore storage errors
-          }
-          onNavigate(`/quran/sehife/${pageNumber + 1}`);
-        } else {
-          stopAudio();
+      playAyahQueue(
+        list.map((a) => ({
+          surahNumber: a.surahNumber,
+          surahName: a.surahName,
+          ayahNumber: a.ayahNumber,
+        })),
+        startIndex,
+        {
+          sourcePath: `/quran/sehife/${pageNumber}`,
+          onQueueEnd: () => {
+            if (continuousRef.current && pageNumber < TOTAL_QURAN_PAGES) {
+              try {
+                window.sessionStorage.setItem(MUSHAF_AUTOPLAY_NEXT_KEY, String(pageNumber + 1));
+              } catch {
+                // ignore storage errors
+              }
+              onNavigate(`/quran/sehife/${pageNumber + 1}`);
+            }
+          },
         }
-      };
-
-      audio.onerror = () => {
-        if (audioRef.current !== audio) return;
-        stopAudio();
-        setAudioError('Bu ayənin səs faylı hazırda oxuna bilmədi.');
-      };
-
-      void audio.play().catch(() => {
-        if (audioRef.current !== audio) return;
-        stopAudio();
-        setAudioError('Səs oxutma brauzer tərəfindən dayandırıldı. Yenidən toxunun.');
-      });
+      );
     },
-    [
-      payload,
-      reciter,
-      playbackSpeed,
-      repeatCount,
-      continuousPageAudio,
-      pageNumber,
-      onNavigate,
-      stopAudio,
-    ]
+    [payload, pageNumber, onNavigate, playAyahQueue, stopGlobalAudio]
   );
 
   // Resume cross-page continuous recitation when redirected from previous page (#3)
@@ -467,29 +365,35 @@ export function QuranMushafPage({
       const pending = window.sessionStorage.getItem(MUSHAF_AUTOPLAY_NEXT_KEY);
       if (pending === String(pageNumber)) {
         window.sessionStorage.removeItem(MUSHAF_AUTOPLAY_NEXT_KEY);
-        playAyahAtIndex(0);
+        startPageAudioFromIndex(0);
       }
     } catch {
       // ignore storage errors
     }
-  }, [isLoading, payload, pageNumber, playAyahAtIndex]);
+  }, [isLoading, payload, pageNumber, startPageAudioFromIndex]);
+
+  const isThisPagePlaying = useMemo(() => {
+    const list = payload?.ayahs ?? [];
+    if (!playingKey) return false;
+    return list.some((a) => `${a.surahNumber}:${a.ayahNumber}` === playingKey);
+  }, [payload, playingKey]);
 
   function handleToggleAyahAudio(surahNum: number, ayahNum: number) {
     const key = `${surahNum}:${ayahNum}`;
     if (playingKey === key) {
-      stopAudio();
+      stopGlobalAudio();
       return;
     }
     const list = payload?.ayahs ?? [];
     const idx = list.findIndex((a) => a.surahNumber === surahNum && a.ayahNumber === ayahNum);
     if (idx >= 0) {
-      playAyahAtIndex(idx);
+      startPageAudioFromIndex(idx);
     }
   }
 
   function handlePlayAllPage() {
-    if (playingKey) {
-      stopAudio();
+    if (isThisPagePlaying) {
+      stopGlobalAudio();
       return;
     }
     const list = payload?.ayahs ?? [];
@@ -499,32 +403,11 @@ export function QuranMushafPage({
         (a) => `ayah-${a.surahNumber}-${a.ayahNumber}` === highlightedAnchorId
       );
       if (startIdx >= 0) {
-        playAyahAtIndex(startIdx);
+        startPageAudioFromIndex(startIdx);
         return;
       }
     }
-    playAyahAtIndex(0);
-  }
-
-  const playingPageIndex = useMemo(() => {
-    const list = payload?.ayahs ?? [];
-    if (!playingKey) return -1;
-    return list.findIndex((a) => `${a.surahNumber}:${a.ayahNumber}` === playingKey);
-  }, [payload, playingKey]);
-
-  const activePlayingAyah =
-    playingPageIndex >= 0 ? payload?.ayahs[playingPageIndex] : undefined;
-
-  function handleCycleSpeed() {
-    const order: AudioPlaybackSpeed[] = [0.75, 1, 1.25];
-    const nextIdx = (order.indexOf(playbackSpeed) + 1) % order.length;
-    setPlaybackSpeed(order[nextIdx] ?? 1);
-  }
-
-  function handleCycleRepeat() {
-    const order: AyahRepeatCount[] = [1, 3, 0];
-    const nextIdx = (order.indexOf(repeatCount) + 1) % order.length;
-    setRepeatCount(order[nextIdx] ?? 1);
+    startPageAudioFromIndex(0);
   }
 
   if (!isValidPage) {
@@ -779,7 +662,6 @@ export function QuranMushafPage({
                 id="mushaf-reciter-select"
                 value={reciter}
                 onChange={(e) => {
-                  stopAudio();
                   setReciter(e.target.value as MuhaffizReciterId);
                 }}
                 data-testid="mushaf-reciter-select"
@@ -799,12 +681,12 @@ export function QuranMushafPage({
                 onClick={handlePlayAllPage}
                 data-testid="mushaf-play-all"
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
-                  playingKey
+                  isThisPagePlaying
                     ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
                     : 'border border-stone-200 bg-white text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200'
                 }`}
               >
-                {playingKey ? (
+                {isThisPagePlaying ? (
                   <>
                     <Square className="h-3 w-3 fill-current" aria-hidden="true" />
                     <span>Dayandır</span>
@@ -1449,43 +1331,6 @@ export function QuranMushafPage({
           )}
         </nav>
       </div>
-
-      {playingKey && (
-        <ReaderAudioBar
-          playingLabel={
-            activePlayingAyah
-              ? `${activePlayingAyah.surahName} · ${playingKey} (Səh. ${pageNumber})`
-              : `Səhifə ${pageNumber} · ${playingKey}`
-          }
-          reciterLabel={MUHAFFIZ_RECITERS.find((r) => r.id === reciter)?.label ?? reciter}
-          hasPrev={playingPageIndex > 0}
-          hasNext={
-            playingPageIndex >= 0 &&
-            playingPageIndex < (payload?.ayahs.length ?? 0) - 1
-          }
-          playbackSpeed={playbackSpeed}
-          repeatCount={repeatCount}
-          sleepMinutes={sleepMinutes}
-          sleepRemainingSec={sleepRemainingSec}
-          autoFocusEnabled={autoFocus}
-          onPrev={() => {
-            if (playingPageIndex > 0) playAyahAtIndex(playingPageIndex - 1);
-          }}
-          onNext={() => {
-            if (
-              playingPageIndex >= 0 &&
-              playingPageIndex < (payload?.ayahs.length ?? 0) - 1
-            ) {
-              playAyahAtIndex(playingPageIndex + 1);
-            }
-          }}
-          onStop={stopAudio}
-          onCycleSpeed={handleCycleSpeed}
-          onCycleRepeat={handleCycleRepeat}
-          onCycleSleepTimer={cycleSleepMinutes}
-          onToggleAutoFocus={() => setAutoFocus(!autoFocus)}
-        />
-      )}
     </article>
   );
 }

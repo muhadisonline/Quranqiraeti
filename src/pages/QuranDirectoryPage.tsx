@@ -11,6 +11,7 @@ import {
   ImageDown,
   Moon,
   Pencil,
+  Play,
   RotateCcw,
   Search,
   Square,
@@ -24,6 +25,7 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useSta
 import { CalendarReminderCard } from '../components/CalendarReminderCard';
 import { KhatmPlannerCard } from '../components/KhatmPlannerCard';
 import { SeoHead } from '../components/SeoHead';
+import { useGlobalAudio } from '../contexts/GlobalAudioContext';
 import { DUA_CATEGORIES, DuaCategory, QURAN_DUAS } from '../data/quranDuas';
 import {
   useLastRead,
@@ -43,7 +45,6 @@ import { formatListeningDurationAz } from '../lib/listeningStats';
 import {
   MUHAFFIZ_RECITERS,
   MuhaffizReciterId,
-  getEveryAyahAudioUrl,
 } from '../lib/muhaffiz';
 import {
   JUZ_PAGE_RANGES,
@@ -54,6 +55,7 @@ import {
   formatAzerbaijaniOrdinal,
   getJuzForPage,
   getPagesForJuz,
+  getSurahByNumber,
 } from '../lib/quran';
 import { searchQuranVersesWithFallback } from '../lib/quranClient';
 import { QuranSearchMatch, formatSavedAyahsForExport, parseQuickQuranTarget } from '../lib/readerState';
@@ -106,13 +108,23 @@ export function QuranDirectoryPage({
   const [showReadingGoal, setShowReadingGoal] = useState(false);
 
   const [duaCategory, setDuaCategory] = useState<DuaCategory>('all');
-  const [duaReciter, setDuaReciter] = useState<MuhaffizReciterId>('Alafasy_128kbps');
-  const [playingDuaId, setPlayingDuaId] = useState<string | null>(null);
   const [copiedDuaId, setCopiedDuaId] = useState<string | null>(null);
-  const [duaAudioError, setDuaAudioError] = useState('');
   const [backupMessage, setBackupMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
-  const duaAudioRef = useRef<HTMLAudioElement | null>(null);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [quickAudioSurah, setQuickAudioSurah] = useState<number>(36);
+  const [quickAudioMode, setQuickAudioMode] = useState<'surah' | 'ayah'>('surah');
+  const [quickAudioAyah, setQuickAudioAyah] = useState<number>(1);
+
+  const {
+    reciter,
+    setReciter,
+    playingKey,
+    audioError,
+    playSingleAyah,
+    playFullSurah,
+    stop: stopGlobalAudio,
+  } = useGlobalAudio();
 
   const lastRead = useLastRead();
   const { showTranslit, setShowTranslit } = useReaderTransliteration();
@@ -141,21 +153,38 @@ export function QuranDirectoryPage({
     prevInitialJuzRef.current = initialJuz;
   }, [initialTab, initialJuz, initialSearchQuery]);
 
-  const stopDuaAudio = useCallback(() => {
-    if (duaAudioRef.current) {
-      duaAudioRef.current.pause();
-      duaAudioRef.current.onended = null;
-      duaAudioRef.current.onerror = null;
-      duaAudioRef.current = null;
-    }
-    setPlayingDuaId(null);
-  }, []);
+  const selectedQuickSurah = useMemo(
+    () => getSurahByNumber(quickAudioSurah) ?? SURAH_CATALOG[0],
+    [quickAudioSurah]
+  );
 
-  useEffect(() => {
-    return () => {
-      stopDuaAudio();
-    };
-  }, [stopDuaAudio]);
+  const clampedQuickAyah = Math.max(
+    1,
+    Math.min(selectedQuickSurah.ayahCount, Math.trunc(quickAudioAyah || 1))
+  );
+
+  const quickAudioTargetKey =
+    quickAudioMode === 'surah'
+      ? `full-surah:${selectedQuickSurah.number}`
+      : `${selectedQuickSurah.number}:${clampedQuickAyah}`;
+
+  const isQuickAudioActive = playingKey === quickAudioTargetKey;
+
+  function handleQuickAudioToggle() {
+    if (isQuickAudioActive) {
+      stopGlobalAudio();
+      return;
+    }
+    if (quickAudioMode === 'surah') {
+      playFullSurah(selectedQuickSurah.number, `/quran/sure/${selectedQuickSurah.number}`);
+    } else {
+      playSingleAyah(
+        selectedQuickSurah.number,
+        clampedQuickAyah,
+        `/quran/sure/${selectedQuickSurah.number}#ayah-${clampedQuickAyah}`
+      );
+    }
+  }
 
   const filteredDuas = useMemo(
     () =>
@@ -166,29 +195,12 @@ export function QuranDirectoryPage({
   );
 
   function handleToggleDuaAudio(dua: (typeof QURAN_DUAS)[number]) {
-    if (playingDuaId === dua.id) {
-      stopDuaAudio();
+    const key = `${dua.surahNumber}:${dua.ayahNumber}`;
+    if (playingKey === key) {
+      stopGlobalAudio();
       return;
     }
-    stopDuaAudio();
-    setDuaAudioError('');
-    const audio = new Audio(getEveryAyahAudioUrl(dua.surahNumber, dua.ayahNumber, duaReciter));
-    duaAudioRef.current = audio;
-    setPlayingDuaId(dua.id);
-    audio.onended = () => {
-      if (duaAudioRef.current !== audio) return;
-      stopDuaAudio();
-    };
-    audio.onerror = () => {
-      if (duaAudioRef.current !== audio) return;
-      stopDuaAudio();
-      setDuaAudioError('Duanın səsi hazırda oxudula bilmədi.');
-    };
-    audio.play().catch(() => {
-      if (duaAudioRef.current !== audio) return;
-      stopDuaAudio();
-      setDuaAudioError('Audio oxutma brauzer tərəfindən dayandırıldı.');
-    });
+    playSingleAyah(dua.surahNumber, dua.ayahNumber, '/dualar');
   }
 
   async function handleCopyDua(dua: (typeof QURAN_DUAS)[number]) {
@@ -896,6 +908,155 @@ export function QuranDirectoryPage({
               ))}
             </div>
           </div>
+        )}
+
+        {/* Instant Recitation Launcher (#1): Play Surah or Ayah with chosen Qari directly from /quran */}
+        {!isDuasRoute && (
+          <section
+            aria-label="Dərhal səsli tilavət dinlə"
+            data-testid="quran-quick-audio-card"
+            className="mt-6 rounded-xl border border-stone-200 bg-white p-4 sm:p-5 dark:border-stone-800 dark:bg-[#141916]"
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-2.5">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0F4C3A]/10 text-[#0F4C3A] dark:bg-[#196B52]/25 dark:text-[#86C7AE]">
+                  <Headphones className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 className="font-display text-base font-semibold text-stone-900 dark:text-stone-100">
+                    Dərhal Səsli Tilavət Dinlə
+                  </h2>
+                  <p className="text-xs text-stone-500 dark:text-stone-400">
+                    Surə, ayə və qari seçin — başqa bölmələrə keçsəniz də səs kəsilmədən oxumağa davam edəcək.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="quick-audio-surah" className="sr-only">
+                  Surə seçimi
+                </label>
+                <select
+                  id="quick-audio-surah"
+                  value={quickAudioSurah}
+                  onChange={(e) => {
+                    const nextNum = Number.parseInt(e.target.value, 10) || 1;
+                    setQuickAudioSurah(nextNum);
+                    setQuickAudioAyah(1);
+                  }}
+                  data-testid="quick-audio-surah-select"
+                  className="min-h-[38px] rounded-lg border border-stone-200 bg-[#FAF9F6] px-2.5 py-1.5 text-xs font-medium text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100"
+                >
+                  {SURAH_CATALOG.map((s) => (
+                    <option key={s.number} value={s.number}>
+                      {s.number}. {s.name} ({s.ayahCount} ayə)
+                    </option>
+                  ))}
+                </select>
+
+                <div
+                  role="group"
+                  aria-label="Tilavət növü"
+                  className="inline-flex min-h-[38px] items-center gap-0.5 rounded-lg border border-stone-200 bg-[#FAF9F6] p-0.5 dark:border-stone-700 dark:bg-[#181E1B]"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setQuickAudioMode('surah')}
+                    aria-pressed={quickAudioMode === 'surah'}
+                    data-testid="quick-audio-mode-surah"
+                    className={`rounded-md px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                      quickAudioMode === 'surah'
+                        ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                        : 'text-stone-600 hover:text-stone-900 dark:text-stone-300'
+                    }`}
+                  >
+                    Tam surə
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickAudioMode('ayah')}
+                    aria-pressed={quickAudioMode === 'ayah'}
+                    data-testid="quick-audio-mode-ayah"
+                    className={`rounded-md px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                      quickAudioMode === 'ayah'
+                        ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                        : 'text-stone-600 hover:text-stone-900 dark:text-stone-300'
+                    }`}
+                  >
+                    Ayə
+                  </button>
+                </div>
+
+                {quickAudioMode === 'ayah' && (
+                  <div className="flex items-center gap-1.5">
+                    <label htmlFor="quick-audio-ayah" className="text-xs text-stone-500 dark:text-stone-400">
+                      Ayə:
+                    </label>
+                    <input
+                      id="quick-audio-ayah"
+                      type="number"
+                      min={1}
+                      max={selectedQuickSurah.ayahCount}
+                      value={quickAudioAyah}
+                      onChange={(e) =>
+                        setQuickAudioAyah(
+                          Math.max(
+                            1,
+                            Math.min(
+                              selectedQuickSurah.ayahCount,
+                              Number.parseInt(e.target.value, 10) || 1
+                            )
+                          )
+                        )
+                      }
+                      data-testid="quick-audio-ayah-input"
+                      className="min-h-[38px] w-16 rounded-lg border border-stone-200 bg-[#FAF9F6] px-2 py-1 text-center font-mono-tabular text-xs text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100"
+                    />
+                  </div>
+                )}
+
+                <label htmlFor="quick-audio-reciter" className="sr-only">
+                  Qari seçimi
+                </label>
+                <select
+                  id="quick-audio-reciter"
+                  value={reciter}
+                  onChange={(e) => setReciter(e.target.value as MuhaffizReciterId)}
+                  data-testid="quick-audio-reciter-select"
+                  className="min-h-[38px] rounded-lg border border-stone-200 bg-[#FAF9F6] px-2.5 py-1.5 text-xs text-stone-800 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100"
+                >
+                  {MUHAFFIZ_RECITERS.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleQuickAudioToggle}
+                  data-testid="quick-audio-play-btn"
+                  className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                    isQuickAudioActive
+                      ? 'bg-[#C6A769] text-[#17191C] hover:bg-[#b59656]'
+                      : 'bg-[#0F4C3A] text-white hover:bg-[#0B3A2C] dark:bg-[#196B52]'
+                  }`}
+                >
+                  {isQuickAudioActive ? (
+                    <>
+                      <Square className="h-3 w-3 fill-current" aria-hidden="true" />
+                      <span>Dayandır</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                      <span>Dinlə</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </section>
         )}
 
         {/* Popular Verses & Surahs Quick Links (SEO Internal Linking) */}
@@ -1647,10 +1808,9 @@ export function QuranDirectoryPage({
                 </label>
                 <select
                   id="dua-reciter-select"
-                  value={duaReciter}
+                  value={reciter}
                   onChange={(e) => {
-                    stopDuaAudio();
-                    setDuaReciter(e.target.value as MuhaffizReciterId);
+                    setReciter(e.target.value as MuhaffizReciterId);
                   }}
                   className="rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100"
                 >
@@ -1663,15 +1823,15 @@ export function QuranDirectoryPage({
               </div>
             </div>
 
-            {duaAudioError && (
+            {audioError && (
               <p role="alert" className="mt-3 text-xs font-medium text-amber-700 dark:text-amber-300">
-                {duaAudioError}
+                {audioError}
               </p>
             )}
 
             <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
               {filteredDuas.map((dua) => {
-                const isPlaying = playingDuaId === dua.id;
+                const isPlaying = playingKey === `${dua.surahNumber}:${dua.ayahNumber}`;
                 const isCopied = copiedDuaId === dua.id;
                 const saved = isSaved(dua.surahNumber, dua.ayahNumber);
                 return (

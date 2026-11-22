@@ -73,6 +73,18 @@ interface TelegramBotStatus {
   commandsCount: number;
 }
 
+interface TelegramSubscriberStats {
+  totalTracked: number;
+  activeCount: number;
+  pausedCount: number;
+  fridayKahfCount: number;
+  dailyVerseZikrCount: number;
+  dailyPrayerCount: number;
+  cityBreakdown: Array<{ cityId: string; count: number }>;
+  hourBreakdown: Array<{ hourBaku: number; count: number }>;
+  storageModes: string[];
+}
+
 function StatusIndicator({
   status,
 }: {
@@ -162,8 +174,10 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
   const [newAdminName, setNewAdminName] = useState('');
   const [adminActionFeedback, setAdminActionFeedback] = useState<string | null>(null);
   const [telegramStatus, setTelegramStatus] = useState<TelegramBotStatus | null>(null);
+  const [telegramSubStats, setTelegramSubStats] = useState<TelegramSubscriberStats | null>(null);
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [telegramSetupBusy, setTelegramSetupBusy] = useState(false);
+  const [telegramCronBusy, setTelegramCronBusy] = useState(false);
   const [telegramFeedback, setTelegramFeedback] = useState<string | null>(null);
 
   useEffect(() => {
@@ -246,10 +260,24 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
   async function refreshTelegramStatus() {
     setTelegramLoading(true);
     try {
-      const res = await fetch('/api/telegram/status');
-      if (res.ok) {
-        const json = (await res.json()) as TelegramBotStatus;
+      const idToken = auth.currentUser ? await auth.currentUser.getIdToken().catch(() => '') : '';
+      const [statusRes, subsRes] = await Promise.all([
+        fetch('/api/telegram/status'),
+        idToken
+          ? fetch('/api/telegram/subscribers', {
+              headers: { Authorization: `Bearer ${idToken}` },
+            })
+          : Promise.resolve(null),
+      ]);
+      if (statusRes.ok) {
+        const json = (await statusRes.json()) as TelegramBotStatus;
         setTelegramStatus(json);
+      }
+      if (subsRes && subsRes.ok) {
+        const subJson = (await subsRes.json()) as TelegramSubscriberStats & { ok?: boolean };
+        if (subJson.ok) {
+          setTelegramSubStats(subJson);
+        }
       }
     } catch {
       // ignore transient network failure
@@ -277,7 +305,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
       };
       if (res.ok && data.ok) {
         setTelegramFeedback(
-          `Bot webhook, 11 əmr və Mini App menyu düyməsi uğurla aktivləşdirildi (${data.webhookUrl ?? ''}).`
+          `Bot webhook, ${telegramStatus?.commandsCount ?? 13} əmr və Mini App menyu düyməsi uğurla aktivləşdirildi (${data.webhookUrl ?? ''}).`
         );
         await refreshTelegramStatus();
       } else {
@@ -287,6 +315,41 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
       setTelegramFeedback('Telegram API ilə əlaqə zamanı xəta baş verdi.');
     } finally {
       setTelegramSetupBusy(false);
+    }
+  }
+
+  async function handleDispatchTelegramCron() {
+    if (!currentUser) return;
+    setTelegramCronBusy(true);
+    setTelegramFeedback(null);
+    try {
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch('/api/telegram/cron?all=1', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        sent?: number;
+        skippedAlreadySent?: number;
+        failed?: number;
+        totalActive?: number;
+        error?: string;
+      };
+      if (res.ok && data.ok) {
+        setTelegramFeedback(
+          `Gündəlik abunəlik yayımı tamamlandı: ${data.sent ?? 0} göndərildi · ${data.skippedAlreadySent ?? 0} bu gün artıq göndərilib · ${data.failed ?? 0} xəta (Aktiv: ${data.totalActive ?? 0}).`
+        );
+        await refreshTelegramStatus();
+      } else {
+        setTelegramFeedback(data.error || 'Gündəlik yayım işlədilə bilmədi.');
+      }
+    } catch {
+      setTelegramFeedback('Telegram yayım API ilə əlaqə zamanı xəta baş verdi.');
+    } finally {
+      setTelegramCronBusy(false);
     }
   }
 
@@ -1292,6 +1355,18 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
 
                       <button
                         type="button"
+                        onClick={handleDispatchTelegramCron}
+                        disabled={telegramCronBusy || !telegramStatus?.botConfigured}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#0F4C3A]/35 px-3 py-2 text-xs font-medium text-[#0F4C3A] hover:bg-[#0F4C3A]/5 disabled:opacity-50 dark:border-[#86C7AE]/35 dark:text-[#86C7AE]"
+                      >
+                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>
+                          {telegramCronBusy ? 'Göndərilir...' : 'Gündəlik Bildirişləri İndi Göndər'}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={handleActivateTelegramBot}
                         disabled={telegramSetupBusy || !telegramStatus?.botConfigured}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-[#0F4C3A] px-4 py-2 text-xs font-medium text-white hover:bg-[#0B3A2C] disabled:opacity-50 dark:bg-[#196B52]"
@@ -1355,10 +1430,43 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                     <div className="rounded-lg border border-stone-200 bg-[#FAF9F6] p-4 dark:border-stone-800 dark:bg-[#111513]">
                       <dt className="text-xs text-stone-500 dark:text-stone-400">Hazır Əmrlər</dt>
                       <dd className="font-mono-tabular mt-1.5 text-sm font-semibold text-stone-900 dark:text-stone-100">
-                        {telegramStatus?.commandsCount ?? 11} əmr + Inline + Mini App
+                        {telegramStatus?.commandsCount ?? 13} əmr + Inline + Mini App
                       </dd>
                     </div>
                   </dl>
+
+                  {telegramSubStats && (
+                    <div className="mt-4 rounded-lg border border-stone-200 bg-[#FAF9F6] p-4 dark:border-stone-800 dark:bg-[#111513]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-stone-900 dark:text-stone-100">
+                          /abune Gündəlik Bildiriş Abunəçiləri
+                        </p>
+                        <span className="font-mono-tabular text-[11px] text-stone-500 dark:text-stone-400">
+                          Aktiv: {telegramSubStats.activeCount} / Cəmi: {telegramSubStats.totalTracked}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
+                        <div className="rounded border border-stone-200 bg-white px-3 py-2 dark:border-stone-800 dark:bg-[#141916]">
+                          <span className="text-stone-500 dark:text-stone-400">Cümə Kəhf: </span>
+                          <strong className="font-mono-tabular text-stone-900 dark:text-stone-100">
+                            {telegramSubStats.fridayKahfCount}
+                          </strong>
+                        </div>
+                        <div className="rounded border border-stone-200 bg-white px-3 py-2 dark:border-stone-800 dark:bg-[#141916]">
+                          <span className="text-stone-500 dark:text-stone-400">Günün Ayəsi & Zikr: </span>
+                          <strong className="font-mono-tabular text-stone-900 dark:text-stone-100">
+                            {telegramSubStats.dailyVerseZikrCount}
+                          </strong>
+                        </div>
+                        <div className="rounded border border-stone-200 bg-white px-3 py-2 dark:border-stone-800 dark:bg-[#141916]">
+                          <span className="text-stone-500 dark:text-stone-400">Namaz Cədvəli: </span>
+                          <strong className="font-mono-tabular text-stone-900 dark:text-stone-100">
+                            {telegramSubStats.dailyPrayerCount}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-6 space-y-3 rounded-lg border border-stone-200 bg-[#FAF9F6] p-4 text-xs dark:border-stone-800 dark:bg-[#111513]">
                     <p className="font-medium text-stone-900 dark:text-stone-100">
@@ -1370,9 +1478,9 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                         <code className="rounded bg-stone-200/70 px-1.5 py-0.5 font-mono text-[11px] dark:bg-stone-800">
                           TELEGRAM_BOT_TOKEN
                         </code>{' '}
-                        (və ya{' '}
+                        (və gündəlik cron üçün{' '}
                         <code className="rounded bg-stone-200/70 px-1.5 py-0.5 font-mono text-[11px] dark:bg-stone-800">
-                          bot
+                          CRON_SECRET
                         </code>
                         ) əlavə edib redeploy edin.
                       </li>
@@ -1381,7 +1489,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                         <code className="font-mono text-[11px]">{telegramStatus?.miniAppOrigin ?? 'https://quranqiraeti.vercel.app'}</code>).
                       </li>
                       <li>
-                        İstəyə bağlı: <code>@BotFather</code>-da <code>/setinline</code> aktivləşdirin ki, istifadəçilər qruplarda da ayə və video paylaşa bilsinlər.
+                        İstəyə bağlı: <code>@BotFather</code>-da <code>/setinline</code> aktivləşdirin ki, istifadəçilər qruplarda da ayə (<code>2:255</code>), səs və şəkil kartı paylaşa bilsinlər.
                       </li>
                     </ol>
                   </div>
