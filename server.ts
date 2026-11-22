@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { Request } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,10 +8,13 @@ import {
   createApiRouter,
   createSeoRouter,
   fetchLiveChannelData,
+  fetchMushafPage,
+  fetchSurahTranslation,
   getChannelDataForSeo,
   getRequestOrigin,
   getRouteSeoExtras,
 } from './src/server/api';
+import { startTelegramBotRuntime } from './src/server/telegram';
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -91,6 +95,11 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Quran Qiraeti server running on http://0.0.0.0:${PORT}`);
     void fetchLiveChannelData();
+    void startTelegramBotRuntime({
+      getChannelDataForSeo,
+      fetchSurahTranslation,
+      fetchMushafPage,
+    });
   });
 }
 

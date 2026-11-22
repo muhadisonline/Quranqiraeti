@@ -11,6 +11,7 @@ import {
   LogOut,
   Moon,
   RefreshCw,
+  Send,
   ShieldCheck,
   Sun,
   Trash2,
@@ -59,7 +60,18 @@ interface AdminPageProps {
   onToggleTheme: () => void;
 }
 
-type AdminSection = 'overview' | 'statuses' | 'events' | 'admins';
+type AdminSection = 'overview' | 'statuses' | 'events' | 'admins' | 'telegram';
+
+interface TelegramBotStatus {
+  botConfigured: boolean;
+  webhookSecretConfigured: boolean;
+  mode: 'webhook' | 'polling' | 'unconfigured';
+  miniAppOrigin: string;
+  recommendedWebhookUrl: string;
+  botUsername: string | null;
+  webhookActiveUrl: string | null;
+  commandsCount: number;
+}
 
 function StatusIndicator({
   status,
@@ -149,6 +161,10 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
   const [adminActionFeedback, setAdminActionFeedback] = useState<string | null>(null);
+  const [telegramStatus, setTelegramStatus] = useState<TelegramBotStatus | null>(null);
+  const [telegramLoading, setTelegramLoading] = useState(false);
+  const [telegramSetupBusy, setTelegramSetupBusy] = useState(false);
+  const [telegramFeedback, setTelegramFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -220,10 +236,59 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
         setTelemetryError(err instanceof Error ? err.message : String(err));
       });
 
+    void refreshTelegramStatus();
+
     return () => {
       unsub();
     };
   }, [authReady, isAdminVerified]);
+
+  async function refreshTelegramStatus() {
+    setTelegramLoading(true);
+    try {
+      const res = await fetch('/api/telegram/status');
+      if (res.ok) {
+        const json = (await res.json()) as TelegramBotStatus;
+        setTelegramStatus(json);
+      }
+    } catch {
+      // ignore transient network failure
+    } finally {
+      setTelegramLoading(false);
+    }
+  }
+
+  async function handleActivateTelegramBot() {
+    if (!currentUser) return;
+    setTelegramSetupBusy(true);
+    setTelegramFeedback(null);
+    try {
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch('/api/telegram/setup', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        webhookUrl?: string;
+        error?: string;
+      };
+      if (res.ok && data.ok) {
+        setTelegramFeedback(
+          `Bot webhook, 11 əmr və Mini App menyu düyməsi uğurla aktivləşdirildi (${data.webhookUrl ?? ''}).`
+        );
+        await refreshTelegramStatus();
+      } else {
+        setTelegramFeedback(data.error || 'Telegram webhook quraşdırılması alınmadı.');
+      }
+    } catch {
+      setTelegramFeedback('Telegram API ilə əlaqə zamanı xəta baş verdi.');
+    } finally {
+      setTelegramSetupBusy(false);
+    }
+  }
 
   const summary = useMemo(
     () => aggregateTelemetry(events, granularity, Date.now(), selectedPageKey),
@@ -695,6 +760,7 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                     { id: 'overview', label: 'Ümumi Statistika' },
                     { id: 'statuses', label: 'Səhifə Statusları' },
                     { id: 'events', label: 'Canlı Hadisələr' },
+                    { id: 'telegram', label: 'Telegram Bot' },
                     { id: 'admins', label: 'Admin Hesabları' },
                   ] as const
                 ).map((item) => {
@@ -1193,6 +1259,132 @@ export function AdminPage({ isDark, onNavigate, onToggleTheme }: AdminPageProps)
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {section === 'telegram' && (
+              <div className="space-y-6">
+                <div className="rounded-xl border border-stone-200 bg-white p-6 dark:border-stone-800 dark:bg-[#141916]">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="font-display text-xl font-semibold text-stone-900 dark:text-stone-100">
+                        Telegram Bot və Mini App Statusu
+                      </h2>
+                      <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                        Bot əmrləri, EveryAyah səsli ayə oxudulması, Mini App keçidləri və canlı webhook vəziyyəti.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={refreshTelegramStatus}
+                        disabled={telegramLoading}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium text-stone-700 hover:border-stone-300 disabled:opacity-60 dark:border-stone-700 dark:text-stone-300"
+                      >
+                        <RefreshCw
+                          className={`h-3.5 w-3.5 ${telegramLoading ? 'animate-spin' : ''}`}
+                          aria-hidden="true"
+                        />
+                        <span>Yenilə</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleActivateTelegramBot}
+                        disabled={telegramSetupBusy || !telegramStatus?.botConfigured}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#0F4C3A] px-4 py-2 text-xs font-medium text-white hover:bg-[#0B3A2C] disabled:opacity-50 dark:bg-[#196B52]"
+                      >
+                        <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>
+                          {telegramSetupBusy ? 'Qoşulur...' : 'Webhook və Əmrləri Aktivləşdir'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {telegramFeedback && (
+                    <div className="mt-4 rounded-lg border border-[#0F4C3A]/30 bg-[#0F4C3A]/5 px-4 py-3 text-xs text-[#0F4C3A] dark:border-[#86C7AE]/30 dark:bg-[#196B52]/20 dark:text-[#86C7AE]">
+                      {telegramFeedback}
+                    </div>
+                  )}
+
+                  <dl className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-lg border border-stone-200 bg-[#FAF9F6] p-4 dark:border-stone-800 dark:bg-[#111513]">
+                      <dt className="text-xs text-stone-500 dark:text-stone-400">Token Statusu</dt>
+                      <dd className="mt-1.5 text-sm font-semibold text-stone-900 dark:text-stone-100">
+                        {telegramStatus?.botConfigured ? (
+                          <span className="text-[#16A34A] dark:text-[#4ADE80]">Bağlı (Aktiv)</span>
+                        ) : (
+                          <span className="text-[#D97706] dark:text-[#FBBF24]">Mühit dəyişəni gözlənilir</span>
+                        )}
+                      </dd>
+                    </div>
+
+                    <div className="rounded-lg border border-stone-200 bg-[#FAF9F6] p-4 dark:border-stone-800 dark:bg-[#111513]">
+                      <dt className="text-xs text-stone-500 dark:text-stone-400">Bot Ünvanı</dt>
+                      <dd className="mt-1.5 text-sm font-semibold text-stone-900 dark:text-stone-100">
+                        {telegramStatus?.botUsername ? (
+                          <a
+                            href={`https://t.me/${telegramStatus.botUsername}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[#0F4C3A] hover:underline dark:text-[#86C7AE]"
+                          >
+                            <span>@{telegramStatus.botUsername}</span>
+                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </dd>
+                    </div>
+
+                    <div className="rounded-lg border border-stone-200 bg-[#FAF9F6] p-4 dark:border-stone-800 dark:bg-[#111513]">
+                      <dt className="text-xs text-stone-500 dark:text-stone-400">İşləmə Rejimi</dt>
+                      <dd className="mt-1.5 text-sm font-semibold text-stone-900 dark:text-stone-100">
+                        {telegramStatus?.mode === 'webhook'
+                          ? 'Webhook (24/7)'
+                          : telegramStatus?.mode === 'polling'
+                            ? 'Polling (Canlı)'
+                            : 'Gözləmədə'}
+                      </dd>
+                    </div>
+
+                    <div className="rounded-lg border border-stone-200 bg-[#FAF9F6] p-4 dark:border-stone-800 dark:bg-[#111513]">
+                      <dt className="text-xs text-stone-500 dark:text-stone-400">Hazır Əmrlər</dt>
+                      <dd className="font-mono-tabular mt-1.5 text-sm font-semibold text-stone-900 dark:text-stone-100">
+                        {telegramStatus?.commandsCount ?? 11} əmr + Inline + Mini App
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-6 space-y-3 rounded-lg border border-stone-200 bg-[#FAF9F6] p-4 text-xs dark:border-stone-800 dark:bg-[#111513]">
+                    <p className="font-medium text-stone-900 dark:text-stone-100">
+                      Qoşulma Qaydası (Token koda yazılmır — yalnız server mühit dəyişənlərində saxlanır):
+                    </p>
+                    <ol className="list-inside list-decimal space-y-1.5 text-stone-600 dark:text-stone-400">
+                      <li>
+                        Vercel layihəsində <strong>Settings → Environment Variables</strong> bölməsinə{' '}
+                        <code className="rounded bg-stone-200/70 px-1.5 py-0.5 font-mono text-[11px] dark:bg-stone-800">
+                          TELEGRAM_BOT_TOKEN
+                        </code>{' '}
+                        (və ya{' '}
+                        <code className="rounded bg-stone-200/70 px-1.5 py-0.5 font-mono text-[11px] dark:bg-stone-800">
+                          bot
+                        </code>
+                        ) əlavə edib redeploy edin.
+                      </li>
+                      <li>
+                        Deploy-dan sonra yuxarıdakı <strong>Webhook və Əmrləri Aktivləşdir</strong> düyməsinə klikləyin (Mini App ünvanı:{' '}
+                        <code className="font-mono text-[11px]">{telegramStatus?.miniAppOrigin ?? 'https://quranqiraeti.vercel.app'}</code>).
+                      </li>
+                      <li>
+                        İstəyə bağlı: <code>@BotFather</code>-da <code>/setinline</code> aktivləşdirin ki, istifadəçilər qruplarda da ayə və video paylaşa bilsinlər.
+                      </li>
+                    </ol>
+                  </div>
                 </div>
               </div>
             )}

@@ -61,6 +61,7 @@ import {
   SEED_LONG_VIDEOS,
   SEED_SHORTS,
 } from '../data/recitations';
+import { createTelegramRouter } from './telegram';
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -560,6 +561,16 @@ export async function fetchLiveChannelData(): Promise<{
 
 export function createApiRouter() {
   const router = express.Router();
+
+  router.use(
+    '/telegram',
+    createTelegramRouter({
+      getRequestOrigin,
+      getChannelDataForSeo,
+      fetchSurahTranslation,
+      fetchMushafPage,
+    })
+  );
 
   router.get('/channel', async (_req: Request, res: Response) => {
     const data = await fetchLiveChannelData();

@@ -25,6 +25,11 @@ import {
 } from './lib/channel';
 import { parseJsonSafely } from './lib/quranClient';
 import { recordPageTelemetryEvent } from './lib/firebase';
+import {
+  getTelegramWebApp,
+  initTelegramMiniApp,
+  syncTelegramMiniAppTheme,
+} from './lib/telegramWebApp';
 import { AdminPage } from './pages/AdminPage';
 import { ArabicAlphabetPage } from './pages/ArabicAlphabetPage';
 import { MuhaffizPage } from './pages/MuhaffizPage';
@@ -184,12 +189,51 @@ function AppContent() {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
+    syncTelegramMiniAppTheme(isDark);
     try {
       localStorage.setItem(THEME_STORAGE_KEY, isDark ? 'dark' : 'light');
     } catch {
       // ignore storage errors
     }
   }, [isDark]);
+
+  useEffect(() => {
+    const miniApp = initTelegramMiniApp();
+    if (!miniApp.active) return;
+    if (
+      miniApp.preferredColorScheme === 'dark' &&
+      !localStorage.getItem(THEME_STORAGE_KEY)
+    ) {
+      setIsDark(true);
+    }
+    if (miniApp.startPath && miniApp.startPath !== '/' && currentPath === '/') {
+      navigate(miniApp.startPath);
+    }
+    // Run once on initial Mini App launch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const tg = getTelegramWebApp();
+    if (!tg?.BackButton) return;
+    const handleBack = () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        navigate('/');
+      }
+    };
+    if (currentPath !== '/') {
+      tg.BackButton.show();
+      tg.BackButton.onClick(handleBack);
+    } else {
+      tg.BackButton.hide();
+    }
+    return () => {
+      tg.BackButton?.offClick?.(handleBack);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPath]);
 
   useEffect(() => {
     try {

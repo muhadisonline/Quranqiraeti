@@ -1,5 +1,5 @@
 // src/server/vercelApp.ts
-import express2 from "express";
+import express3 from "express";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -1618,6 +1618,287 @@ var FATIHAT_PAGE_1_MUHAFFIZ_SEED = {
   centeredPage: true
 };
 
+// src/data/rubHizbData.ts
+var RAW_RUB_HIZB_LIST = [
+  { rub: 1, surah: 1, ayah: 1, page: 1 },
+  { rub: 2, surah: 2, ayah: 26, page: 5 },
+  { rub: 3, surah: 2, ayah: 44, page: 7 },
+  { rub: 4, surah: 2, ayah: 60, page: 9 },
+  { rub: 5, surah: 2, ayah: 75, page: 11 },
+  { rub: 6, surah: 2, ayah: 92, page: 14 },
+  { rub: 7, surah: 2, ayah: 106, page: 17 },
+  { rub: 8, surah: 2, ayah: 124, page: 19 },
+  { rub: 9, surah: 2, ayah: 142, page: 22 },
+  { rub: 10, surah: 2, ayah: 158, page: 24 },
+  { rub: 11, surah: 2, ayah: 177, page: 27 },
+  { rub: 12, surah: 2, ayah: 189, page: 29 },
+  { rub: 13, surah: 2, ayah: 203, page: 32 },
+  { rub: 14, surah: 2, ayah: 219, page: 34 },
+  { rub: 15, surah: 2, ayah: 233, page: 37 },
+  { rub: 16, surah: 2, ayah: 243, page: 39 },
+  { rub: 17, surah: 2, ayah: 253, page: 42 },
+  { rub: 18, surah: 2, ayah: 263, page: 44 },
+  { rub: 19, surah: 2, ayah: 272, page: 46 },
+  { rub: 20, surah: 2, ayah: 283, page: 49 },
+  { rub: 21, surah: 3, ayah: 15, page: 51 },
+  { rub: 22, surah: 3, ayah: 33, page: 54 },
+  { rub: 23, surah: 3, ayah: 52, page: 56 },
+  { rub: 24, surah: 3, ayah: 75, page: 59 },
+  { rub: 25, surah: 3, ayah: 93, page: 62 },
+  { rub: 26, surah: 3, ayah: 113, page: 64 },
+  { rub: 27, surah: 3, ayah: 133, page: 67 },
+  { rub: 28, surah: 3, ayah: 153, page: 69 },
+  { rub: 29, surah: 3, ayah: 171, page: 72 },
+  { rub: 30, surah: 3, ayah: 186, page: 74 },
+  { rub: 31, surah: 4, ayah: 1, page: 77 },
+  { rub: 32, surah: 4, ayah: 12, page: 79 },
+  { rub: 33, surah: 4, ayah: 24, page: 82 },
+  { rub: 34, surah: 4, ayah: 36, page: 84 },
+  { rub: 35, surah: 4, ayah: 58, page: 87 },
+  { rub: 36, surah: 4, ayah: 74, page: 89 },
+  { rub: 37, surah: 4, ayah: 88, page: 92 },
+  { rub: 38, surah: 4, ayah: 100, page: 94 },
+  { rub: 39, surah: 4, ayah: 114, page: 97 },
+  { rub: 40, surah: 4, ayah: 135, page: 100 },
+  { rub: 41, surah: 4, ayah: 148, page: 102 },
+  { rub: 42, surah: 4, ayah: 163, page: 104 },
+  { rub: 43, surah: 5, ayah: 1, page: 106 },
+  { rub: 44, surah: 5, ayah: 12, page: 109 },
+  { rub: 45, surah: 5, ayah: 27, page: 112 },
+  { rub: 46, surah: 5, ayah: 41, page: 114 },
+  { rub: 47, surah: 5, ayah: 51, page: 117 },
+  { rub: 48, surah: 5, ayah: 67, page: 119 },
+  { rub: 49, surah: 5, ayah: 82, page: 121 },
+  { rub: 50, surah: 5, ayah: 97, page: 124 },
+  { rub: 51, surah: 5, ayah: 109, page: 126 },
+  { rub: 52, surah: 6, ayah: 13, page: 129 },
+  { rub: 53, surah: 6, ayah: 36, page: 132 },
+  { rub: 54, surah: 6, ayah: 59, page: 134 },
+  { rub: 55, surah: 6, ayah: 74, page: 137 },
+  { rub: 56, surah: 6, ayah: 95, page: 140 },
+  { rub: 57, surah: 6, ayah: 111, page: 142 },
+  { rub: 58, surah: 6, ayah: 127, page: 144 },
+  { rub: 59, surah: 6, ayah: 141, page: 146 },
+  { rub: 60, surah: 6, ayah: 151, page: 148 },
+  { rub: 61, surah: 7, ayah: 1, page: 151 },
+  { rub: 62, surah: 7, ayah: 31, page: 154 },
+  { rub: 63, surah: 7, ayah: 47, page: 156 },
+  { rub: 64, surah: 7, ayah: 65, page: 158 },
+  { rub: 65, surah: 7, ayah: 88, page: 162 },
+  { rub: 66, surah: 7, ayah: 117, page: 164 },
+  { rub: 67, surah: 7, ayah: 142, page: 167 },
+  { rub: 68, surah: 7, ayah: 156, page: 170 },
+  { rub: 69, surah: 7, ayah: 171, page: 173 },
+  { rub: 70, surah: 7, ayah: 189, page: 175 },
+  { rub: 71, surah: 8, ayah: 1, page: 177 },
+  { rub: 72, surah: 8, ayah: 22, page: 179 },
+  { rub: 73, surah: 8, ayah: 41, page: 182 },
+  { rub: 74, surah: 8, ayah: 61, page: 184 },
+  { rub: 75, surah: 9, ayah: 1, page: 187 },
+  { rub: 76, surah: 9, ayah: 19, page: 189 },
+  { rub: 77, surah: 9, ayah: 34, page: 192 },
+  { rub: 78, surah: 9, ayah: 46, page: 194 },
+  { rub: 79, surah: 9, ayah: 60, page: 196 },
+  { rub: 80, surah: 9, ayah: 75, page: 199 },
+  { rub: 81, surah: 9, ayah: 93, page: 201 },
+  { rub: 82, surah: 9, ayah: 111, page: 204 },
+  { rub: 83, surah: 9, ayah: 122, page: 206 },
+  { rub: 84, surah: 10, ayah: 11, page: 209 },
+  { rub: 85, surah: 10, ayah: 26, page: 212 },
+  { rub: 86, surah: 10, ayah: 53, page: 214 },
+  { rub: 87, surah: 10, ayah: 71, page: 217 },
+  { rub: 88, surah: 10, ayah: 90, page: 219 },
+  { rub: 89, surah: 11, ayah: 6, page: 222 },
+  { rub: 90, surah: 11, ayah: 24, page: 224 },
+  { rub: 91, surah: 11, ayah: 41, page: 226 },
+  { rub: 92, surah: 11, ayah: 61, page: 228 },
+  { rub: 93, surah: 11, ayah: 84, page: 231 },
+  { rub: 94, surah: 11, ayah: 108, page: 233 },
+  { rub: 95, surah: 12, ayah: 7, page: 236 },
+  { rub: 96, surah: 12, ayah: 30, page: 238 },
+  { rub: 97, surah: 12, ayah: 53, page: 242 },
+  { rub: 98, surah: 12, ayah: 77, page: 244 },
+  { rub: 99, surah: 12, ayah: 101, page: 247 },
+  { rub: 100, surah: 13, ayah: 5, page: 249 },
+  { rub: 101, surah: 13, ayah: 19, page: 252 },
+  { rub: 102, surah: 13, ayah: 35, page: 254 },
+  { rub: 103, surah: 14, ayah: 10, page: 256 },
+  { rub: 104, surah: 14, ayah: 28, page: 259 },
+  { rub: 105, surah: 15, ayah: 1, page: 262 },
+  { rub: 106, surah: 15, ayah: 50, page: 264 },
+  { rub: 107, surah: 16, ayah: 1, page: 267 },
+  { rub: 108, surah: 16, ayah: 30, page: 270 },
+  { rub: 109, surah: 16, ayah: 51, page: 272 },
+  { rub: 110, surah: 16, ayah: 75, page: 275 },
+  { rub: 111, surah: 16, ayah: 90, page: 277 },
+  { rub: 112, surah: 16, ayah: 111, page: 280 },
+  { rub: 113, surah: 17, ayah: 1, page: 282 },
+  { rub: 114, surah: 17, ayah: 23, page: 284 },
+  { rub: 115, surah: 17, ayah: 50, page: 287 },
+  { rub: 116, surah: 17, ayah: 70, page: 289 },
+  { rub: 117, surah: 17, ayah: 99, page: 292 },
+  { rub: 118, surah: 18, ayah: 17, page: 295 },
+  { rub: 119, surah: 18, ayah: 32, page: 297 },
+  { rub: 120, surah: 18, ayah: 51, page: 299 },
+  { rub: 121, surah: 18, ayah: 75, page: 302 },
+  { rub: 122, surah: 18, ayah: 99, page: 304 },
+  { rub: 123, surah: 19, ayah: 22, page: 306 },
+  { rub: 124, surah: 19, ayah: 59, page: 309 },
+  { rub: 125, surah: 20, ayah: 1, page: 312 },
+  { rub: 126, surah: 20, ayah: 55, page: 315 },
+  { rub: 127, surah: 20, ayah: 83, page: 317 },
+  { rub: 128, surah: 20, ayah: 111, page: 319 },
+  { rub: 129, surah: 21, ayah: 1, page: 322 },
+  { rub: 130, surah: 21, ayah: 29, page: 324 },
+  { rub: 131, surah: 21, ayah: 51, page: 326 },
+  { rub: 132, surah: 21, ayah: 83, page: 329 },
+  { rub: 133, surah: 22, ayah: 1, page: 332 },
+  { rub: 134, surah: 22, ayah: 19, page: 334 },
+  { rub: 135, surah: 22, ayah: 38, page: 336 },
+  { rub: 136, surah: 22, ayah: 60, page: 339 },
+  { rub: 137, surah: 23, ayah: 1, page: 342 },
+  { rub: 138, surah: 23, ayah: 36, page: 344 },
+  { rub: 139, surah: 23, ayah: 75, page: 347 },
+  { rub: 140, surah: 24, ayah: 1, page: 350 },
+  { rub: 141, surah: 24, ayah: 21, page: 352 },
+  { rub: 142, surah: 24, ayah: 35, page: 354 },
+  { rub: 143, surah: 24, ayah: 53, page: 356 },
+  { rub: 144, surah: 25, ayah: 1, page: 359 },
+  { rub: 145, surah: 25, ayah: 21, page: 362 },
+  { rub: 146, surah: 25, ayah: 53, page: 364 },
+  { rub: 147, surah: 26, ayah: 1, page: 367 },
+  { rub: 148, surah: 26, ayah: 52, page: 369 },
+  { rub: 149, surah: 26, ayah: 111, page: 371 },
+  { rub: 150, surah: 26, ayah: 181, page: 374 },
+  { rub: 151, surah: 27, ayah: 1, page: 377 },
+  { rub: 152, surah: 27, ayah: 27, page: 379 },
+  { rub: 153, surah: 27, ayah: 56, page: 382 },
+  { rub: 154, surah: 27, ayah: 82, page: 384 },
+  { rub: 155, surah: 28, ayah: 12, page: 386 },
+  { rub: 156, surah: 28, ayah: 29, page: 389 },
+  { rub: 157, surah: 28, ayah: 51, page: 392 },
+  { rub: 158, surah: 28, ayah: 76, page: 394 },
+  { rub: 159, surah: 29, ayah: 1, page: 396 },
+  { rub: 160, surah: 29, ayah: 26, page: 399 },
+  { rub: 161, surah: 29, ayah: 46, page: 402 },
+  { rub: 162, surah: 30, ayah: 1, page: 404 },
+  { rub: 163, surah: 30, ayah: 31, page: 407 },
+  { rub: 164, surah: 30, ayah: 54, page: 410 },
+  { rub: 165, surah: 31, ayah: 22, page: 413 },
+  { rub: 166, surah: 32, ayah: 11, page: 415 },
+  { rub: 167, surah: 33, ayah: 1, page: 418 },
+  { rub: 168, surah: 33, ayah: 18, page: 420 },
+  { rub: 169, surah: 33, ayah: 31, page: 422 },
+  { rub: 170, surah: 33, ayah: 51, page: 425 },
+  { rub: 171, surah: 33, ayah: 60, page: 426 },
+  { rub: 172, surah: 34, ayah: 10, page: 429 },
+  { rub: 173, surah: 34, ayah: 24, page: 431 },
+  { rub: 174, surah: 34, ayah: 46, page: 433 },
+  { rub: 175, surah: 35, ayah: 15, page: 436 },
+  { rub: 176, surah: 35, ayah: 41, page: 439 },
+  { rub: 177, surah: 36, ayah: 28, page: 442 },
+  { rub: 178, surah: 36, ayah: 60, page: 444 },
+  { rub: 179, surah: 37, ayah: 22, page: 446 },
+  { rub: 180, surah: 37, ayah: 83, page: 449 },
+  { rub: 181, surah: 37, ayah: 145, page: 451 },
+  { rub: 182, surah: 38, ayah: 21, page: 454 },
+  { rub: 183, surah: 38, ayah: 52, page: 456 },
+  { rub: 184, surah: 39, ayah: 8, page: 459 },
+  { rub: 185, surah: 39, ayah: 32, page: 462 },
+  { rub: 186, surah: 39, ayah: 53, page: 464 },
+  { rub: 187, surah: 40, ayah: 1, page: 467 },
+  { rub: 188, surah: 40, ayah: 21, page: 469 },
+  { rub: 189, surah: 40, ayah: 41, page: 472 },
+  { rub: 190, surah: 40, ayah: 66, page: 474 },
+  { rub: 191, surah: 41, ayah: 9, page: 477 },
+  { rub: 192, surah: 41, ayah: 25, page: 479 },
+  { rub: 193, surah: 41, ayah: 47, page: 482 },
+  { rub: 194, surah: 42, ayah: 13, page: 484 },
+  { rub: 195, surah: 42, ayah: 27, page: 486 },
+  { rub: 196, surah: 42, ayah: 51, page: 488 },
+  { rub: 197, surah: 43, ayah: 24, page: 491 },
+  { rub: 198, surah: 43, ayah: 57, page: 493 },
+  { rub: 199, surah: 44, ayah: 17, page: 496 },
+  { rub: 200, surah: 45, ayah: 12, page: 499 },
+  { rub: 201, surah: 46, ayah: 1, page: 502 },
+  { rub: 202, surah: 46, ayah: 21, page: 505 },
+  { rub: 203, surah: 47, ayah: 10, page: 507 },
+  { rub: 204, surah: 47, ayah: 33, page: 510 },
+  { rub: 205, surah: 48, ayah: 18, page: 513 },
+  { rub: 206, surah: 49, ayah: 1, page: 515 },
+  { rub: 207, surah: 49, ayah: 14, page: 517 },
+  { rub: 208, surah: 50, ayah: 27, page: 519 },
+  { rub: 209, surah: 51, ayah: 31, page: 522 },
+  { rub: 210, surah: 52, ayah: 24, page: 524 },
+  { rub: 211, surah: 53, ayah: 26, page: 526 },
+  { rub: 212, surah: 54, ayah: 9, page: 529 },
+  { rub: 213, surah: 55, ayah: 1, page: 531 },
+  { rub: 214, surah: 56, ayah: 1, page: 534 },
+  { rub: 215, surah: 56, ayah: 75, page: 536 },
+  { rub: 216, surah: 57, ayah: 16, page: 539 },
+  { rub: 217, surah: 58, ayah: 1, page: 542 },
+  { rub: 218, surah: 58, ayah: 14, page: 544 },
+  { rub: 219, surah: 59, ayah: 11, page: 547 },
+  { rub: 220, surah: 60, ayah: 7, page: 550 },
+  { rub: 221, surah: 62, ayah: 1, page: 553 },
+  { rub: 222, surah: 63, ayah: 4, page: 554 },
+  { rub: 223, surah: 65, ayah: 1, page: 558 },
+  { rub: 224, surah: 66, ayah: 1, page: 560 },
+  { rub: 225, surah: 67, ayah: 1, page: 562 },
+  { rub: 226, surah: 68, ayah: 1, page: 564 },
+  { rub: 227, surah: 69, ayah: 1, page: 566 },
+  { rub: 228, surah: 70, ayah: 19, page: 569 },
+  { rub: 229, surah: 72, ayah: 1, page: 572 },
+  { rub: 230, surah: 73, ayah: 20, page: 575 },
+  { rub: 231, surah: 75, ayah: 1, page: 577 },
+  { rub: 232, surah: 76, ayah: 19, page: 579 },
+  { rub: 233, surah: 78, ayah: 1, page: 582 },
+  { rub: 234, surah: 80, ayah: 1, page: 585 },
+  { rub: 235, surah: 82, ayah: 1, page: 587 },
+  { rub: 236, surah: 84, ayah: 1, page: 589 },
+  { rub: 237, surah: 87, ayah: 1, page: 591 },
+  { rub: 238, surah: 90, ayah: 1, page: 594 },
+  { rub: 239, surah: 94, ayah: 1, page: 596 },
+  { rub: 240, surah: 100, ayah: 9, page: 599 }
+];
+
+// src/lib/rubHizb.ts
+var QUARTER_LABELS = {
+  1: "Hizb ba\u015Flan\u011F\u0131c\u0131",
+  2: "1/4 R\xFCb (\u0631\u0628\u0639)",
+  3: "1/2 Nisf (\u0646\u0635\u0641)",
+  4: "3/4 S\u0259l\u0259s\u0259 (\u062B\u0644\u0627\u062B\u0629 \u0623\u0631\u0628\u0627\u0639)"
+};
+var RUB_HIZB_ENTRIES = RAW_RUB_HIZB_LIST.map((item) => {
+  const juz = Math.ceil(item.rub / 8);
+  const hizb = Math.ceil(item.rub / 4);
+  const quarterInHizb = (item.rub - 1) % 4 + 1;
+  const surah = getSurahByNumber(item.surah);
+  return {
+    rub: item.rub,
+    juz,
+    hizb,
+    quarterInHizb,
+    quarterLabel: QUARTER_LABELS[quarterInHizb],
+    surahNumber: item.surah,
+    surahName: surah?.name ?? `Sur\u0259 ${item.surah}`,
+    arabicSurahName: surah?.arabicName ?? "",
+    ayahNumber: item.ayah,
+    pageNumber: item.page
+  };
+});
+function getActiveRubForPage(pageNumber) {
+  let latest = RUB_HIZB_ENTRIES[0];
+  for (const entry of RUB_HIZB_ENTRIES) {
+    if (entry.pageNumber <= pageNumber) {
+      latest = entry;
+    } else {
+      break;
+    }
+  }
+  return latest;
+}
+
 // src/data/quranDuas.ts
 var QURAN_DUAS = [
   {
@@ -2084,6 +2365,7 @@ function buildCoreSitemapXml(origin, todayIsoDate = (/* @__PURE__ */ new Date())
     { loc: `${baseUrl}/elifba`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.85" },
     { loc: `${baseUrl}/zikr`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.85" },
     { loc: `${baseUrl}/namaz-vaxtlari`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.9" },
+    { loc: `${baseUrl}/qible`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.8" },
     { loc: `${baseUrl}/teqvim`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.85" },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.8" },
@@ -2181,8 +2463,10 @@ function buildSitemapXml(origin, videos, todayIsoDate = (/* @__PURE__ */ new Dat
     { loc: `${baseUrl}/shorts`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.9" },
     { loc: `${baseUrl}/quran`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
     { loc: `${baseUrl}/dualar`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.85" },
+    { loc: `${baseUrl}/elifba`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.85" },
     { loc: `${baseUrl}/zikr`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.85" },
     { loc: `${baseUrl}/namaz-vaxtlari`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.9" },
+    { loc: `${baseUrl}/qible`, lastmod: todayIsoDate, changefreq: "monthly", priority: "0.8" },
     { loc: `${baseUrl}/teqvim`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.85" },
     { loc: `${baseUrl}/muhaffiz`, lastmod: todayIsoDate, changefreq: "weekly", priority: "0.9" },
     { loc: `${baseUrl}/gunun-ayesi`, lastmod: todayIsoDate, changefreq: "daily", priority: "0.8" },
@@ -2321,7 +2605,7 @@ function buildDynamicOgSvg(kind, id = 1) {
   <text x="88" y="532" fill="#86C7AE" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="600">@quranqiraeti \xB7 \u018Fr\u0259bc\u0259 + Az\u0259rbaycan T\u0259rc\xFCm\u0259si</text>
 </svg>`;
 }
-function resolveRouteSeoMetadata(pathname, origin, videos = []) {
+function resolveRouteSeoMetadata(pathname, origin, videos = [], extras) {
   const baseUrl = normalizeBaseUrl(origin);
   const cleanPath = !pathname || pathname === "/" ? "/" : pathname.split("?")[0].replace(/\/+$/, "") || "/";
   const defaultOg = `${baseUrl}/og-default.png`;
@@ -2398,7 +2682,9 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
           }
         ] : []
       ],
-      noscriptHtml: '<h1>Quran Qiraeti \u2014 Uzun Tilav\u0259tl\u0259r v\u0259 Tam Qurani-K\u0259rim</h1><p>Az\u0259rbaycan dilind\u0259 m\u0259naca t\u0259rc\xFCm\u0259, 114 sur\u0259, 604 M\u0259din\u0259 Mushaf\u0131 s\u0259hif\u0259si v\u0259 M\xFChafiz \u0259zb\u0259r al\u0259ti.</p><nav><a href="/quran">Qurani-K\u0259rim (114 Sur\u0259)</a> \xB7 <a href="/dualar">Qurandak\u0131 Dualar</a> \xB7 <a href="/muhaffiz">M\xFChafiz \u018Fzb\u0259r</a> \xB7 <a href="/shorts">Shorts</a> \xB7 <a href="/quran/cuz/1">1-ci C\xFCz</a> \xB7 <a href="/quran/cuz/30">30-cu C\xFCz</a></nav>'
+      noscriptHtml: `<h1>Quran Qiraeti \u2014 Uzun Tilav\u0259tl\u0259r v\u0259 Tam Qurani-K\u0259rim</h1><p>Az\u0259rbaycan dilind\u0259 m\u0259naca t\u0259rc\xFCm\u0259 (\u018Flixan Musayev v1.0.4), 114 sur\u0259, 604 M\u0259din\u0259 Mushaf\u0131 s\u0259hif\u0259si v\u0259 M\xFChafiz \u0259zb\u0259r al\u0259ti.</p><nav><a href="/quran">Qurani-K\u0259rim (114 Sur\u0259)</a> \xB7 <a href="/quran/sure/1">Fatih\u0259 sur\u0259si</a> \xB7 <a href="/quran/sure/2">B\u0259q\u0259r\u0259 sur\u0259si</a> \xB7 <a href="/quran/sure/18">K\u0259hf sur\u0259si</a> \xB7 <a href="/quran/sure/36">Yasin sur\u0259si</a> \xB7 <a href="/quran/sure/67">M\xFClk sur\u0259si</a> \xB7 <a href="/dualar">Qurandak\u0131 Dualar</a> \xB7 <a href="/elifba">\u018Flifba v\u0259 T\u0259cvid</a> \xB7 <a href="/namaz-vaxtlari">Namaz Vaxtlar\u0131</a> \xB7 <a href="/teqvim">Hicri T\u0259qvim</a> \xB7 <a href="/zikr">Zikr v\u0259 T\u0259sbih</a> \xB7 <a href="/muhaffiz">M\xFChafiz \u018Fzb\u0259r</a> \xB7 <a href="/shorts">Shorts</a></nav>${videos.length > 0 ? `<ul>${videos.slice(0, 12).map(
+        (v) => `<li><a href="/video/${escapeHtmlAttr(v.videoId)}">${escapeHtmlText(v.title)}</a> \u2014 ${escapeHtmlText(v.surahName)} (${escapeHtmlText(v.ayahRange)})</li>`
+      ).join("")}</ul>` : ""}`
     };
   }
   if (cleanPath === "/shorts") {
@@ -2671,6 +2957,12 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
     }
     const faq = buildSurahFaqEntries(surah);
     const startJuz = getJuzForPage(surah.startPage);
+    const faqHtml = `<section><h2>${escapeHtmlText(surah.name)} sur\u0259si haqq\u0131nda tez-tez veril\u0259n suallar</h2><dl>${faq.map(
+      (item) => `<dt>${escapeHtmlText(item.question)}</dt><dd>${escapeHtmlText(item.answer)}</dd>`
+    ).join("")}</dl></section>`;
+    const ayahsHtml = extras?.surahPayload && extras.surahPayload.surahNumber === surah.number ? `<article>${extras.surahPayload.ayahs.map(
+      (a) => `<div><p dir="rtl" lang="ar">${escapeHtmlText(a.arabicText)} \uFD3F${a.ayahNumber}\uFD3E</p><p lang="az">${a.ayahNumber}. ${escapeHtmlText(a.translation)}</p></div>`
+    ).join("")}</article>` : "";
     return {
       httpStatus: 200,
       robots: robotsIndex,
@@ -2701,7 +2993,7 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
         ]),
         buildFaqPageJsonLd(faq)
       ],
-      noscriptHtml: `<h1>${escapeHtmlText(`${surah.number}. ${surah.name} sur\u0259si (${surah.arabicName})`)}</h1><p>${escapeHtmlText(`${surah.ayahCount} ay\u0259 \xB7 ${surah.revelationPlace} \xB7 ${startJuz}-ci C\xFCz \xB7 M\u0259din\u0259 \xE7ap\u0131 S\u0259hif\u0259 ${surah.startPage} \xB7 \u018Flixan Musayev t\u0259rc\xFCm\u0259si`)}</p><nav><a href="/quran/sehife/${surah.startPage}">M\u0259din\u0259 s\u0259hif\u0259si ${surah.startPage}</a> \xB7 <a href="/muhaffiz/${surah.startPage}">M\xFChafizd\u0259 \u0259zb\u0259rl\u0259</a> \xB7 <a href="/quran/cuz/${startJuz}">${startJuz}-ci C\xFCz</a></nav>`
+      noscriptHtml: `<h1>${escapeHtmlText(`${surah.number}. ${surah.name} sur\u0259si (${surah.arabicName})`)}</h1><p>${escapeHtmlText(`${surah.ayahCount} ay\u0259 \xB7 ${surah.revelationPlace} \xB7 ${startJuz}-ci C\xFCz \xB7 M\u0259din\u0259 \xE7ap\u0131 S\u0259hif\u0259 ${surah.startPage} \xB7 \u018Flixan Musayev t\u0259rc\xFCm\u0259si`)}</p><nav><a href="/quran/sehife/${surah.startPage}">M\u0259din\u0259 s\u0259hif\u0259si ${surah.startPage}</a> \xB7 <a href="/muhaffiz/${surah.startPage}">M\xFChafizd\u0259 \u0259zb\u0259rl\u0259</a> \xB7 <a href="/quran/cuz/${startJuz}">${startJuz}-ci C\xFCz</a></nav>${ayahsHtml}${faqHtml}`
     };
   }
   const cuzMatch = cleanPath.match(/^\/quran\/cuz\/(\d+)$/);
@@ -2773,11 +3065,15 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
     }
     const juz = getJuzForPage(pageNum);
     const ordinal = formatAzerbaijaniOrdinal(pageNum);
+    const activeRub = getActiveRubForPage(pageNum);
+    const mushafAyahsHtml = extras?.mushafPayload && extras.mushafPayload.pageNumber === pageNum ? `<article>${extras.mushafPayload.ayahs.map(
+      (a) => `<div><p><strong>${escapeHtmlText(a.surahName)} ${a.surahNumber}:${a.ayahNumber}</strong></p><p dir="rtl" lang="ar">${escapeHtmlText(a.arabicText)}</p><p lang="az">${escapeHtmlText(a.translation)}</p></div>`
+    ).join("")}</article>` : "";
     return {
       httpStatus: 200,
       robots: robotsIndex,
       title: `Qurani-K\u0259rim \u2014 ${ordinal} s\u0259hif\u0259 (M\u0259din\u0259 \xE7ap\u0131) | Quran Qiraeti`,
-      description: `M\u0259din\u0259 \xE7ap\u0131 \xFCzr\u0259 Qurani-K\u0259rimin ${pageNum}-ci s\u0259hif\u0259si (${juz}-ci C\xFCz): \u0259r\u0259bc\u0259 m\u0259tn v\u0259 \u018Flixan Musayevin Az\u0259rbaycan t\u0259rc\xFCm\u0259si.`,
+      description: `M\u0259din\u0259 \xE7ap\u0131 \xFCzr\u0259 Qurani-K\u0259rimin ${pageNum}-ci s\u0259hif\u0259si (${juz}-ci C\xFCz, R\xFCb ${activeRub.rub}/240): \u0259r\u0259bc\u0259 m\u0259tn v\u0259 \u018Flixan Musayevin Az\u0259rbaycan t\u0259rc\xFCm\u0259si.`,
       canonicalUrl: `${baseUrl}/quran/sehife/${pageNum}`,
       ogImage: defaultOg,
       ogType: "article",
@@ -2797,7 +3093,7 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
           { name: `S\u0259hif\u0259 ${pageNum}`, path: `/quran/sehife/${pageNum}` }
         ])
       ],
-      noscriptHtml: `<h1>Qurani-K\u0259rim \u2014 ${escapeHtmlText(ordinal)} s\u0259hif\u0259 (${juz}-ci C\xFCz)</h1>`
+      noscriptHtml: `<h1>Qurani-K\u0259rim \u2014 ${escapeHtmlText(ordinal)} s\u0259hif\u0259 (${juz}-ci C\xFCz \xB7 R\xFCb ${activeRub.rub}/240)</h1><nav>${pageNum > 1 ? `<a href="/quran/sehife/${pageNum - 1}">\u018Fvv\u0259lki s\u0259hif\u0259 (${pageNum - 1})</a> \xB7 ` : ""}<a href="/muhaffiz/${pageNum}">M\xFChafizd\u0259 \u0259zb\u0259rl\u0259</a>${pageNum < TOTAL_QURAN_PAGES ? ` \xB7 <a href="/quran/sehife/${pageNum + 1}">N\xF6vb\u0259ti s\u0259hif\u0259 (${pageNum + 1})</a>` : ""}</nav>${mushafAyahsHtml}`
     };
   }
   const muhaffizMatch = cleanPath.match(/^\/(?:muhaffiz|ezber)(?:\/(\d+))?$/);
@@ -2909,13 +3205,14 @@ function resolveRouteSeoMetadata(pathname, origin, videos = []) {
     noscriptHtml: "<h1>404 \u2014 S\u0259hif\u0259 tap\u0131lmad\u0131</h1>"
   };
 }
-function injectRouteSeoIntoHtml(html, meta) {
+function injectRouteSeoIntoHtml(html, meta, options) {
   const safeTitle = escapeHtmlText(meta.title);
   const safeDesc = escapeHtmlAttr(meta.description);
   const safeRobots = escapeHtmlAttr(meta.robots);
   const safeCanonical = escapeHtmlAttr(meta.canonicalUrl);
   const safeOgImage = escapeHtmlAttr(meta.ogImage);
   const safeOgType = escapeHtmlAttr(meta.ogType);
+  const verificationToken = (options?.googleSiteVerification ?? "").trim();
   let out = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${safeTitle}</title>`).replace(
     /<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i,
     `<meta name="description" content="${safeDesc}" />`
@@ -2940,8 +3237,9 @@ function injectRouteSeoIntoHtml(html, meta) {
   ).replace(
     /<meta\s+name="twitter:image"\s+content="[^"]*"\s*\/?>/i,
     `<meta name="twitter:image" content="${safeOgImage}" />`
-  ).replace(/<meta\s+property="og:(?:url|image:alt)"\s+content="[^"]*"\s*\/?>\s*/gi, "").replace(/<meta\s+name="twitter:(?:title|description)"\s+content="[^"]*"\s*\/?>\s*/gi, "").replace(/<link\s+rel="(?:canonical|prev|next)"\s+href="[^"]*"\s*\/?>\s*/gi, "").replace(/<link\s+rel="alternate"\s+hreflang="(?:az|x-default)"\s+href="[^"]*"\s*\/?>\s*/gi, "").replace(/<script\s+id="quran-qiraeti-ssr-jsonld"\s+type="application\/ld\+json">[\s\S]*?<\/script>\s*/gi, "");
+  ).replace(/<meta\s+name="google-site-verification"\s+content="[^"]*"\s*\/?>\s*/gi, "").replace(/<meta\s+property="og:(?:url|image:alt)"\s+content="[^"]*"\s*\/?>\s*/gi, "").replace(/<meta\s+name="twitter:(?:title|description)"\s+content="[^"]*"\s*\/?>\s*/gi, "").replace(/<link\s+rel="(?:canonical|prev|next)"\s+href="[^"]*"\s*\/?>\s*/gi, "").replace(/<link\s+rel="alternate"\s+hreflang="(?:az|x-default)"\s+href="[^"]*"\s*\/?>\s*/gi, "").replace(/<script\s+id="quran-qiraeti-ssr-jsonld"\s+type="application\/ld\+json">[\s\S]*?<\/script>\s*/gi, "");
   const extraHeadTags = [
+    verificationToken ? `<meta name="google-site-verification" content="${escapeHtmlAttr(verificationToken)}" />` : "",
     `<link rel="canonical" href="${safeCanonical}" />`,
     `<meta property="og:url" content="${safeCanonical}" />`,
     `<meta property="og:image:alt" content="${escapeHtmlAttr(meta.title)}" />`,
@@ -3172,7 +3470,7 @@ function buildAiIndexJson(origin, stats, longVideos, shorts) {
 }
 
 // src/server/api.ts
-import express from "express";
+import express2 from "express";
 
 // src/lib/readerState.ts
 function parseAlQuranSearchPayload(payload, catalog = SURAH_CATALOG, limit = 24) {
@@ -3800,10 +4098,1274 @@ var SEED_SHORTS = [
   })
 ];
 
+// src/server/telegram.ts
+import crypto from "node:crypto";
+import express from "express";
+
+// src/lib/prayerTimes.ts
+var BAKU_UTC_OFFSET_HOURS = 4;
+var KAABA_LAT = 21.422487;
+var KAABA_LNG = 39.826206;
+var WORLD_PRAYER_CITIES = [
+  // Azərbaycan
+  { id: "baku", countryId: "az", countryName: "Az\u0259rbaycan", name: "Bak\u0131", regionLabel: "Paytaxt", lat: 40.4093, lng: 49.8671, timeZone: "Asia/Baku" },
+  { id: "sumqayit", countryId: "az", countryName: "Az\u0259rbaycan", name: "Sumqay\u0131t", regionLabel: "Ab\u015Feron", lat: 40.5855, lng: 49.6317, timeZone: "Asia/Baku" },
+  { id: "ganja", countryId: "az", countryName: "Az\u0259rbaycan", name: "G\u0259nc\u0259", regionLabel: "Q\u0259rb regionu", lat: 40.6828, lng: 46.3606, timeZone: "Asia/Baku" },
+  { id: "mingachevir", countryId: "az", countryName: "Az\u0259rbaycan", name: "Ming\u0259\xE7evir", regionLabel: "M\u0259rk\u0259zi Aran", lat: 40.7639, lng: 47.0595, timeZone: "Asia/Baku" },
+  { id: "shaki", countryId: "az", countryName: "Az\u0259rbaycan", name: "\u015E\u0259ki", regionLabel: "\u015Eimal-Q\u0259rb", lat: 41.1919, lng: 47.1706, timeZone: "Asia/Baku" },
+  { id: "shamakhi", countryId: "az", countryName: "Az\u0259rbaycan", name: "\u015Eamax\u0131", regionLabel: "Da\u011Fl\u0131q \u015Eirvan", lat: 40.6314, lng: 48.6414, timeZone: "Asia/Baku" },
+  { id: "quba", countryId: "az", countryName: "Az\u0259rbaycan", name: "Quba", regionLabel: "\u015Eimal", lat: 41.3611, lng: 48.5134, timeZone: "Asia/Baku" },
+  { id: "lankaran", countryId: "az", countryName: "Az\u0259rbaycan", name: "L\u0259nk\u0259ran", regionLabel: "C\u0259nub", lat: 38.7543, lng: 48.8506, timeZone: "Asia/Baku" },
+  { id: "nakhchivan", countryId: "az", countryName: "Az\u0259rbaycan", name: "Nax\xE7\u0131van", regionLabel: "Muxtar Respublika", lat: 39.2089, lng: 45.4122, timeZone: "Asia/Baku" },
+  { id: "shusha", countryId: "az", countryName: "Az\u0259rbaycan", name: "\u015Eu\u015Fa", regionLabel: "Qaraba\u011F", lat: 39.7576, lng: 46.7499, timeZone: "Asia/Baku" },
+  // Türkiyə
+  { id: "istanbul", countryId: "tr", countryName: "T\xFCrkiy\u0259", name: "\u0130stanbul", regionLabel: "M\u0259rm\u0259r\u0259", lat: 41.0082, lng: 28.9784, timeZone: "Europe/Istanbul" },
+  { id: "ankara", countryId: "tr", countryName: "T\xFCrkiy\u0259", name: "Ankara", regionLabel: "Paytaxt", lat: 39.9334, lng: 32.8597, timeZone: "Europe/Istanbul" },
+  { id: "izmir", countryId: "tr", countryName: "T\xFCrkiy\u0259", name: "\u0130zmir", regionLabel: "Ege", lat: 38.4237, lng: 27.1428, timeZone: "Europe/Istanbul" },
+  { id: "bursa", countryId: "tr", countryName: "T\xFCrkiy\u0259", name: "Bursa", regionLabel: "M\u0259rm\u0259r\u0259", lat: 40.1885, lng: 29.061, timeZone: "Europe/Istanbul" },
+  { id: "konya", countryId: "tr", countryName: "T\xFCrkiy\u0259", name: "Konya", regionLabel: "\u0130\xE7 Anadolu", lat: 37.8746, lng: 32.4932, timeZone: "Europe/Istanbul" },
+  { id: "erzurum", countryId: "tr", countryName: "T\xFCrkiy\u0259", name: "\u018Frzurum", regionLabel: "\u015E\u0259rqi Anadolu", lat: 39.9043, lng: 41.2679, timeZone: "Europe/Istanbul" },
+  { id: "trabzon", countryId: "tr", countryName: "T\xFCrkiy\u0259", name: "Trabzon", regionLabel: "Qara d\u0259niz", lat: 41.0027, lng: 39.7168, timeZone: "Europe/Istanbul" },
+  // Səudiyyə Ərəbistanı
+  { id: "makkah", countryId: "sa", countryName: "S\u0259udiyy\u0259 \u018Fr\u0259bistan\u0131", name: "M\u0259kk\u0259", regionLabel: "Hicaz", lat: 21.3891, lng: 39.8579, timeZone: "Asia/Riyadh" },
+  { id: "madinah", countryId: "sa", countryName: "S\u0259udiyy\u0259 \u018Fr\u0259bistan\u0131", name: "M\u0259din\u0259", regionLabel: "Hicaz", lat: 24.5247, lng: 39.5692, timeZone: "Asia/Riyadh" },
+  { id: "riyadh", countryId: "sa", countryName: "S\u0259udiyy\u0259 \u018Fr\u0259bistan\u0131", name: "Riyad", regionLabel: "Paytaxt", lat: 24.7136, lng: 46.6753, timeZone: "Asia/Riyadh" },
+  { id: "jeddah", countryId: "sa", countryName: "S\u0259udiyy\u0259 \u018Fr\u0259bistan\u0131", name: "Cidd\u0259", regionLabel: "Q\u0131rm\u0131z\u0131 d\u0259niz", lat: 21.4858, lng: 39.1925, timeZone: "Asia/Riyadh" },
+  // BƏƏ & Qətər
+  { id: "dubai", countryId: "ae", countryName: "B\u018F\u018F", name: "Dubay", regionLabel: "\u018Fmirlik", lat: 25.2048, lng: 55.2708, timeZone: "Asia/Dubai" },
+  { id: "abudhabi", countryId: "ae", countryName: "B\u018F\u018F", name: "\u018Fbu-Dabi", regionLabel: "Paytaxt", lat: 24.4539, lng: 54.3773, timeZone: "Asia/Dubai" },
+  { id: "doha", countryId: "qa", countryName: "Q\u0259t\u0259r", name: "Doha", regionLabel: "Paytaxt", lat: 25.2854, lng: 51.531, timeZone: "Asia/Qatar" },
+  // Gürcüstan
+  { id: "tbilisi", countryId: "ge", countryName: "G\xFCrc\xFCstan", name: "Tbilisi", regionLabel: "Paytaxt", lat: 41.7151, lng: 44.8271, timeZone: "Asia/Tbilisi" },
+  { id: "batumi", countryId: "ge", countryName: "G\xFCrc\xFCstan", name: "Batumi", regionLabel: "Acariya", lat: 41.6168, lng: 41.6367, timeZone: "Asia/Tbilisi" },
+  { id: "marneuli", countryId: "ge", countryName: "G\xFCrc\xFCstan", name: "Marneuli", regionLabel: "Kvemo-Kartli", lat: 41.4759, lng: 44.8089, timeZone: "Asia/Tbilisi" },
+  // Rusiya
+  { id: "moscow", countryId: "ru", countryName: "Rusiya", name: "Moskva", regionLabel: "Paytaxt", lat: 55.7558, lng: 37.6173, timeZone: "Europe/Moscow" },
+  { id: "spb", countryId: "ru", countryName: "Rusiya", name: "Sankt-Peterburq", regionLabel: "\u015Eimal-Q\u0259rb", lat: 59.9343, lng: 30.3351, timeZone: "Europe/Moscow" },
+  { id: "kazan", countryId: "ru", countryName: "Rusiya", name: "Kazan", regionLabel: "Tatar\u0131stan", lat: 55.8304, lng: 49.0661, timeZone: "Europe/Moscow" },
+  { id: "makhachkala", countryId: "ru", countryName: "Rusiya", name: "Maha\xE7qala", regionLabel: "Da\u011F\u0131stan", lat: 42.9849, lng: 47.5047, timeZone: "Europe/Moscow" },
+  // İran
+  { id: "tehran", countryId: "ir", countryName: "\u0130ran", name: "Tehran", regionLabel: "Paytaxt", lat: 35.6892, lng: 51.389, timeZone: "Asia/Tehran" },
+  { id: "tabriz", countryId: "ir", countryName: "\u0130ran", name: "T\u0259briz", regionLabel: "\u015E\u0259rqi Az\u0259rbaycan", lat: 38.0962, lng: 46.2738, timeZone: "Asia/Tehran" },
+  { id: "ardabil", countryId: "ir", countryName: "\u0130ran", name: "\u018Frd\u0259bil", regionLabel: "\u018Frd\u0259bil", lat: 38.2498, lng: 48.2933, timeZone: "Asia/Tehran" },
+  // Avropa (Almaniya, Böyük Britaniya, Fransa)
+  { id: "berlin", countryId: "de", countryName: "Almaniya", name: "Berlin", regionLabel: "Paytaxt", lat: 52.52, lng: 13.405, timeZone: "Europe/Berlin" },
+  { id: "munich", countryId: "de", countryName: "Almaniya", name: "M\xFCnhen", regionLabel: "Bavariya", lat: 48.1351, lng: 11.582, timeZone: "Europe/Berlin" },
+  { id: "frankfurt", countryId: "de", countryName: "Almaniya", name: "Frankfurt", regionLabel: "Hessen", lat: 50.1109, lng: 8.6821, timeZone: "Europe/Berlin" },
+  { id: "cologne", countryId: "de", countryName: "Almaniya", name: "K\xF6ln", regionLabel: "NRW", lat: 50.9375, lng: 6.9603, timeZone: "Europe/Berlin" },
+  { id: "london", countryId: "gb", countryName: "B\xF6y\xFCk Britaniya", name: "London", regionLabel: "Paytaxt", lat: 51.5072, lng: -0.1276, timeZone: "Europe/London" },
+  { id: "birmingham", countryId: "gb", countryName: "B\xF6y\xFCk Britaniya", name: "Birmingem", regionLabel: "Midlands", lat: 52.4862, lng: -1.8904, timeZone: "Europe/London" },
+  { id: "manchester", countryId: "gb", countryName: "B\xF6y\xFCk Britaniya", name: "Man\xE7ester", regionLabel: "\u015Eimal", lat: 53.4808, lng: -2.2426, timeZone: "Europe/London" },
+  { id: "paris", countryId: "fr", countryName: "Fransa", name: "Paris", regionLabel: "Paytaxt", lat: 48.8566, lng: 2.3522, timeZone: "Europe/Paris" },
+  { id: "lyon", countryId: "fr", countryName: "Fransa", name: "Lion", regionLabel: "Overn-Rona", lat: 45.764, lng: 4.8357, timeZone: "Europe/Paris" },
+  // Şimali Amerika (ABŞ, Kanada)
+  { id: "newyork", countryId: "us", countryName: "AB\u015E", name: "Nyu-York", regionLabel: "\u015E\u0259rq sahili", lat: 40.7128, lng: -74.006, timeZone: "America/New_York" },
+  { id: "washington", countryId: "us", countryName: "AB\u015E", name: "Va\u015Finqton", regionLabel: "Paytaxt", lat: 38.9072, lng: -77.0369, timeZone: "America/New_York" },
+  { id: "chicago", countryId: "us", countryName: "AB\u015E", name: "\xC7ikaqo", regionLabel: "M\u0259rk\u0259zi", lat: 41.8781, lng: -87.6298, timeZone: "America/Chicago" },
+  { id: "losangeles", countryId: "us", countryName: "AB\u015E", name: "Los-Anceles", regionLabel: "Q\u0259rb sahili", lat: 34.0522, lng: -118.2437, timeZone: "America/Los_Angeles" },
+  { id: "toronto", countryId: "ca", countryName: "Kanada", name: "Toronto", regionLabel: "Ontario", lat: 43.6532, lng: -79.3832, timeZone: "America/Toronto" },
+  { id: "montreal", countryId: "ca", countryName: "Kanada", name: "Monreal", regionLabel: "Kvebek", lat: 45.5017, lng: -73.5673, timeZone: "America/Toronto" },
+  // Orta Asiya, Misir, Malayziya
+  { id: "astana", countryId: "kz", countryName: "Qazax\u0131stan", name: "Astana", regionLabel: "Paytaxt", lat: 51.1694, lng: 71.4491, timeZone: "Asia/Almaty" },
+  { id: "almaty", countryId: "kz", countryName: "Qazax\u0131stan", name: "Almat\u0131", regionLabel: "C\u0259nub-\u015E\u0259rq", lat: 43.222, lng: 76.8512, timeZone: "Asia/Almaty" },
+  { id: "tashkent", countryId: "uz", countryName: "\xD6zb\u0259kistan", name: "Da\u015Fk\u0259nd", regionLabel: "Paytaxt", lat: 41.2995, lng: 69.2401, timeZone: "Asia/Tashkent" },
+  { id: "samarkand", countryId: "uz", countryName: "\xD6zb\u0259kistan", name: "S\u0259m\u0259rq\u0259nd", regionLabel: "Tarixi \u015F\u0259h\u0259r", lat: 39.6542, lng: 66.9597, timeZone: "Asia/Tashkent" },
+  { id: "cairo", countryId: "eg", countryName: "Misir", name: "Qahir\u0259", regionLabel: "Paytaxt", lat: 30.0444, lng: 31.2357, timeZone: "Africa/Cairo" },
+  { id: "kualalumpur", countryId: "my", countryName: "Malayziya", name: "Kuala-Lumpur", regionLabel: "Paytaxt", lat: 3.139, lng: 101.6869, timeZone: "Asia/Kuala_Lumpur" }
+];
+var AZERBAIJAN_CITIES = WORLD_PRAYER_CITIES.filter((c) => c.countryId === "az");
+var DEG_TO_RAD = Math.PI / 180;
+var RAD_TO_DEG = 180 / Math.PI;
+function dsin(deg) {
+  return Math.sin(deg * DEG_TO_RAD);
+}
+function dcos(deg) {
+  return Math.cos(deg * DEG_TO_RAD);
+}
+function dtan(deg) {
+  return Math.tan(deg * DEG_TO_RAD);
+}
+function darcsin(val) {
+  return Math.asin(Math.max(-1, Math.min(1, val))) * RAD_TO_DEG;
+}
+function darccos(val) {
+  return Math.acos(Math.max(-1, Math.min(1, val))) * RAD_TO_DEG;
+}
+function darctan2(y, x) {
+  return Math.atan2(y, x) * RAD_TO_DEG;
+}
+function darccot(x) {
+  return Math.atan(1 / x) * RAD_TO_DEG;
+}
+function fixAngle(deg) {
+  return (deg % 360 + 360) % 360;
+}
+function fixHour(hours) {
+  return (hours % 24 + 24) % 24;
+}
+function toJulianDate(year, month, day) {
+  let y = year;
+  let m = month;
+  if (m <= 2) {
+    y -= 1;
+    m += 12;
+  }
+  const a = Math.floor(y / 100);
+  const b = 2 - a + Math.floor(a / 4);
+  return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + day + b - 1524.5;
+}
+function computeSolarPosition(jd) {
+  const d = jd - 2451545;
+  const g = fixAngle(357.529 + 0.98560028 * d);
+  const q = fixAngle(280.459 + 0.98564736 * d);
+  const l = fixAngle(q + 1.915 * dsin(g) + 0.02 * dsin(2 * g));
+  const e = 23.439 - 36e-8 * d;
+  const ra = fixHour(darctan2(dcos(e) * dsin(l), dcos(l)) / 15);
+  const eqTimeHours = q / 15 - ra;
+  const declination = darcsin(dsin(e) * dsin(l));
+  return { declination, eqTimeHours };
+}
+function computeSunAngleOffsetHours(jDate, dayFraction, lat, angleBelowHorizon) {
+  const { declination } = computeSolarPosition(jDate + dayFraction);
+  const num = -dsin(angleBelowHorizon) - dsin(declination) * dsin(lat);
+  const den = dcos(declination) * dcos(lat);
+  if (Math.abs(den) < 1e-6) return null;
+  const ratio = num / den;
+  if (Math.abs(ratio) >= 0.999) {
+    return null;
+  }
+  return darccos(ratio) / 15;
+}
+function computeAsrOffsetHours(jDate, dayFraction, lat) {
+  const { declination } = computeSolarPosition(jDate + dayFraction);
+  const altDeg = darccot(1 + dtan(Math.abs(lat - declination)));
+  return computeSunAngleOffsetHours(jDate, dayFraction, lat, -altDeg) ?? 4;
+}
+function formatMinutesToHHMM(totalMinutes) {
+  const normalized = (Math.round(totalMinutes) % 1440 + 1440) % 1440;
+  const hh = Math.floor(normalized / 60);
+  const mm = normalized % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+function getTimeZoneOffsetHours(date, timeZone, fallbackOffsetHours = BAKU_UTC_OFFSET_HOURS) {
+  if (!timeZone || timeZone === "SOLAR_OFFSET") {
+    return fallbackOffsetHours;
+  }
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23"
+    });
+    const parts = formatter.formatToParts(date);
+    const map = {};
+    for (const p of parts) {
+      if (p.type !== "literal") {
+        map[p.type] = Number.parseInt(p.value, 10);
+      }
+    }
+    const wallUtc = Date.UTC(
+      map.year,
+      (map.month || 1) - 1,
+      map.day || 1,
+      map.hour === 24 ? 0 : map.hour || 0,
+      map.minute || 0,
+      map.second || 0
+    );
+    const diffHours = (wallUtc - date.getTime()) / 36e5;
+    return Math.round(diffHours * 4) / 4;
+  } catch {
+    return fallbackOffsetHours;
+  }
+}
+function getCalendarPartsInTimeZone(date = /* @__PURE__ */ new Date(), timeZone = "Asia/Baku", fallbackOffsetHours = BAKU_UTC_OFFSET_HOURS) {
+  const offsetHours = getTimeZoneOffsetHours(date, timeZone, fallbackOffsetHours);
+  const shifted = new Date(date.getTime() + offsetHours * 3600 * 1e3);
+  const year = shifted.getUTCFullYear();
+  const month = shifted.getUTCMonth() + 1;
+  const day = shifted.getUTCDate();
+  const hours = shifted.getUTCHours();
+  const minutes = shifted.getUTCMinutes();
+  const seconds = shifted.getUTCSeconds();
+  return {
+    year,
+    month,
+    day,
+    secondsSinceMidnight: hours * 3600 + minutes * 60 + seconds,
+    dateKey: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    utcOffsetHours: offsetHours
+  };
+}
+var AZ_MONTHS = [
+  "Yanvar",
+  "Fevral",
+  "Mart",
+  "Aprel",
+  "May",
+  "\u0130yun",
+  "\u0130yul",
+  "Avqust",
+  "Sentyabr",
+  "Oktyabr",
+  "Noyabr",
+  "Dekabr"
+];
+var AZ_WEEKDAYS = [
+  "Bazar",
+  "Bazar ert\u0259si",
+  "\xC7\u0259r\u015F\u0259nb\u0259 ax\u015Fam\u0131",
+  "\xC7\u0259r\u015F\u0259nb\u0259",
+  "C\xFCm\u0259 ax\u015Fam\u0131",
+  "C\xFCm\u0259",
+  "\u015E\u0259nb\u0259"
+];
+var HIJRI_MONTHS_AZ = [
+  "M\u0259h\u0259rr\u0259m",
+  "S\u0259f\u0259r",
+  "R\u0259bi\xFCl\u0259vv\u0259l",
+  "R\u0259bi\xFClax\u0131r",
+  "C\u0259madiy\u0259l\u0259vv\u0259l",
+  "C\u0259madiy\u0259lax\u0131r",
+  "R\u0259c\u0259b",
+  "\u015Eaban",
+  "Ramazan",
+  "\u015E\u0259vval",
+  "Z\xFClq\u0259d\u0259",
+  "Z\xFClhicc\u0259"
+];
+function formatGregorianAzerbaijani(year, month, day) {
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  const weekday = AZ_WEEKDAYS[utc.getUTCDay()] ?? "";
+  const monthName = AZ_MONTHS[month - 1] ?? String(month);
+  return `${day} ${monthName} ${year}, ${weekday}`;
+}
+function getHijriPartsUmmAlQura(date = /* @__PURE__ */ new Date(), timeZone = "Asia/Baku") {
+  try {
+    const safeTz = timeZone === "SOLAR_OFFSET" ? "UTC" : timeZone;
+    const formatted = new Intl.DateTimeFormat("en-US-u-ca-islamic-umalqura", {
+      timeZone: safeTz,
+      day: "numeric",
+      month: "numeric",
+      year: "numeric"
+    }).format(date);
+    const match = formatted.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (match) {
+      const m = Number.parseInt(match[1], 10);
+      const d = Number.parseInt(match[2], 10);
+      const y = Number.parseInt(match[3], 10);
+      const mName = HIJRI_MONTHS_AZ[m - 1] ?? "";
+      if (mName) {
+        return { day: d, month: m, year: y, formatted: `${d} ${mName} ${y}` };
+      }
+    }
+  } catch {
+  }
+  return { day: 1, month: 1, year: 1448, formatted: "Hicri t\u0259qvim" };
+}
+function haversineDistanceKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * DEG_TO_RAD;
+  const dLng = (lng2 - lng1) * DEG_TO_RAD;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + dcos(lat1) * dcos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function computeQiblaDirection(lat, lng) {
+  const phi1 = lat * DEG_TO_RAD;
+  const phi2 = KAABA_LAT * DEG_TO_RAD;
+  const dLambda = (KAABA_LNG - lng) * DEG_TO_RAD;
+  const y = Math.sin(dLambda) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
+  const bearing = Math.round((Math.atan2(y, x) * RAD_TO_DEG % 360 + 360) % 360);
+  const dirs = ["\u015Eimal", "\u015Em-\u015Eq", "\u015E\u0259rq", "C-\u015Eq", "C\u0259nub", "C-Qb", "Q\u0259rb", "\u015Em-Qb"];
+  const cardinalLabel = dirs[Math.round(bearing / 45) % 8] ?? "\u015Em-\u015Eq";
+  const distanceKm = Math.round(haversineDistanceKm(lat, lng, KAABA_LAT, KAABA_LNG));
+  return {
+    bearingDegrees: bearing,
+    cardinalLabel,
+    distanceKm
+  };
+}
+function calculatePrayerTimesForDate(location, year, month, day) {
+  const utcMidday = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const utcOffsetHours = getTimeZoneOffsetHours(
+    utcMidday,
+    location.timeZone,
+    location.fallbackUtcOffsetHours ?? BAKU_UTC_OFFSET_HOURS
+  );
+  const hijriParts = getHijriPartsUmmAlQura(utcMidday, location.timeZone);
+  const isRamadan = hijriParts.month === 9;
+  const ishaOffsetMinutes = isRamadan ? 120 : 90;
+  const jDate = toJulianDate(year, month, day) - location.lng / (15 * 24);
+  const tzDiff = utcOffsetHours - location.lng / 15;
+  let fajrH = 5 / 24;
+  let sunriseH = 6 / 24;
+  let dhuhrH = 12 / 24;
+  let asrH = 15 / 24;
+  let maghribH = 18 / 24;
+  for (let pass = 0; pass < 2; pass++) {
+    const fajrMid = fixHour(12 - computeSolarPosition(jDate + fajrH).eqTimeHours) + tzDiff;
+    const sunMid = fixHour(12 - computeSolarPosition(jDate + sunriseH).eqTimeHours) + tzDiff;
+    const noonMid = fixHour(12 - computeSolarPosition(jDate + dhuhrH).eqTimeHours) + tzDiff;
+    const asrMid = fixHour(12 - computeSolarPosition(jDate + asrH).eqTimeHours) + tzDiff;
+    const magMid = fixHour(12 - computeSolarPosition(jDate + maghribH).eqTimeHours) + tzDiff;
+    const sunriseOffset = computeSunAngleOffsetHours(jDate, sunriseH, location.lat, 0.833) ?? 6;
+    const maghribOffset = computeSunAngleOffsetHours(jDate, maghribH, location.lat, 0.833) ?? 6;
+    const sunriseHours = sunMid - sunriseOffset;
+    const dhuhrHours = noonMid + 1 / 60;
+    const asrHours = asrMid + computeAsrOffsetHours(jDate, asrH, location.lat);
+    const maghribHours = magMid + maghribOffset + 1 / 60;
+    const nightDuration = Math.max(4, 24 - (maghribHours - sunriseHours));
+    const fajrOffset = computeSunAngleOffsetHours(jDate, fajrH, location.lat, 18.5) ?? sunriseOffset + 18.5 / 60 * nightDuration;
+    const fajrHours = fajrOffset > sunriseOffset ? fajrMid - fajrOffset : sunriseHours - 18.5 / 60 * nightDuration;
+    fajrH = fajrHours / 24;
+    sunriseH = sunriseHours / 24;
+    dhuhrH = dhuhrHours / 24;
+    asrH = asrHours / 24;
+    maghribH = maghribHours / 24;
+  }
+  const fajrMin = Math.round(fajrH * 1440);
+  const sunriseMin = Math.round(sunriseH * 1440);
+  const dhuhrMin = Math.round(dhuhrH * 1440);
+  const asrMin = Math.round(asrH * 1440);
+  const maghribMin = Math.round(maghribH * 1440);
+  const ishaMin = maghribMin + ishaOffsetMinutes;
+  const times = [
+    {
+      key: "fajr",
+      label: "S\xFCbh (\u0130msak)",
+      arabicLabel: "\u0627\u0644\u0641\u062C\u0631",
+      minutesFromMidnight: fajrMin,
+      formattedTime: formatMinutesToHHMM(fajrMin)
+    },
+    {
+      key: "sunrise",
+      label: "G\xFCn\u0259\u015F",
+      arabicLabel: "\u0627\u0644\u0634\u0631\u0648\u0642",
+      minutesFromMidnight: sunriseMin,
+      formattedTime: formatMinutesToHHMM(sunriseMin)
+    },
+    {
+      key: "dhuhr",
+      label: "Z\xF6hr",
+      arabicLabel: "\u0627\u0644\u0638\u0647\u0631",
+      minutesFromMidnight: dhuhrMin,
+      formattedTime: formatMinutesToHHMM(dhuhrMin)
+    },
+    {
+      key: "asr",
+      label: "\u018Fsr",
+      arabicLabel: "\u0627\u0644\u0639\u0635\u0631",
+      minutesFromMidnight: asrMin,
+      formattedTime: formatMinutesToHHMM(asrMin)
+    },
+    {
+      key: "maghrib",
+      label: "M\u0259\u011Frib",
+      arabicLabel: "\u0627\u0644\u0645\u063A\u0631\u0628",
+      minutesFromMidnight: maghribMin,
+      formattedTime: formatMinutesToHHMM(maghribMin)
+    },
+    {
+      key: "isha",
+      label: "\u0130\u015Fa",
+      arabicLabel: "\u0627\u0644\u0639\u0634\u0627\u0621",
+      minutesFromMidnight: ishaMin,
+      formattedTime: formatMinutesToHHMM(ishaMin)
+    }
+  ];
+  return {
+    city: location,
+    dateKey: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    gregorianLabel: formatGregorianAzerbaijani(year, month, day),
+    hijriLabel: hijriParts.formatted,
+    isRamadan,
+    calculationMethodLabel: isRamadan ? "\xDCmm\xFCl-Qura (M\u0259kk\u0259 \xB7 18.5\xB0 F\u0259cr \xB7 +120 d\u0259q Ramazan \u0130\u015Fas\u0131)" : "\xDCmm\xFCl-Qura (M\u0259kk\u0259 \xB7 18.5\xB0 F\u0259cr \xB7 +90 d\u0259q \u0130\u015Fa)",
+    utcOffsetHours,
+    times
+  };
+}
+function formatCountdownDuration(secondsTotal) {
+  const safe = Math.max(0, Math.floor(secondsTotal));
+  const hh = Math.floor(safe / 3600);
+  const mm = Math.floor(safe % 3600 / 60);
+  const ss = safe % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+function formatShortRemainingAz(secondsTotal) {
+  const safe = Math.max(0, Math.floor(secondsTotal));
+  const totalMin = Math.ceil(safe / 60);
+  const hh = Math.floor(totalMin / 60);
+  const mm = totalMin % 60;
+  if (hh === 0) return `${mm} d\u0259q qal\u0131b`;
+  if (mm === 0) return `${hh} saat qal\u0131b`;
+  return `${hh} saat ${mm} d\u0259q qal\u0131b`;
+}
+function getNextPrayerCountdown(location, now = /* @__PURE__ */ new Date()) {
+  const parts = getCalendarPartsInTimeZone(
+    now,
+    location.timeZone,
+    location.fallbackUtcOffsetHours ?? BAKU_UTC_OFFSET_HOURS
+  );
+  const today = calculatePrayerTimesForDate(location, parts.year, parts.month, parts.day);
+  for (let i = 0; i < today.times.length; i++) {
+    const entry = today.times[i];
+    const targetSeconds = entry.minutesFromMidnight * 60;
+    if (parts.secondsSinceMidnight < targetSeconds) {
+      const remaining2 = targetSeconds - parts.secondsSinceMidnight;
+      const currentPrayerKey = i === 0 ? "isha" : today.times[i - 1].key;
+      return {
+        currentPrayerKey,
+        nextPrayer: entry,
+        isTomorrow: false,
+        secondsRemaining: remaining2,
+        formattedCountdown: formatCountdownDuration(remaining2)
+      };
+    }
+  }
+  const tomorrowDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + 1));
+  const tomorrow = calculatePrayerTimesForDate(
+    location,
+    tomorrowDate.getUTCFullYear(),
+    tomorrowDate.getUTCMonth() + 1,
+    tomorrowDate.getUTCDate()
+  );
+  const fajrTomorrow = tomorrow.times[0];
+  const remaining = 86400 - parts.secondsSinceMidnight + fajrTomorrow.minutesFromMidnight * 60;
+  return {
+    currentPrayerKey: "isha",
+    nextPrayer: fajrTomorrow,
+    isTomorrow: true,
+    secondsRemaining: remaining,
+    formattedCountdown: formatCountdownDuration(remaining)
+  };
+}
+function calculateWeeklyPrayerSchedule(location, startDate = /* @__PURE__ */ new Date(), days = 7) {
+  const parts = getCalendarPartsInTimeZone(
+    startDate,
+    location.timeZone,
+    location.fallbackUtcOffsetHours ?? BAKU_UTC_OFFSET_HOURS
+  );
+  const list = [];
+  for (let offset = 0; offset < days; offset++) {
+    const d = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + offset));
+    list.push(
+      calculatePrayerTimesForDate(
+        location,
+        d.getUTCFullYear(),
+        d.getUTCMonth() + 1,
+        d.getUTCDate()
+      )
+    );
+  }
+  return list;
+}
+
+// src/lib/telegramBot.ts
+var TELEGRAM_BOT_COMMANDS = [
+  { command: "start", description: "\u018Fsas menyu v\u0259 Telegram Mini App" },
+  { command: "aye", description: "G\xFCn\xFCn ay\u0259si v\u0259 ya /aye 2:255" },
+  { command: "sure", description: "Sur\u0259 m\u0259lumat\u0131 v\u0259 oxu (/sure Yasin)" },
+  { command: "namaz", description: "Namaz vaxtlar\u0131 (/namaz Bak\u0131)" },
+  { command: "dua", description: "Qurandak\u0131 R\u0259bb\u0259n\u0259 dualar\u0131" },
+  { command: "axtar", description: "Ay\u0259l\u0259rd\u0259 axtar\u0131\u015F (/axtar s\u0259bir)" },
+  { command: "videolar", description: "Son uzun qira\u0259tl\u0259r v\u0259 Shorts" },
+  { command: "yardim", description: "B\xFCt\xFCn \u0259mrl\u0259r haqq\u0131nda m\u0259lumat" }
+];
+var CURATED_TELEGRAM_VERSES = [
+  {
+    surahNumber: 2,
+    surahName: "B\u0259q\u0259r\u0259",
+    ayahNumber: 255,
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0647\u064F\u0648\u064E \u0627\u0644\u0652\u062D\u064E\u064A\u064F\u0651 \u0627\u0644\u0652\u0642\u064E\u064A\u064F\u0651\u0648\u0645\u064F \u06DA \u0644\u064E\u0627 \u062A\u064E\u0623\u0652\u062E\u064F\u0630\u064F\u0647\u064F \u0633\u0650\u0646\u064E\u0629\u064C \u0648\u064E\u0644\u064E\u0627 \u0646\u064E\u0648\u0652\u0645\u064C",
+    translation: "Allah \u2014 Ondan ba\u015Fqa ibad\u0259t\u0259 layiq olan m\u0259bud yoxdur, \u0259b\u0259di Ya\u015Fayand\u0131r, b\xFCt\xFCn yaratd\u0131qlar\u0131n\u0131n Q\u0259yyumudur. Onu n\u0259 m\xFCrg\xFC, n\u0259 d\u0259 yuxu tutar."
+  },
+  {
+    surahNumber: 2,
+    surahName: "B\u0259q\u0259r\u0259",
+    ayahNumber: 286,
+    arabicText: "\u0644\u064E\u0627 \u064A\u064F\u0643\u064E\u0644\u0650\u0651\u0641\u064F \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0646\u064E\u0641\u0652\u0633\u064B\u0627 \u0625\u0650\u0644\u064E\u0651\u0627 \u0648\u064F\u0633\u0652\u0639\u064E\u0647\u064E\u0627 \u06DA \u0644\u064E\u0647\u064E\u0627 \u0645\u064E\u0627 \u0643\u064E\u0633\u064E\u0628\u064E\u062A\u0652 \u0648\u064E\u0639\u064E\u0644\u064E\u064A\u0652\u0647\u064E\u0627 \u0645\u064E\u0627 \u0627\u0643\u0652\u062A\u064E\u0633\u064E\u0628\u064E\u062A\u0652",
+    translation: "Allah h\u0259r k\u0259si yaln\u0131z onun q\xFCvv\u0259si \xE7atd\u0131\u011F\u0131 q\u0259d\u0259r y\xFCkl\u0259y\u0259r. H\u0259r k\u0259sin qazand\u0131\u011F\u0131 (xeyir yaln\u0131z) \xF6z\xFCn\u0259, qazand\u0131\u011F\u0131 (\u015F\u0259r d\u0259 yaln\u0131z) \xF6z \u0259leyhin\u0259dir."
+  },
+  {
+    surahNumber: 94,
+    surahName: "\u015E\u0259rh",
+    ayahNumber: 5,
+    arabicText: "\u0641\u064E\u0625\u0650\u0646\u064E\u0651 \u0645\u064E\u0639\u064E \u0627\u0644\u0652\u0639\u064F\u0633\u0652\u0631\u0650 \u064A\u064F\u0633\u0652\u0631\u064B\u0627 \u06DD \u0625\u0650\u0646\u064E\u0651 \u0645\u064E\u0639\u064E \u0627\u0644\u0652\u0639\u064F\u0633\u0652\u0631\u0650 \u064A\u064F\u0633\u0652\u0631\u064B\u0627",
+    translation: "\u015E\xFCbh\u0259siz ki, h\u0259r \xE7\u0259tinlikd\u0259n sonra bir asanl\u0131q g\u0259lir! H\u0259qiq\u0259t\u0259n, h\u0259r \xE7\u0259tinlikl\u0259 yana\u015F\u0131 bir asanl\u0131q vard\u0131r!"
+  },
+  {
+    surahNumber: 2,
+    surahName: "B\u0259q\u0259r\u0259",
+    ayahNumber: 152,
+    arabicText: "\u0641\u064E\u0627\u0630\u0652\u0643\u064F\u0631\u064F\u0648\u0646\u0650\u064A \u0623\u064E\u0630\u0652\u0643\u064F\u0631\u0652\u0643\u064F\u0645\u0652 \u0648\u064E\u0627\u0634\u0652\u0643\u064F\u0631\u064F\u0648\u0627 \u0644\u0650\u064A \u0648\u064E\u0644\u064E\u0627 \u062A\u064E\u0643\u0652\u0641\u064F\u0631\u064F\u0648\u0646\u0650",
+    translation: "M\u0259ni yad edin ki, M\u0259n d\u0259 sizi yad edim! M\u0259n\u0259 \u015F\xFCk\xFCr edin, k\xFCfr etm\u0259yin!"
+  },
+  {
+    surahNumber: 13,
+    surahName: "R\u0259d",
+    ayahNumber: 28,
+    arabicText: "\u0623\u064E\u0644\u064E\u0627 \u0628\u0650\u0630\u0650\u0643\u0652\u0631\u0650 \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u062A\u064E\u0637\u0652\u0645\u064E\u0626\u0650\u0646\u064F\u0651 \u0627\u0644\u0652\u0642\u064F\u0644\u064F\u0648\u0628\u064F",
+    translation: "Bilin ki, q\u0259lbl\u0259r yaln\u0131z Allah\u0131 zikr etm\u0259kl\u0259 rahatl\u0131q tap\u0131r!"
+  },
+  {
+    surahNumber: 3,
+    surahName: "Ali-\u0130mran",
+    ayahNumber: 139,
+    arabicText: "\u0648\u064E\u0644\u064E\u0627 \u062A\u064E\u0647\u0650\u0646\u064F\u0648\u0627 \u0648\u064E\u0644\u064E\u0627 \u062A\u064E\u062D\u0652\u0632\u064E\u0646\u064F\u0648\u0627 \u0648\u064E\u0623\u064E\u0646\u062A\u064F\u0645\u064F \u0627\u0644\u0652\u0623\u064E\u0639\u0652\u0644\u064E\u0648\u0652\u0646\u064E \u0625\u0650\u0646 \u0643\u064F\u0646\u062A\u064F\u0645 \u0645\u064F\u0651\u0624\u0652\u0645\u0650\u0646\u0650\u064A\u0646\u064E",
+    translation: "Acizlik g\xF6st\u0259rm\u0259yin v\u0259 k\u0259d\u0259rl\u0259nm\u0259yin! \u018Fg\u0259r m\xF6minsinizs\u0259, \xFCst\xFCn olan m\u0259hz sizsiniz."
+  },
+  {
+    surahNumber: 65,
+    surahName: "T\u0259laq",
+    ayahNumber: 3,
+    arabicText: "\u0648\u064E\u0645\u064E\u0646 \u064A\u064E\u062A\u064E\u0648\u064E\u0643\u064E\u0651\u0644\u0652 \u0639\u064E\u0644\u064E\u0649 \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0641\u064E\u0647\u064F\u0648\u064E \u062D\u064E\u0633\u0652\u0628\u064F\u0647\u064F",
+    translation: "Kim Allaha t\u0259v\u0259kk\xFCl ets\u0259, (Allah) ona kifay\u0259t ed\u0259r."
+  },
+  {
+    surahNumber: 55,
+    surahName: "R\u0259hman",
+    ayahNumber: 13,
+    arabicText: "\u0641\u064E\u0628\u0650\u0623\u064E\u064A\u0650\u0651 \u0622\u0644\u064E\u0627\u0621\u0650 \u0631\u064E\u0628\u0650\u0651\u0643\u064F\u0645\u064E\u0627 \u062A\u064F\u0643\u064E\u0630\u0650\u0651\u0628\u064E\u0627\u0646\u0650",
+    translation: "El\u0259 is\u0259 R\u0259bbinizin hans\u0131 nem\u0259tl\u0259rini yalan say\u0131rs\u0131n\u0131z?!"
+  },
+  {
+    surahNumber: 39,
+    surahName: "Zum\u0259r",
+    ayahNumber: 53,
+    arabicText: "\u0644\u064E\u0627 \u062A\u064E\u0642\u0652\u0646\u064E\u0637\u064F\u0648\u0627 \u0645\u0650\u0646 \u0631\u064E\u0651\u062D\u0652\u0645\u064E\u0629\u0650 \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u06DA \u0625\u0650\u0646\u064E\u0651 \u0627\u0644\u0644\u064E\u0651\u0647\u064E \u064A\u064E\u063A\u0652\u0641\u0650\u0631\u064F \u0627\u0644\u0630\u064F\u0651\u0646\u064F\u0648\u0628\u064E \u062C\u064E\u0645\u0650\u064A\u0639\u064B\u0627",
+    translation: "Allah\u0131n r\u0259hm\u0259tind\u0259n \xFCmidinizi \xFCzm\u0259yin. \u015E\xFCbh\u0259siz ki, Allah b\xFCt\xFCn g\xFCnahlar\u0131 ba\u011F\u0131\u015Flayar."
+  },
+  {
+    surahNumber: 112,
+    surahName: "\u0130xlas",
+    ayahNumber: 1,
+    arabicText: "\u0642\u064F\u0644\u0652 \u0647\u064F\u0648\u064E \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0623\u064E\u062D\u064E\u062F\u064C \u06DD \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0627\u0644\u0635\u064E\u0651\u0645\u064E\u062F\u064F",
+    translation: 'De: "O Allah T\u0259kdir! Allah M\xF6htac deyildir (h\u0259r \u015Fey Ona m\xF6htacd\u0131r).'
+  }
+];
+function escapeTelegramHtml(value) {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function normalizeAzSearchText(value) {
+  return String(value ?? "").toLowerCase().replace(/ə/g, "e").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g").replace(/ı/g, "i").replace(/İ/g, "i").replace(/[\u064B-\u065F\u0670]/g, "").replace(/[^a-z0-9\u0600-\u06ff:\s-]/g, " ").replace(/\s+/g, " ").trim();
+}
+function parseTelegramCommand(text) {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed.startsWith("/")) return null;
+  const match = trimmed.match(/^\/([a-zA-Z0-9_əöüşçğıƏÖÜŞÇĞI]+)(?:@[a-zA-Z0-9_]+)?(?:\s+([\s\S]*))?$/);
+  if (!match) return null;
+  return {
+    command: normalizeAzSearchText(match[1]),
+    args: (match[2] ?? "").trim()
+  };
+}
+function findSurahForTelegramQuery(query) {
+  const clean = normalizeAzSearchText(query);
+  if (!clean) return void 0;
+  if (/^\d{1,3}$/.test(clean)) {
+    return getSurahByNumber(Number.parseInt(clean, 10));
+  }
+  const normalizedWithoutPrefix = clean.replace(/\bsuresi\b/g, "").replace(/\bsura\b/g, "").replace(/\bsurə\b/g, "").trim();
+  const exact = SURAH_CATALOG.find((s) => {
+    const nAz = normalizeAzSearchText(s.name);
+    const nAr = normalizeAzSearchText(s.arabicName);
+    return nAz === normalizedWithoutPrefix || nAr === normalizedWithoutPrefix;
+  });
+  if (exact) return exact;
+  return SURAH_CATALOG.find((s) => {
+    const nAz = normalizeAzSearchText(s.name);
+    return nAz.startsWith(normalizedWithoutPrefix) || nAz.includes(normalizedWithoutPrefix);
+  });
+}
+function findCityForTelegramQuery(query) {
+  const clean = normalizeAzSearchText(query);
+  if (!clean) return WORLD_PRAYER_CITIES[0];
+  const aliases = {
+    baku: "baku",
+    baki: "baku",
+    gence: "ganja",
+    ganja: "ganja",
+    seki: "shaki",
+    shaki: "shaki",
+    samaxi: "shamakhi",
+    shamakhi: "shamakhi",
+    lenkeran: "lankaran",
+    lankaran: "lankaran",
+    naxcivan: "nakhchivan",
+    nakhchivan: "nakhchivan",
+    susa: "shusha",
+    shusha: "shusha",
+    mekke: "makkah",
+    makkah: "makkah",
+    medine: "madinah",
+    madinah: "madinah",
+    ebudabi: "abudhabi",
+    "ebu dabi": "abudhabi",
+    erzurum: "erzurum"
+  };
+  const aliasId = aliases[clean];
+  if (aliasId) {
+    const aliased = WORLD_PRAYER_CITIES.find((c) => c.id === aliasId);
+    if (aliased) return aliased;
+  }
+  const matched = WORLD_PRAYER_CITIES.find((c) => {
+    const cityNorm = normalizeAzSearchText(c.name);
+    const idNorm = normalizeAzSearchText(c.id);
+    return cityNorm === clean || idNorm === clean || cityNorm.includes(clean);
+  });
+  return matched ?? WORLD_PRAYER_CITIES[0];
+}
+function getCuratedVerseForDate(now = /* @__PURE__ */ new Date()) {
+  const dayIndex = Math.floor(now.getTime() / 864e5);
+  return CURATED_TELEGRAM_VERSES[Math.abs(dayIndex) % CURATED_TELEGRAM_VERSES.length];
+}
+function buildMiniAppButton(text, url) {
+  return {
+    text,
+    web_app: { url }
+  };
+}
+function formatStartMessage(origin) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const text = [
+    "<b>\u018Fss\u0259lamu aleykum!</b> \u{1F319}",
+    "<b>Quran Qiraeti</b> r\u0259smi Telegram botuna v\u0259 Mini T\u0259tbiqin\u0259 xo\u015F g\u0259lmisiniz.",
+    "",
+    "<b>S\xF6hb\u0259td\u0259 istifad\u0259 ed\u0259 bil\u0259c\u0259yiniz \u0259mrl\u0259r:</b>",
+    "\u2022 /aye \u2014 G\xFCn\xFCn ay\u0259si <i>(v\u0259 ya /aye 2:255)</i>",
+    "\u2022 /sure \u2014 Sur\u0259 oxu v\u0259 m\u0259lumat al <i>(m\u0259s. /sure Yasin)</i>",
+    "\u2022 /namaz \u2014 Namaz vaxtlar\u0131 <i>(m\u0259s. /namaz Bak\u0131)</i>",
+    "\u2022 /dua \u2014 Qurandan R\u0259bb\u0259n\u0259 dualar\u0131",
+    "\u2022 /axtar \u2014 Ay\u0259l\u0259rd\u0259 axtar\u0131\u015F <i>(m\u0259s. /axtar s\u0259bir)</i>",
+    "\u2022 /videolar \u2014 Kanal\u0131n son tilav\u0259tl\u0259ri v\u0259 Shorts",
+    "",
+    "A\u015Fa\u011F\u0131dak\u0131 d\xFCym\u0259 il\u0259 tam <b>604 s\u0259hif\u0259lik M\u0259din\u0259 Mushaf\u0131, 114 sur\u0259, M\xFChafiz \u0259zb\u0259r testi v\u0259 qira\u0259t arxivini</b> birba\u015Fa Telegram i\xE7ind\u0259 a\xE7a bil\u0259rsiniz:"
+  ].join("\n");
+  return {
+    text,
+    reply_markup: {
+      inline_keyboard: [
+        [buildMiniAppButton("\u{1F4D6} Quran\u0131 A\xE7 (Mini App)", `${baseUrl}/quran`)],
+        [
+          buildMiniAppButton("\u{1F54B} Namaz Vaxtlar\u0131", `${baseUrl}/namaz-vaxtlari`),
+          buildMiniAppButton("\u{1F9E0} M\xFChafiz \u018Fzb\u0259r", `${baseUrl}/muhaffiz`)
+        ],
+        [
+          { text: "\u{1F305} G\xFCn\xFCn Ay\u0259si", callback_data: "aye:random" },
+          { text: "\u{1F932} R\u0259bb\u0259n\u0259 Duas\u0131", callback_data: "dua:next" }
+        ],
+        [
+          { text: "\u{1F50E} \xC7atda Payla\u015F (Inline)", switch_inline_query_current_chat: "yasin" },
+          { text: "\u{1F4FA} YouTube Kanal", url: "https://youtube.com/@quranqiraeti" }
+        ]
+      ]
+    }
+  };
+}
+function formatVerseMessage(origin, params) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const heading = params.heading || "\u2728 G\xFCn\xFCn Ay\u0259si";
+  const text = [
+    `<b>${escapeTelegramHtml(heading)}</b>`,
+    `<i>${escapeTelegramHtml(params.surahName)} sur\u0259si, ${params.surahNumber}:${params.ayahNumber}</i>`,
+    "",
+    `${escapeTelegramHtml(params.arabicText)} \uFD3F${params.ayahNumber}\uFD3E`,
+    "",
+    `\xAB${escapeTelegramHtml(params.translation)}\xBB`,
+    "<i>T\u0259rc\xFCm\u0259: \u018Flixan Musayev</i>"
+  ].join("\n");
+  return {
+    text,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          buildMiniAppButton(
+            `\u{1F4D6} ${params.surahName} sur\u0259sini a\xE7`,
+            `${baseUrl}/quran/sure/${params.surahNumber}#ayah-${params.ayahNumber}`
+          )
+        ],
+        [
+          { text: "\u{1F504} Ba\u015Fqa Ay\u0259", callback_data: "aye:random" },
+          { text: "\u{1F932} Dua Oxu", callback_data: "dua:next" }
+        ]
+      ]
+    }
+  };
+}
+function formatSurahMessage(origin, surah, sampleAyahs = []) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const lines = [
+    `<b>\u{1F4D6} ${surah.number}. ${escapeTelegramHtml(surah.name)} sur\u0259si</b> (${escapeTelegramHtml(surah.arabicName)})`,
+    `${surah.ayahCount} ay\u0259 \xB7 ${escapeTelegramHtml(surah.revelationPlace)} \xB7 M\u0259din\u0259 Mushaf\u0131: S\u0259hif\u0259 ${surah.startPage}`
+  ];
+  if (sampleAyahs.length > 0) {
+    lines.push("");
+    for (const a of sampleAyahs.slice(0, 2)) {
+      lines.push(`${escapeTelegramHtml(a.arabicText)} \uFD3F${a.ayahNumber}\uFD3E`);
+      lines.push(`<b>${a.ayahNumber}.</b> ${escapeTelegramHtml(a.translation)}`);
+      lines.push("");
+    }
+  } else {
+    lines.push("", "Tam \u0259r\u0259bc\u0259 m\u0259tn, s\u0259sli tilav\u0259t v\u0259 \u018Flixan Musayev t\u0259rc\xFCm\u0259si \xFC\xE7\xFCn t\u0259tbiqd\u0259 a\xE7\u0131n:");
+  }
+  return {
+    text: lines.join("\n").trim(),
+    reply_markup: {
+      inline_keyboard: [
+        [buildMiniAppButton(`\u{1F4D6} ${surah.name} sur\u0259sini oxu`, `${baseUrl}/quran/sure/${surah.number}`)],
+        [
+          buildMiniAppButton(`\u{1F4C4} S\u0259hif\u0259 ${surah.startPage}`, `${baseUrl}/quran/sehife/${surah.startPage}`),
+          buildMiniAppButton("\u{1F9E0} M\xFChafizd\u0259 \u018Fzb\u0259rl\u0259", `${baseUrl}/muhaffiz/${surah.startPage}`)
+        ]
+      ]
+    }
+  };
+}
+function formatPrayerTimesMessage(origin, city, now = /* @__PURE__ */ new Date()) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const schedule = calculateWeeklyPrayerSchedule(city, now, 1)[0];
+  const countdown = getNextPrayerCountdown(city, now);
+  const qibla = computeQiblaDirection(city.lat, city.lng);
+  const lines = [
+    `<b>\u{1F54B} Namaz Vaxtlar\u0131 \u2014 ${escapeTelegramHtml(city.name)}</b> (${escapeTelegramHtml(city.countryName)})`,
+    `\u{1F4C5} ${escapeTelegramHtml(schedule.gregorianLabel)} \xB7 ${escapeTelegramHtml(schedule.hijriLabel)}`,
+    "",
+    ...schedule.times.map(
+      (t) => `${t.key === countdown.nextPrayer.key ? "\u{1F449} " : "\u2022 "}<b>${escapeTelegramHtml(t.label)}:</b> <code>${escapeTelegramHtml(t.formattedTime)}</code>`
+    ),
+    "",
+    `\u23F3 N\xF6vb\u0259ti vaxt: <b>${escapeTelegramHtml(countdown.nextPrayer.label)}</b> (${escapeTelegramHtml(formatShortRemainingAz(countdown.secondsRemaining))})`,
+    `\u{1F9ED} Qibl\u0259 buca\u011F\u0131: <b>${qibla.bearingDegrees}\xB0</b> (${escapeTelegramHtml(qibla.cardinalLabel)} \xB7 ${qibla.distanceKm} km)`
+  ];
+  return {
+    text: lines.join("\n"),
+    reply_markup: {
+      inline_keyboard: [
+        [
+          buildMiniAppButton("\u{1F54B} Tam C\u0259dv\u0259l & X\u0259rit\u0259", `${baseUrl}/namaz-vaxtlari`),
+          buildMiniAppButton("\u{1F9ED} Canl\u0131 Qibl\u0259", `${baseUrl}/qible`)
+        ],
+        [
+          { text: "Bak\u0131", callback_data: "namaz:baku" },
+          { text: "G\u0259nc\u0259", callback_data: "namaz:ganja" },
+          { text: "Sumqay\u0131t", callback_data: "namaz:sumqayit" },
+          { text: "Nax\xE7\u0131van", callback_data: "namaz:nakhchivan" }
+        ]
+      ]
+    }
+  };
+}
+function formatDuaMessage(origin, dua) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const text = [
+    `<b>\u{1F932} ${escapeTelegramHtml(dua.title)}</b>`,
+    `<i>${escapeTelegramHtml(dua.surahName)} sur\u0259si, ${escapeTelegramHtml(dua.ayahLabel)} \xB7 S\u0259hif\u0259 ${dua.pageNumber}</i>`,
+    "",
+    `${escapeTelegramHtml(dua.arabicText)}`,
+    "",
+    `\xAB${escapeTelegramHtml(dua.translation)}\xBB`
+  ].join("\n");
+  return {
+    text,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          buildMiniAppButton(
+            "\u{1F4D6} Ay\u0259d\u0259 A\xE7",
+            `${baseUrl}/quran/sure/${dua.surahNumber}#ayah-${dua.ayahNumber}`
+          ),
+          buildMiniAppButton("\u{1F932} B\xFCt\xFCn Dualar", `${baseUrl}/dualar`)
+        ],
+        [{ text: "\u{1F504} Ba\u015Fqa Dua", callback_data: "dua:next" }]
+      ]
+    }
+  };
+}
+function formatVideosMessage(origin, videos, heading = "\u{1F3AC} Kanal\u0131n Se\xE7ilmi\u015F Quran Tilav\u0259tl\u0259ri") {
+  const baseUrl = normalizeBaseUrl(origin);
+  const top = videos.slice(0, 6);
+  const lines = [
+    `<b>${escapeTelegramHtml(heading)}</b>`,
+    "",
+    ...top.map(
+      (v, idx) => `${idx + 1}. <b>${escapeTelegramHtml(v.title)}</b>
+   \u{1F399} ${escapeTelegramHtml(v.reciter)} \xB7 \u23F1 ${escapeTelegramHtml(v.duration)}`
+    )
+  ];
+  const buttonRows = top.slice(0, 4).map((v) => [
+    buildMiniAppButton(`\u25B6\uFE0F ${v.surahName} (${v.ayahRange})`, `${baseUrl}/video/${v.videoId}`)
+  ]);
+  buttonRows.push([
+    buildMiniAppButton("\u{1F3AC} B\xFCt\xFCn Shorts", `${baseUrl}/shorts`),
+    { text: "\u{1F4FA} YouTube", url: "https://youtube.com/@quranqiraeti" }
+  ]);
+  return {
+    text: lines.join("\n"),
+    reply_markup: {
+      inline_keyboard: buttonRows
+    }
+  };
+}
+function buildInlineQueryResults(origin, query, videos, now = /* @__PURE__ */ new Date()) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const clean = normalizeAzSearchText(query);
+  const results = [];
+  if (!clean || clean.includes("namaz") || clean.includes("vaxt")) {
+    const city = findCityForTelegramQuery(clean.replace(/namaz|vaxt/g, "").trim() || "baku");
+    const prayerMsg = formatPrayerTimesMessage(baseUrl, city, now);
+    results.push({
+      type: "article",
+      id: `namaz-${city.id}`,
+      title: `\u{1F54B} ${city.name} \u2014 Bug\xFCnk\xFC Namaz Vaxtlar\u0131`,
+      description: "\xDCmm\xFCl-Qura c\u0259dv\u0259li, n\xF6vb\u0259ti vaxta qalan vaxt v\u0259 Qibl\u0259 buca\u011F\u0131",
+      input_message_content: {
+        message_text: prayerMsg.text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true
+      },
+      reply_markup: prayerMsg.reply_markup
+    });
+  }
+  const matchedSurahs = clean ? SURAH_CATALOG.filter((s) => {
+    const nameNorm = normalizeAzSearchText(s.name);
+    return String(s.number) === clean || nameNorm.includes(clean);
+  }).slice(0, 5) : SURAH_CATALOG.filter((s) => [1, 18, 36, 55, 67].includes(s.number));
+  for (const surah of matchedSurahs) {
+    const msg = formatSurahMessage(baseUrl, surah);
+    results.push({
+      type: "article",
+      id: `surah-${surah.number}`,
+      title: `\u{1F4D6} ${surah.number}. ${surah.name} sur\u0259si (${surah.arabicName})`,
+      description: `${surah.ayahCount} ay\u0259 \xB7 ${surah.revelationPlace} \xB7 M\u0259din\u0259 S\u0259hif\u0259 ${surah.startPage}`,
+      input_message_content: {
+        message_text: msg.text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true
+      },
+      reply_markup: msg.reply_markup
+    });
+  }
+  const matchedDuas = clean ? QURAN_DUAS.filter((d) => {
+    const hay = normalizeAzSearchText(`${d.title} ${d.surahName} ${d.translation}`);
+    return hay.includes(clean);
+  }).slice(0, 3) : QURAN_DUAS.slice(0, 2);
+  for (const dua of matchedDuas) {
+    const msg = formatDuaMessage(baseUrl, dua);
+    results.push({
+      type: "article",
+      id: `dua-${dua.id}`,
+      title: `\u{1F932} ${dua.title} (${dua.ayahLabel})`,
+      description: dua.translation.slice(0, 90),
+      input_message_content: {
+        message_text: msg.text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true
+      },
+      reply_markup: msg.reply_markup
+    });
+  }
+  const matchedVideos = clean ? videos.filter((v) => normalizeAzSearchText(`${v.title} ${v.surahName} ${v.reciter}`).includes(clean)).slice(0, 4) : videos.slice(0, 3);
+  for (const video of matchedVideos) {
+    const safeDesc = video.seoDescription || `${video.surahName} (${video.ayahRange}) \u2014 ${video.reciter}`;
+    results.push({
+      type: "article",
+      id: `video-${video.videoId}`,
+      title: `\u{1F3AC} ${video.title}`,
+      description: `${video.reciter} \xB7 ${video.duration}`,
+      input_message_content: {
+        message_text: [
+          `<b>\u{1F3AC} ${escapeTelegramHtml(video.title)}</b>`,
+          `\u{1F399} Qari: ${escapeTelegramHtml(video.reciter)} \xB7 \u23F1 ${escapeTelegramHtml(video.duration)}`,
+          "",
+          escapeTelegramHtml(safeDesc),
+          "",
+          `\u{1F517} https://www.youtube.com/watch?v=${escapeTelegramHtml(video.videoId)}`
+        ].join("\n"),
+        parse_mode: "HTML"
+      },
+      reply_markup: {
+        inline_keyboard: [
+          [buildMiniAppButton("\u25B6\uFE0F Mini App-d\u0259 \u0130zl\u0259", `${baseUrl}/video/${video.videoId}`)]
+        ]
+      }
+    });
+  }
+  return results.slice(0, 12);
+}
+
+// src/server/telegram.ts
+function verifyTimingSafeSecret(provided, expected) {
+  if (!provided || !expected) return false;
+  const providedDigest = crypto.createHash("sha256").update(provided).digest();
+  const expectedDigest = crypto.createHash("sha256").update(expected).digest();
+  return crypto.timingSafeEqual(providedDigest, expectedDigest);
+}
+async function callTelegramApi(token, method, payload) {
+  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload ?? {}),
+    signal: AbortSignal.timeout(6e3)
+  });
+  const data = await res.json();
+  return {
+    ok: Boolean(data?.ok),
+    result: data?.result,
+    description: data?.description
+  };
+}
+async function sendTelegramHtmlMessage(token, chatId, text, replyMarkup) {
+  await callTelegramApi(token, "sendMessage", {
+    chat_id: chatId,
+    text,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+    ...replyMarkup ? { reply_markup: replyMarkup } : {}
+  });
+}
+async function handleQuranTextSearch(origin, query) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const clean = query.trim().slice(0, 80);
+  if (clean.length < 2) {
+    return {
+      text: "Z\u0259hm\u0259t olmasa \u0259n az\u0131 2 h\u0259rf yaz\u0131n. M\u0259s\u0259l\u0259n: <code>/axtar s\u0259bir</code>"
+    };
+  }
+  try {
+    const encoded = encodeURIComponent(clean);
+    const upstream = await fetch(
+      `https://api.alquran.cloud/v1/search/${encoded}/all/az.mammadaliyev`,
+      {
+        signal: AbortSignal.timeout(4500),
+        headers: { "User-Agent": "Mozilla/5.0" }
+      }
+    );
+    if (upstream.ok) {
+      const json = await upstream.json();
+      const matches = parseAlQuranSearchPayload(json).slice(0, 5);
+      if (matches.length > 0) {
+        const lines = [
+          `<b>\u{1F50E} \xAB${escapeTelegramHtml(clean)}\xBB \xFCzr\u0259 ay\u0259 n\u0259tic\u0259l\u0259ri:</b>`,
+          "",
+          ...matches.map(
+            (m, idx) => `${idx + 1}. <b>${escapeTelegramHtml(m.surahName)} ${m.surahNumber}:${m.ayahNumber}</b>
+\xAB${escapeTelegramHtml(m.translation.slice(0, 220))}${m.translation.length > 220 ? "\u2026" : ""}\xBB`
+          )
+        ];
+        return {
+          text: lines.join("\n"),
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "\u{1F4D6} B\xFCt\xFCn n\u0259tic\u0259l\u0259ri t\u0259tbiqd\u0259 a\xE7",
+                  web_app: { url: `${baseUrl}/quran?q=${encodeURIComponent(clean)}` }
+                }
+              ]
+            ]
+          }
+        };
+      }
+    }
+  } catch {
+  }
+  const matchedSurah = findSurahForTelegramQuery(clean);
+  if (matchedSurah) {
+    return formatSurahMessage(baseUrl, matchedSurah);
+  }
+  return {
+    text: `\xAB${escapeTelegramHtml(clean)}\xBB \xFCzr\u0259 birba\u015Fa ay\u0259 tap\u0131lmad\u0131. Tam axtar\u0131\u015F \xFC\xE7\xFCn t\u0259tbiqi a\xE7a bil\u0259rsiniz:`,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: "\u{1F50E} T\u0259tbiqd\u0259 Axtar",
+            web_app: { url: `${baseUrl}/quran?q=${encodeURIComponent(clean)}` }
+          }
+        ]
+      ]
+    }
+  };
+}
+function createTelegramRouter(deps) {
+  const router = express.Router();
+  router.get("/status", async (req, res) => {
+    const token = String(process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
+    const webhookSecret = String(process.env.TELEGRAM_WEBHOOK_SECRET ?? "").trim();
+    const origin = normalizeBaseUrl(deps.getRequestOrigin(req));
+    const webhookUrl = `${origin}/api/telegram/webhook`;
+    let botUsername = null;
+    let webhookActiveUrl = null;
+    if (token) {
+      try {
+        const [me, info] = await Promise.all([
+          callTelegramApi(token, "getMe"),
+          callTelegramApi(token, "getWebhookInfo")
+        ]);
+        if (me.ok && me.result?.username) {
+          botUsername = me.result.username;
+        }
+        if (info.ok && info.result?.url) {
+          webhookActiveUrl = info.result.url;
+        }
+      } catch {
+      }
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      botConfigured: Boolean(token),
+      webhookSecretConfigured: Boolean(webhookSecret),
+      isHttpsOrigin: origin.startsWith("https://"),
+      recommendedWebhookUrl: webhookUrl,
+      botUsername,
+      webhookActiveUrl,
+      commandsCount: TELEGRAM_BOT_COMMANDS.length
+    });
+  });
+  router.post("/setup", async (req, res) => {
+    const token = String(process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
+    const webhookSecret = String(process.env.TELEGRAM_WEBHOOK_SECRET ?? "").trim();
+    if (!token || !webhookSecret) {
+      res.status(400).json({
+        ok: false,
+        error: "\u018Fvv\u0259lc\u0259 server m\xFChit d\u0259yi\u015F\u0259nl\u0259rind\u0259 TELEGRAM_BOT_TOKEN v\u0259 TELEGRAM_WEBHOOK_SECRET t\u0259yin edilm\u0259lidir."
+      });
+      return;
+    }
+    const providedSetupSecret = String(req.header("x-telegram-setup-secret") ?? "").trim();
+    if (!verifyTimingSafeSecret(providedSetupSecret, webhookSecret)) {
+      res.status(401).json({ ok: false, error: "\u0130caz\u0259siz sor\u011Fu." });
+      return;
+    }
+    const origin = normalizeBaseUrl(deps.getRequestOrigin(req));
+    if (!origin.startsWith("https://")) {
+      res.status(400).json({
+        ok: false,
+        error: "Telegram Webhook yaln\u0131z HTTPS \xFCnvan\u0131nda i\u015Fl\u0259yir. CANONICAL_ORIGIN v\u0259 ya HTTPS deploy URL istifad\u0259 edin."
+      });
+      return;
+    }
+    const webhookUrl = `${origin}/api/telegram/webhook`;
+    try {
+      const [webhookRes, commandsRes, menuRes] = await Promise.all([
+        callTelegramApi(token, "setWebhook", {
+          url: webhookUrl,
+          secret_token: webhookSecret,
+          allowed_updates: ["message", "callback_query", "inline_query"]
+        }),
+        callTelegramApi(token, "setMyCommands", {
+          commands: TELEGRAM_BOT_COMMANDS
+        }),
+        callTelegramApi(token, "setChatMenuButton", {
+          menu_button: {
+            type: "web_app",
+            text: "\u{1F4D6} Quran\u0131 A\xE7",
+            web_app: { url: `${origin}/quran` }
+          }
+        })
+      ]);
+      res.json({
+        ok: webhookRes.ok && commandsRes.ok && menuRes.ok,
+        webhookUrl,
+        webhookSet: webhookRes.ok,
+        commandsSet: commandsRes.ok,
+        menuButtonSet: menuRes.ok,
+        error: !webhookRes.ok ? webhookRes.description : void 0
+      });
+    } catch {
+      res.status(502).json({ ok: false, error: "Telegram Bot API il\u0259 \u0259laq\u0259 al\u0131nmad\u0131." });
+    }
+  });
+  router.get("/webhook", (_req, res) => {
+    res.status(200).json({
+      ok: true,
+      endpoint: "/api/telegram/webhook",
+      note: "Telegram POST sor\u011Fular\u0131 \xFC\xE7\xFCn aktiv webhook n\xF6qt\u0259si."
+    });
+  });
+  router.post("/webhook", async (req, res) => {
+    const token = String(process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
+    const webhookSecret = String(process.env.TELEGRAM_WEBHOOK_SECRET ?? "").trim();
+    if (webhookSecret) {
+      const headerSecret = String(req.header("x-telegram-bot-api-secret-token") ?? "").trim();
+      if (!verifyTimingSafeSecret(headerSecret, webhookSecret)) {
+        res.status(401).json({ ok: false, error: "Unauthorized webhook request" });
+        return;
+      }
+    }
+    if (!token) {
+      res.status(200).json({ ok: false, configured: false });
+      return;
+    }
+    const update = req.body ?? {};
+    const origin = normalizeBaseUrl(deps.getRequestOrigin(req));
+    try {
+      if (update.inline_query?.id) {
+        const inlineQueryId = String(update.inline_query.id);
+        const queryText = String(update.inline_query.query ?? "").slice(0, 80);
+        const { longVideos, shorts } = await deps.getChannelDataForSeo();
+        const results = buildInlineQueryResults(origin, queryText, [...longVideos, ...shorts]);
+        await callTelegramApi(token, "answerInlineQuery", {
+          inline_query_id: inlineQueryId,
+          results,
+          cache_time: 120,
+          is_personal: false
+        });
+        res.json({ ok: true });
+        return;
+      }
+      if (update.callback_query?.id && update.callback_query.message?.chat?.id !== void 0) {
+        const cbId = String(update.callback_query.id);
+        const chatId = update.callback_query.message.chat.id;
+        const data = String(update.callback_query.data ?? "");
+        await callTelegramApi(token, "answerCallbackQuery", { callback_query_id: cbId });
+        if (data === "dua:next") {
+          const pick = QURAN_DUAS[Math.floor(Math.random() * QURAN_DUAS.length)];
+          const msg = formatDuaMessage(origin, pick);
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        } else if (data === "aye:random") {
+          const pick = CURATED_TELEGRAM_VERSES[Math.floor(Math.random() * CURATED_TELEGRAM_VERSES.length)];
+          const msg = formatVerseMessage(origin, { ...pick, heading: "\u2728 Se\xE7ilmi\u015F Ay\u0259" });
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        } else if (data.startsWith("namaz:")) {
+          const cityKey = data.slice("namaz:".length);
+          const city = findCityForTelegramQuery(cityKey);
+          const msg = formatPrayerTimesMessage(origin, city);
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        }
+        res.json({ ok: true });
+        return;
+      }
+      if (update.message?.chat?.id !== void 0 && typeof update.message.text === "string") {
+        const chatId = update.message.chat.id;
+        const rawText = update.message.text.trim();
+        const parsed = parseTelegramCommand(rawText);
+        if (!parsed) {
+          const surahHit = findSurahForTelegramQuery(rawText);
+          if (surahHit && rawText.length <= 30) {
+            let sampleAyahs = [];
+            try {
+              const payload = await Promise.race([
+                deps.fetchSurahTranslation(surahHit.number),
+                new Promise((resolve) => setTimeout(() => resolve(void 0), 2e3))
+              ]);
+              if (payload) sampleAyahs = payload.ayahs.slice(0, 2);
+            } catch {
+            }
+            const msg = formatSurahMessage(origin, surahHit, sampleAyahs);
+            await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+          } else {
+            const msg = await handleQuranTextSearch(origin, rawText);
+            await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+          }
+          res.json({ ok: true });
+          return;
+        }
+        const { command, args } = parsed;
+        if (command === "start" || command === "help" || command === "yardim" || command === "menu") {
+          const msg = formatStartMessage(origin);
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        } else if (command === "aye" || command === "ay\u0259" || command === "gunun_ayesi") {
+          const refMatch = args.match(/^(\d{1,3}):(\d{1,3})$/);
+          if (refMatch) {
+            const surahNum = Number.parseInt(refMatch[1], 10);
+            const ayahNum = Number.parseInt(refMatch[2], 10);
+            const surahMeta = findSurahForTelegramQuery(String(surahNum));
+            if (surahMeta && ayahNum >= 1 && ayahNum <= surahMeta.ayahCount) {
+              try {
+                const payload = await deps.fetchSurahTranslation(surahNum);
+                const ayah = payload.ayahs.find((a) => a.ayahNumber === ayahNum);
+                if (ayah) {
+                  const msg2 = formatVerseMessage(origin, {
+                    surahNumber: surahNum,
+                    surahName: surahMeta.name,
+                    ayahNumber: ayahNum,
+                    arabicText: ayah.arabicText,
+                    translation: ayah.translation,
+                    heading: `\u{1F4D6} ${surahMeta.name} sur\u0259si`
+                  });
+                  await sendTelegramHtmlMessage(token, chatId, msg2.text, msg2.reply_markup);
+                  res.json({ ok: true });
+                  return;
+                }
+              } catch {
+              }
+            }
+          }
+          const daily = getCuratedVerseForDate();
+          const msg = formatVerseMessage(origin, daily);
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        } else if (command === "sure" || command === "surah") {
+          if (!args) {
+            await sendTelegramHtmlMessage(
+              token,
+              chatId,
+              "Z\u0259hm\u0259t olmasa sur\u0259 ad\u0131 v\u0259 ya n\xF6mr\u0259si yaz\u0131n. M\u0259s\u0259l\u0259n:\n<code>/sure Yasin</code> v\u0259 ya <code>/sure 36</code>"
+            );
+          } else {
+            const surah = findSurahForTelegramQuery(args);
+            if (!surah) {
+              await sendTelegramHtmlMessage(
+                token,
+                chatId,
+                `\xAB${escapeTelegramHtml(args)}\xBB adl\u0131 sur\u0259 tap\u0131lmad\u0131. 1\u2013114 aras\u0131 n\xF6mr\u0259 v\u0259 ya sur\u0259 ad\u0131 yaz\u0131n.`
+              );
+            } else {
+              let sampleAyahs = [];
+              try {
+                const payload = await Promise.race([
+                  deps.fetchSurahTranslation(surah.number),
+                  new Promise((resolve) => setTimeout(() => resolve(void 0), 2e3))
+                ]);
+                if (payload) sampleAyahs = payload.ayahs.slice(0, 2);
+              } catch {
+              }
+              const msg = formatSurahMessage(origin, surah, sampleAyahs);
+              await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+            }
+          }
+        } else if (command === "namaz" || command === "vaxt") {
+          const city = findCityForTelegramQuery(args || "Bak\u0131");
+          const msg = formatPrayerTimesMessage(origin, city);
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        } else if (command === "dua" || command === "dualar") {
+          const pick = args ? QURAN_DUAS.find(
+            (d) => `${d.title} ${d.translation} ${d.surahName}`.toLowerCase().includes(args.toLowerCase())
+          ) ?? QURAN_DUAS[0] : QURAN_DUAS[Math.floor(Math.random() * QURAN_DUAS.length)];
+          const msg = formatDuaMessage(origin, pick);
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        } else if (command === "axtar" || command === "search") {
+          const msg = await handleQuranTextSearch(origin, args);
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        } else if (command === "videolar" || command === "shorts") {
+          const { longVideos, shorts } = await deps.getChannelDataForSeo();
+          const list = command === "shorts" ? shorts : longVideos;
+          const heading = command === "shorts" ? "\u{1F4F1} Quran Qiraeti \u2014 Son Shorts Videolar\u0131" : "\u{1F3AC} Quran Qiraeti \u2014 Se\xE7ilmi\u015F Uzun Tilav\u0259tl\u0259r";
+          const msg = formatVideosMessage(origin, list, heading);
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        } else {
+          const msg = formatStartMessage(origin);
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        }
+      }
+    } catch (err) {
+      console.error("Telegram webhook processing error:", err);
+    }
+    res.json({ ok: true });
+  });
+  return router;
+}
+
 // src/server/api.ts
 var CACHE_TTL_MS = 10 * 60 * 1e3;
 var cachedChannel = null;
 var inflightChannelPromise = null;
+var startupIndexNowSent = false;
 var surahTranslationCache = /* @__PURE__ */ new Map();
 var mushafPageCache = /* @__PURE__ */ new Map();
 var muhaffizPageCache = /* @__PURE__ */ new Map();
@@ -4181,6 +5743,21 @@ async function fetchLiveChannelData() {
         longVideos,
         shorts
       };
+      const indexNowKey = String(process.env.INDEXNOW_KEY ?? "").trim();
+      const canonicalOrigin = String(process.env.CANONICAL_ORIGIN ?? "").trim();
+      if (!startupIndexNowSent && indexNowKey && canonicalOrigin && /^https?:\/\//i.test(canonicalOrigin)) {
+        startupIndexNowSent = true;
+        const baseUrl = normalizeBaseUrl(canonicalOrigin);
+        void submitIndexNowPing(baseUrl, indexNowKey, [
+          `${baseUrl}/`,
+          `${baseUrl}/shorts`,
+          `${baseUrl}/quran`,
+          `${baseUrl}/elifba`,
+          `${baseUrl}/muhaffiz`,
+          ...longVideos.slice(0, 8).map((v) => `${baseUrl}/video/${v.videoId}`),
+          ...shorts.slice(0, 8).map((v) => `${baseUrl}/video/${v.videoId}`)
+        ]).catch(() => void 0);
+      }
       return { stats, longVideos, shorts };
     } catch {
       return {
@@ -4195,7 +5772,15 @@ async function fetchLiveChannelData() {
   return inflightChannelPromise;
 }
 function createApiRouter() {
-  const router = express.Router();
+  const router = express2.Router();
+  router.use(
+    "/telegram",
+    createTelegramRouter({
+      getRequestOrigin,
+      getChannelDataForSeo,
+      fetchSurahTranslation
+    })
+  );
   router.get("/channel", async (_req, res) => {
     const data = await fetchLiveChannelData();
     res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
@@ -4336,11 +5921,61 @@ function createApiRouter() {
   return router;
 }
 function getRequestOrigin(req) {
+  const configuredCanonical = String(process.env.CANONICAL_ORIGIN ?? "").trim();
+  if (configuredCanonical && /^https?:\/\//i.test(configuredCanonical)) {
+    return normalizeBaseUrl(configuredCanonical);
+  }
   const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim();
   const forwardedHost = String(req.headers["x-forwarded-host"] ?? "").split(",")[0].trim();
   const host = forwardedHost || req.get("host") || "quranqiraeti.vercel.app";
   const proto = forwardedProto || (host.includes("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
   return `${proto}://${host}`;
+}
+async function getRouteSeoExtras(pathname) {
+  const cleanPath = pathname.replace(/\/+$/, "") || "/";
+  const ssrTimeoutMs = process.env.VERCEL ? 1600 : 2200;
+  const surahMatch = cleanPath.match(/^\/quran\/(?:sure\/)?(\d+)$/);
+  if (surahMatch) {
+    const surahNumber = Number.parseInt(surahMatch[1], 10);
+    if (surahNumber >= 1 && surahNumber <= 114) {
+      const cached = surahTranslationCache.get(surahNumber);
+      if (cached && cached.ayahs.length > 0) {
+        return { surahPayload: cached };
+      }
+      try {
+        const surahPayload = await Promise.race([
+          fetchSurahTranslation(surahNumber),
+          new Promise((resolve) => setTimeout(() => resolve(void 0), ssrTimeoutMs))
+        ]);
+        if (surahPayload && surahPayload.ayahs.length > 0) {
+          return { surahPayload };
+        }
+      } catch {
+      }
+    }
+    return {};
+  }
+  const mushafMatch = cleanPath.match(/^\/quran\/sehife\/(\d+)$/);
+  if (mushafMatch) {
+    const pageNumber = Number.parseInt(mushafMatch[1], 10);
+    if (pageNumber >= 1 && pageNumber <= TOTAL_QURAN_PAGES) {
+      const cached = mushafPageCache.get(pageNumber);
+      if (cached && cached.ayahs.length > 0) {
+        return { mushafPayload: cached };
+      }
+      try {
+        const mushafPayload = await Promise.race([
+          fetchMushafPage(pageNumber),
+          new Promise((resolve) => setTimeout(() => resolve(void 0), ssrTimeoutMs))
+        ]);
+        if (mushafPayload && mushafPayload.ayahs.length > 0) {
+          return { mushafPayload };
+        }
+      } catch {
+      }
+    }
+  }
+  return {};
 }
 async function getChannelDataForSeo() {
   if (cachedChannel) {
@@ -4366,7 +6001,7 @@ async function getChannelDataForSeo() {
   }
 }
 function createSeoRouter() {
-  const router = express.Router();
+  const router = express2.Router();
   router.get("/robots.txt", (req, res) => {
     const origin = getRequestOrigin(req);
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -4430,6 +6065,28 @@ function createSeoRouter() {
     res.setHeader("Cache-Control", "s-maxage=86400, stale-while-revalidate=604800");
     res.send(buildDynamicOgSvg(kind, id));
   });
+  router.get("/api/seo/readiness", (req, res) => {
+    const origin = getRequestOrigin(req);
+    const configuredCanonical = String(process.env.CANONICAL_ORIGIN ?? "").trim();
+    const indexNowKey = String(process.env.INDEXNOW_KEY ?? "").trim();
+    const googleVerification = String(process.env.GOOGLE_SITE_VERIFICATION ?? "").trim();
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      canonicalOrigin: origin,
+      canonicalOriginConfigured: Boolean(configuredCanonical && /^https?:\/\//i.test(configuredCanonical)),
+      indexNowConfigured: Boolean(indexNowKey),
+      googleVerificationConfigured: Boolean(googleVerification),
+      endpoints: [
+        `${origin}/robots.txt`,
+        `${origin}/sitemap.xml`,
+        `${origin}/sitemap-index.xml`,
+        `${origin}/sitemap-videos.xml`,
+        `${origin}/rss.xml`,
+        `${origin}/llms.txt`,
+        `${origin}/ai-index.json`
+      ]
+    });
+  });
   router.get("/api/seo/indexnow-ping", async (req, res) => {
     const key = String(process.env.INDEXNOW_KEY ?? "").trim();
     if (!key) {
@@ -4446,6 +6103,7 @@ function createSeoRouter() {
         `${origin}/`,
         `${origin}/shorts`,
         `${origin}/quran`,
+        `${origin}/elifba`,
         `${origin}/dualar`,
         `${origin}/muhaffiz`,
         ...longVideos.slice(0, 10).map((v) => `${origin}/video/${v.videoId}`),
@@ -4498,8 +6156,8 @@ function createSeoRouter() {
 }
 
 // src/server/vercelApp.ts
-var app = express2();
-app.use(express2.json());
+var app = express3();
+app.use(express3.json());
 var seoRouter = createSeoRouter();
 var apiRouter = createApiRouter();
 app.use("/", seoRouter);
@@ -4540,9 +6198,14 @@ app.get("*", async (req, res, next) => {
       return;
     }
     const origin = getRequestOrigin(req);
-    const { longVideos, shorts } = await getChannelDataForSeo();
-    const seoMeta = resolveRouteSeoMetadata(req.path, origin, [...longVideos, ...shorts]);
-    const html = injectRouteSeoIntoHtml(templateHtml, seoMeta);
+    const [{ longVideos, shorts }, extras] = await Promise.all([
+      getChannelDataForSeo(),
+      getRouteSeoExtras(req.path)
+    ]);
+    const seoMeta = resolveRouteSeoMetadata(req.path, origin, [...longVideos, ...shorts], extras);
+    const html = injectRouteSeoIntoHtml(templateHtml, seoMeta, {
+      googleSiteVerification: process.env.GOOGLE_SITE_VERIFICATION
+    });
     res.status(seoMeta.httpStatus).setHeader("Content-Type", "text/html; charset=utf-8").setHeader("Cache-Control", seoMeta.httpStatus === 200 ? "s-maxage=300, stale-while-revalidate=3600" : "no-store").send(html);
   } catch (err) {
     next(err);
