@@ -694,7 +694,7 @@ export function resolveRouteSeoMetadata(
             ]
           : []),
       ],
-      noscriptHtml: `<h1>Quran Qiraeti — Uzun Tilavətlər və Tam Qurani-Kərim</h1><p>Azərbaycan dilində mənaca tərcümə (Əlixan Musayev v1.0.4), 114 surə, 604 Mədinə Mushafı səhifəsi və Mühafiz əzbər aləti.</p><nav><a href="/quran">Qurani-Kərim (114 Surə)</a> · <a href="/quran/sure/1">Fatihə surəsi</a> · <a href="/quran/sure/2">Bəqərə surəsi</a> · <a href="/quran/sure/18">Kəhf surəsi</a> · <a href="/quran/sure/36">Yasin surəsi</a> · <a href="/quran/sure/67">Mülk surəsi</a> · <a href="/dualar">Qurandakı Dualar</a> · <a href="/elifba">Əlifba və Təcvid</a> · <a href="/namaz-vaxtlari">Namaz Vaxtları</a> · <a href="/teqvim">Hicri Təqvim</a> · <a href="/zikr">Zikr və Təsbih</a> · <a href="/muhaffiz">Mühafiz Əzbər</a> · <a href="/shorts">Shorts</a></nav>${
+      noscriptHtml: `<h1>Quran Qiraeti — Uzun Tilavətlər və Tam Qurani-Kərim</h1><p>Azərbaycan dilində mənaca tərcümə (Əlixan Musayev v1.0.4), 114 surə, 604 Mədinə Mushafı səhifəsi və Mühafiz əzbər aləti.</p><nav><a href="/quran">Qurani-Kərim (114 Surə)</a> · <a href="/quran/sure/1">Fatihə surəsi</a> · <a href="/quran/sure/2">Bəqərə surəsi</a> · <a href="/quran/sure/18">Kəhf surəsi</a> · <a href="/quran/sure/36">Yasin surəsi</a> · <a href="/quran/sure/67">Mülk surəsi</a> · <a href="/dualar">Qurandakı Dualar</a> · <a href="/elifba">Əlifba və Təcvid</a> · <a href="/namaz-vaxtlari">Namaz Vaxtları</a> · <a href="/teqvim">Hicri Təqvim</a> · <a href="/zikr">Səhər və Axşam Zikrləri</a> · <a href="/muhaffiz">Mühafiz Əzbər</a> · <a href="/shorts">Shorts</a></nav>${
         videos.length > 0
           ? `<ul>${videos
               .slice(0, 12)
@@ -909,18 +909,18 @@ export function resolveRouteSeoMetadata(
     return {
       httpStatus: 200,
       robots: robotsIndex,
-      title: 'Səhər-Axşam Zikrləri və Təsbih Sayğacı | Quran Qiraeti',
+      title: 'Səhər və Axşam Zikrləri (Müsəlman Qalası) | Quran Qiraeti',
       description:
-        'Onlayn təsbih sayğacı (33 / 99 / 100 və Namaz sonrası 33+33+34 rejimi), Səhər və Axşam zikrləri — ərəbcə mətn, oxunuş və Azərbaycan tərcüməsi.',
+        'Müsəlman Qalası (Hisn al-Muslim) kitabından bütün səhər, axşam və namaz sonrası zikrlər — ərəbcə mətn, oxunuş və Azərbaycan tərcüməsi.',
       canonicalUrl: `${baseUrl}/zikr`,
       ogImage: defaultOg,
       ogType: 'website',
       jsonLd: buildBreadcrumbJsonLd(baseUrl, [
         { name: 'Ana səhifə', path: '/' },
-        { name: 'Zikr və Təsbih', path: '/zikr' },
+        { name: 'Səhər və Axşam Zikrləri', path: '/zikr' },
       ]),
       noscriptHtml:
-        '<h1>Səhər-Axşam Zikrləri və İnteraktiv Təsbih Sayğacı</h1><p>Namaz təsbihatı, səhər və axşam zikrləri — ərəbcə mətn və Azərbaycan tərcüməsi.</p>',
+        '<h1>Səhər və Axşam Zikrləri (Müsəlman Qalası)</h1><p>Müsəlman Qalası kitabından bütün səhər, axşam və namaz sonrası zikrlər — ərəbcə mətn və Azərbaycan tərcüməsi.</p>',
     };
   }
 
@@ -1423,7 +1423,7 @@ export function buildLlmsTxt(
     `- [Shorts Bölməsi](${baseUrl}/shorts): Kanaldakı bütün qısa Quran tilavətləri (${shorts.length} video) və SEO məlumatları.`,
     `- [Tam Qurani-Kərim](${baseUrl}/quran): Bütün 114 surə və 604 Mushaf səhifəsi üzrə ərəbcə mətn və Əlixan Musayev tərcüməsi.`,
     `- [Qurandakı Dualar](${baseUrl}/dualar): Qurandan seçilmiş ${QURAN_DUAS.length} Rəbbənə və peyğəmbər duası — səsli tilavət və tərcümə.`,
-    `- [Zikrlər və Təsbih](${baseUrl}/zikr): Səhər-axşam zikrləri, namaz təsbihatı və gündəlik zikr sayğacı.`,
+    `- [Səhər və Axşam Zikrləri](${baseUrl}/zikr): Müsəlman Qalası kitabından bütün səhər, axşam və namaz sonrası zikrlər.`,
     `- [Namaz Vaxtları](${baseUrl}/namaz-vaxtlari): Bakı, Gəncə, Sumqayıt, Naxçıvan, Şəki, Şuşa və digər Azərbaycan şəhərləri üzrə namaz vaxtları.`,
     `- [Mühafiz — Əzbər Mushafı](${baseUrl}/muhaffiz): 604 Mushaf səhifəsində ayələri sözbə-söz və ayə-ayə gizlədib-açaraq hifz və təkrar aləti.`,
     `- [Günün Ayəsi](${baseUrl}/gunun-ayesi): Seçilmiş ayələr, ərəbcə mətn və təfəkkür izahı.`,

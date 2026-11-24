@@ -83,7 +83,7 @@ export function Footer({ stats, longVideoCount, onNavigate }: FooterProps) {
               Əlifba və Təcvid
             </a>
             <a href="/zikr" onClick={(e) => handleNav(e, '/zikr')} className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]">
-              Zikr və Təsbih
+              Zikrlər
             </a>
             <a href="/namaz-vaxtlari" onClick={(e) => handleNav(e, '/namaz-vaxtlari')} className="hover:text-[#0F4C3A] dark:hover:text-[#86C7AE]">
               Namaz Vaxtları

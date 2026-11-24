@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { DAILY_AZKAR, getAzkarByCategory } from '../data/azkar';
 import {
   ZikrTrackerState,
   createEmptyZikrState,
@@ -77,3 +78,17 @@ test('handles undo step, daily item counter, and midnight rollover', () => {
   assert.equal(nextDayState.todayTotal, 0);
   assert.deepEqual(nextDayState.itemCounts, {});
 });
+
+test('DAILY_AZKAR includes complete Müsəlman Qalası morning and evening adhkar collections', () => {
+  const morning = getAzkarByCategory('seher');
+  const evening = getAzkarByCategory('axsam');
+  assert.ok(morning.length >= 21, `Expected >=21 morning adhkar, got ${morning.length}`);
+  assert.ok(evening.length >= 19, `Expected >=19 evening adhkar, got ${evening.length}`);
+  assert.ok(morning.some((a) => a.id === 'ayetul-kursi-zikr'));
+  assert.ok(morning.some((a) => a.id === 'muavvizat-3-qul'));
+  assert.ok(morning.some((a) => a.id === 'seher-elm-ruzi'));
+  assert.ok(evening.some((a) => a.id === 'axsam-kelimeler'));
+  assert.ok(evening.some((a) => a.id === 'axsam-fitret'));
+  assert.ok(DAILY_AZKAR.every((a) => a.arabicText.trim().length > 0 && a.translation.trim().length > 0));
+});
+

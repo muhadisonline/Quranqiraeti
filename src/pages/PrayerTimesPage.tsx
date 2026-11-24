@@ -144,7 +144,7 @@ export function PrayerTimesPage({
               onClick={(e) => handleNav(e, '/zikr')}
               className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3.5 py-2 text-xs font-medium text-stone-700 whitespace-nowrap shrink-0 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
             >
-              <span>Zikr və Təsbih</span>
+              <span>Zikrlər</span>
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </a>
             <button

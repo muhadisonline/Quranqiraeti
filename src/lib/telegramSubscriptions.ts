@@ -1,4 +1,4 @@
-import { DAILY_AZKAR } from '../data/azkar';
+import { getAzkarByCategory } from '../data/azkar';
 import { normalizeBaseUrl } from './seo';
 import {
   WORLD_PRAYER_CITIES,
@@ -272,8 +272,8 @@ export function buildDailyDigestMessage(
   const verse = getCuratedVerseForDate(now);
   const dayIndex = Math.abs(Math.floor(now.getTime() / 86_400_000));
   const preferredZikrCat = sub.hourBaku >= 16 ? 'axsam' : 'seher';
-  const zikrPool = DAILY_AZKAR.filter((z) => z.category === preferredZikrCat);
-  const zikrItem = (zikrPool.length > 0 ? zikrPool : DAILY_AZKAR)[dayIndex % Math.max(1, zikrPool.length)];
+  const zikrPool = getAzkarByCategory(preferredZikrCat);
+  const zikrItem = zikrPool[dayIndex % Math.max(1, zikrPool.length)];
   const prayerSchedule = calculateWeeklyPrayerSchedule(city, now, 1)[0];
 
   const sections: string[] = [
@@ -302,7 +302,7 @@ export function buildDailyDigestMessage(
       `${escapeTelegramHtml(verse.arabicText)}`,
       `«${escapeTelegramHtml(verse.translation)}»`,
       '',
-      `<b>📿 Zikr (${escapeTelegramHtml(zikrItem.title)}):</b>`,
+      `<b>🌙 Zikr (${escapeTelegramHtml(zikrItem.title)}):</b>`,
       `«${escapeTelegramHtml(zikrItem.translation)}»`
     );
     inlineButtons.push([

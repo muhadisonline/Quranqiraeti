@@ -323,8 +323,7 @@ export function QuranJourneySection({ onNavigate }: QuranJourneySectionProps) {
               data-testid="ribbon-zikr-link"
               className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-[#FAF9F6] px-3 py-1.5 text-xs font-medium text-stone-700 whitespace-nowrap hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
             >
-              <Sparkles className="h-3 w-3 text-[#C6A769]" aria-hidden="true" />
-              <span>Zikr və Təsbih</span>
+              <span>Zikrlər</span>
             </a>
           </div>
         </div>

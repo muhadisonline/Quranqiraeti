@@ -161,13 +161,13 @@ export function getContextualReminders(
       });
     } else {
       list.push({
-        id: 'midday-tasbih',
+        id: 'midday-zikr',
         category: 'azkar',
         badge: 'Gündəlik Zikr',
         title: 'Günorta vaxtı qısa zikr və salavat',
         description:
-          'Namazlar arasında 33 dəfə Sübhanəllah, Əlhəmdülillah və Allahu Əkbər zikri ilə qəlbi diri saxlayın.',
-        ctaLabel: 'Təsbih sayğacını aç',
+          'Namazlar arasında Sübhanəllah, Əlhəmdülillah və Allahu Əkbər zikri ilə qəlbi diri saxlayın.',
+        ctaLabel: 'Zikrləri aç',
         ctaPath: '/zikr',
       });
     }

@@ -1,7 +1,7 @@
 // src/server/vercelApp.ts
 import express3 from "express";
-import fs from "node:fs";
-import path from "node:path";
+import fs3 from "node:fs";
+import path3 from "node:path";
 
 // src/lib/channel.ts
 var SURAH_METADATA_MAP = [
@@ -1213,8 +1213,99 @@ function attachMushafPagesToSurah(payload, pageMap) {
     })
   };
 }
+function summarizeMushafPageContents(payload) {
+  if (!payload.ayahs.length) return "";
+  const groups = [];
+  for (const ayah of payload.ayahs) {
+    const last = groups[groups.length - 1];
+    if (last && last.surahName === ayah.surahName) {
+      last.end = ayah.ayahNumber;
+    } else {
+      groups.push({
+        surahName: ayah.surahName,
+        start: ayah.ayahNumber,
+        end: ayah.ayahNumber
+      });
+    }
+  }
+  return groups.map(
+    (g) => g.start === g.end ? `${g.surahName} (${g.start})` : `${g.surahName} (${g.start}\u2013${g.end})`
+  ).join(", ");
+}
 
 // src/lib/muhaffiz.ts
+var MUHAFFIZ_RECITERS = [
+  {
+    id: "Alafasy_128kbps",
+    code: "afasy",
+    label: "Mi\u015Fari R\u0259\u015Fid \u0259l-\u018Ff\u0259si",
+    shortLabel: "Mi\u015Fari \u018Ff\u0259si",
+    surahCdnSlug: "mishary-alafasy/r1"
+  },
+  {
+    id: "MaherAlMuaiqly128kbps",
+    code: "maher",
+    label: "Mahir \u0259l-Mu\u0259yqili",
+    shortLabel: "Mahir Mu\u0259yqili",
+    surahCdnSlug: "maher-muaiqly/r1"
+  },
+  {
+    id: "Yasser_Ad-Dussary_128kbps",
+    code: "yasser",
+    label: "Yasir \u0259d-D\xF6vs\u0259ri",
+    shortLabel: "Yasir D\xF6vs\u0259ri",
+    surahCdnSlug: "yasser-dosari/r1"
+  },
+  {
+    id: "Husary_128kbps",
+    code: "husary",
+    label: "Mahmud X\u0259lil \u0259l-Hus\u0259ri",
+    shortLabel: "Mahmud Hus\u0259ri",
+    surahCdnSlug: "mahmoud-husary/r1"
+  },
+  {
+    id: "Minshawy_Murattal_128kbps",
+    code: "minshawy",
+    label: "M\u0259h\u0259mm\u0259d Siddiq \u0259l-Min\u015Favi",
+    shortLabel: "Siddiq Min\u015Favi",
+    surahCdnSlug: "muhammad-minshawi/r1"
+  },
+  {
+    id: "Abdul_Basit_Murattal_192kbps",
+    code: "basit",
+    label: "\u018Fbd\xFClbasit \u018Fbd\xFCss\u0259m\u0259d",
+    shortLabel: "\u018Fbd\xFClbasit",
+    surahCdnSlug: "abdulbasit-abdulsamad/r3"
+  }
+];
+function resolveMuhaffizReciter(input) {
+  const raw = String(input ?? "").trim();
+  if (!raw) return MUHAFFIZ_RECITERS[0];
+  const direct = MUHAFFIZ_RECITERS.find(
+    (r) => r.id === raw || r.code === raw.toLowerCase()
+  );
+  if (direct) return direct;
+  const clean = raw.toLowerCase().replace(/ə/g, "e").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g").replace(/ı/g, "i").trim();
+  if (clean.includes("maher") || clean.includes("mahir") || clean.includes("mueyq")) {
+    return MUHAFFIZ_RECITERS[1];
+  }
+  if (clean.includes("yass") || clean.includes("yasir") || clean.includes("dovs") || clean.includes("duss")) {
+    return MUHAFFIZ_RECITERS[2];
+  }
+  if (clean.includes("hus") || clean.includes("xalil") || clean.includes("xelil")) {
+    return MUHAFFIZ_RECITERS[3];
+  }
+  if (clean.includes("minsh") || clean.includes("mins") || clean.includes("siddiq")) {
+    return MUHAFFIZ_RECITERS[4];
+  }
+  if (clean.includes("basit") || clean.includes("abdul") || clean.includes("ebdul")) {
+    return MUHAFFIZ_RECITERS[5];
+  }
+  if (clean.includes("afas") || clean.includes("efes") || clean.includes("misar") || clean.includes("mishar")) {
+    return MUHAFFIZ_RECITERS[0];
+  }
+  return MUHAFFIZ_RECITERS[0];
+}
 var SURAH_META_BY_NUMBER = new Map(SURAH_CATALOG.map((s) => [s.number, s]));
 function splitWaqfMark(rawWord) {
   const trimmed = rawWord.trim();
@@ -1446,6 +1537,16 @@ function buildSyntheticMuhaffizRows(pageNumber, ayahs) {
     }
   }
   return rows;
+}
+function getEveryAyahAudioUrl(surahNumber, ayahNumber, reciter = "Alafasy_128kbps") {
+  const s = String(Math.max(1, Math.min(114, surahNumber))).padStart(3, "0");
+  const a = String(Math.max(1, ayahNumber)).padStart(3, "0");
+  return `https://everyayah.com/data/${reciter}/${s}${a}.mp3`;
+}
+function getFullSurahAudioUrl(surahNumber, reciter = "Alafasy_128kbps") {
+  const spec = resolveMuhaffizReciter(reciter);
+  const s = String(Math.max(1, Math.min(114, surahNumber))).padStart(3, "0");
+  return `https://cdn.mp3quran.net/audio/${spec.surahCdnSlug}/${s}.mp3`;
 }
 var FATIHAT_PAGE_1_VERSES_SEED = [
   {
@@ -2682,7 +2783,7 @@ function resolveRouteSeoMetadata(pathname, origin, videos = [], extras) {
           }
         ] : []
       ],
-      noscriptHtml: `<h1>Quran Qiraeti \u2014 Uzun Tilav\u0259tl\u0259r v\u0259 Tam Qurani-K\u0259rim</h1><p>Az\u0259rbaycan dilind\u0259 m\u0259naca t\u0259rc\xFCm\u0259 (\u018Flixan Musayev v1.0.4), 114 sur\u0259, 604 M\u0259din\u0259 Mushaf\u0131 s\u0259hif\u0259si v\u0259 M\xFChafiz \u0259zb\u0259r al\u0259ti.</p><nav><a href="/quran">Qurani-K\u0259rim (114 Sur\u0259)</a> \xB7 <a href="/quran/sure/1">Fatih\u0259 sur\u0259si</a> \xB7 <a href="/quran/sure/2">B\u0259q\u0259r\u0259 sur\u0259si</a> \xB7 <a href="/quran/sure/18">K\u0259hf sur\u0259si</a> \xB7 <a href="/quran/sure/36">Yasin sur\u0259si</a> \xB7 <a href="/quran/sure/67">M\xFClk sur\u0259si</a> \xB7 <a href="/dualar">Qurandak\u0131 Dualar</a> \xB7 <a href="/elifba">\u018Flifba v\u0259 T\u0259cvid</a> \xB7 <a href="/namaz-vaxtlari">Namaz Vaxtlar\u0131</a> \xB7 <a href="/teqvim">Hicri T\u0259qvim</a> \xB7 <a href="/zikr">Zikr v\u0259 T\u0259sbih</a> \xB7 <a href="/muhaffiz">M\xFChafiz \u018Fzb\u0259r</a> \xB7 <a href="/shorts">Shorts</a></nav>${videos.length > 0 ? `<ul>${videos.slice(0, 12).map(
+      noscriptHtml: `<h1>Quran Qiraeti \u2014 Uzun Tilav\u0259tl\u0259r v\u0259 Tam Qurani-K\u0259rim</h1><p>Az\u0259rbaycan dilind\u0259 m\u0259naca t\u0259rc\xFCm\u0259 (\u018Flixan Musayev v1.0.4), 114 sur\u0259, 604 M\u0259din\u0259 Mushaf\u0131 s\u0259hif\u0259si v\u0259 M\xFChafiz \u0259zb\u0259r al\u0259ti.</p><nav><a href="/quran">Qurani-K\u0259rim (114 Sur\u0259)</a> \xB7 <a href="/quran/sure/1">Fatih\u0259 sur\u0259si</a> \xB7 <a href="/quran/sure/2">B\u0259q\u0259r\u0259 sur\u0259si</a> \xB7 <a href="/quran/sure/18">K\u0259hf sur\u0259si</a> \xB7 <a href="/quran/sure/36">Yasin sur\u0259si</a> \xB7 <a href="/quran/sure/67">M\xFClk sur\u0259si</a> \xB7 <a href="/dualar">Qurandak\u0131 Dualar</a> \xB7 <a href="/elifba">\u018Flifba v\u0259 T\u0259cvid</a> \xB7 <a href="/namaz-vaxtlari">Namaz Vaxtlar\u0131</a> \xB7 <a href="/teqvim">Hicri T\u0259qvim</a> \xB7 <a href="/zikr">S\u0259h\u0259r v\u0259 Ax\u015Fam Zikrl\u0259ri</a> \xB7 <a href="/muhaffiz">M\xFChafiz \u018Fzb\u0259r</a> \xB7 <a href="/shorts">Shorts</a></nav>${videos.length > 0 ? `<ul>${videos.slice(0, 12).map(
         (v) => `<li><a href="/video/${escapeHtmlAttr(v.videoId)}">${escapeHtmlText(v.title)}</a> \u2014 ${escapeHtmlText(v.surahName)} (${escapeHtmlText(v.ayahRange)})</li>`
       ).join("")}</ul>` : ""}`
     };
@@ -2864,16 +2965,16 @@ function resolveRouteSeoMetadata(pathname, origin, videos = [], extras) {
     return {
       httpStatus: 200,
       robots: robotsIndex,
-      title: "S\u0259h\u0259r-Ax\u015Fam Zikrl\u0259ri v\u0259 T\u0259sbih Say\u011Fac\u0131 | Quran Qiraeti",
-      description: "Onlayn t\u0259sbih say\u011Fac\u0131 (33 / 99 / 100 v\u0259 Namaz sonras\u0131 33+33+34 rejimi), S\u0259h\u0259r v\u0259 Ax\u015Fam zikrl\u0259ri \u2014 \u0259r\u0259bc\u0259 m\u0259tn, oxunu\u015F v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si.",
+      title: "S\u0259h\u0259r v\u0259 Ax\u015Fam Zikrl\u0259ri (M\xFCs\u0259lman Qalas\u0131) | Quran Qiraeti",
+      description: "M\xFCs\u0259lman Qalas\u0131 (Hisn al-Muslim) kitab\u0131ndan b\xFCt\xFCn s\u0259h\u0259r, ax\u015Fam v\u0259 namaz sonras\u0131 zikrl\u0259r \u2014 \u0259r\u0259bc\u0259 m\u0259tn, oxunu\u015F v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si.",
       canonicalUrl: `${baseUrl}/zikr`,
       ogImage: defaultOg,
       ogType: "website",
       jsonLd: buildBreadcrumbJsonLd(baseUrl, [
         { name: "Ana s\u0259hif\u0259", path: "/" },
-        { name: "Zikr v\u0259 T\u0259sbih", path: "/zikr" }
+        { name: "S\u0259h\u0259r v\u0259 Ax\u015Fam Zikrl\u0259ri", path: "/zikr" }
       ]),
-      noscriptHtml: "<h1>S\u0259h\u0259r-Ax\u015Fam Zikrl\u0259ri v\u0259 \u0130nteraktiv T\u0259sbih Say\u011Fac\u0131</h1><p>Namaz t\u0259sbihat\u0131, s\u0259h\u0259r v\u0259 ax\u015Fam zikrl\u0259ri \u2014 \u0259r\u0259bc\u0259 m\u0259tn v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si.</p>"
+      noscriptHtml: "<h1>S\u0259h\u0259r v\u0259 Ax\u015Fam Zikrl\u0259ri (M\xFCs\u0259lman Qalas\u0131)</h1><p>M\xFCs\u0259lman Qalas\u0131 kitab\u0131ndan b\xFCt\xFCn s\u0259h\u0259r, ax\u015Fam v\u0259 namaz sonras\u0131 zikrl\u0259r \u2014 \u0259r\u0259bc\u0259 m\u0259tn v\u0259 Az\u0259rbaycan t\u0259rc\xFCm\u0259si.</p>"
     };
   }
   if (cleanPath === "/gunun-ayesi") {
@@ -3292,7 +3393,7 @@ function buildLlmsTxt(origin, stats, longVideos, shorts) {
     `- [Shorts B\xF6lm\u0259si](${baseUrl}/shorts): Kanaldak\u0131 b\xFCt\xFCn q\u0131sa Quran tilav\u0259tl\u0259ri (${shorts.length} video) v\u0259 SEO m\u0259lumatlar\u0131.`,
     `- [Tam Qurani-K\u0259rim](${baseUrl}/quran): B\xFCt\xFCn 114 sur\u0259 v\u0259 604 Mushaf s\u0259hif\u0259si \xFCzr\u0259 \u0259r\u0259bc\u0259 m\u0259tn v\u0259 \u018Flixan Musayev t\u0259rc\xFCm\u0259si.`,
     `- [Qurandak\u0131 Dualar](${baseUrl}/dualar): Qurandan se\xE7ilmi\u015F ${QURAN_DUAS.length} R\u0259bb\u0259n\u0259 v\u0259 pey\u011F\u0259mb\u0259r duas\u0131 \u2014 s\u0259sli tilav\u0259t v\u0259 t\u0259rc\xFCm\u0259.`,
-    `- [Zikrl\u0259r v\u0259 T\u0259sbih](${baseUrl}/zikr): S\u0259h\u0259r-ax\u015Fam zikrl\u0259ri, namaz t\u0259sbihat\u0131 v\u0259 g\xFCnd\u0259lik zikr say\u011Fac\u0131.`,
+    `- [S\u0259h\u0259r v\u0259 Ax\u015Fam Zikrl\u0259ri](${baseUrl}/zikr): M\xFCs\u0259lman Qalas\u0131 kitab\u0131ndan b\xFCt\xFCn s\u0259h\u0259r, ax\u015Fam v\u0259 namaz sonras\u0131 zikrl\u0259r.`,
     `- [Namaz Vaxtlar\u0131](${baseUrl}/namaz-vaxtlari): Bak\u0131, G\u0259nc\u0259, Sumqay\u0131t, Nax\xE7\u0131van, \u015E\u0259ki, \u015Eu\u015Fa v\u0259 dig\u0259r Az\u0259rbaycan \u015F\u0259h\u0259rl\u0259ri \xFCzr\u0259 namaz vaxtlar\u0131.`,
     `- [M\xFChafiz \u2014 \u018Fzb\u0259r Mushaf\u0131](${baseUrl}/muhaffiz): 604 Mushaf s\u0259hif\u0259sind\u0259 ay\u0259l\u0259ri s\xF6zb\u0259-s\xF6z v\u0259 ay\u0259-ay\u0259 gizl\u0259dib-a\xE7araq hifz v\u0259 t\u0259krar al\u0259ti.`,
     `- [G\xFCn\xFCn Ay\u0259si](${baseUrl}/gunun-ayesi): Se\xE7ilmi\u015F ay\u0259l\u0259r, \u0259r\u0259bc\u0259 m\u0259tn v\u0259 t\u0259f\u0259kk\xFCr izah\u0131.`,
@@ -4099,8 +4200,480 @@ var SEED_SHORTS = [
 ];
 
 // src/server/telegram.ts
-import crypto from "node:crypto";
+import crypto2 from "node:crypto";
 import express from "express";
+
+// firebase-applet-config.json
+var firebase_applet_config_default = {
+  projectId: "mindful-operator-5v0ns",
+  appId: "1:126160972595:web:87c49606411750e534ac46",
+  apiKey: "AIzaSyAdtSzQecrGVt2j-MaQKxXoN_Uk49-Z9xo",
+  authDomain: "mindful-operator-5v0ns.firebaseapp.com",
+  firestoreDatabaseId: "ai-studio-quranqiraeti-c7acecf7-1549-4be0-8e2a-500eab44da5f",
+  storageBucket: "mindful-operator-5v0ns.firebasestorage.app",
+  messagingSenderId: "126160972595",
+  measurementId: "",
+  oAuthClientId: "126160972595-oo4fjfdr2iqcgbho2feu0scu86q19fk2.apps.googleusercontent.com",
+  recaptchaSiteKey: ""
+};
+
+// src/data/azkar.ts
+var AZKAR_CATEGORY_LABELS = {
+  all: "Ham\u0131s\u0131",
+  seher: "S\u0259h\u0259r zikrl\u0259ri",
+  axsam: "Ax\u015Fam zikrl\u0259ri",
+  namaz: "Namaz sonras\u0131",
+  umumi: "G\xFCnd\u0259lik f\u0259zil\u0259tl\u0259r"
+};
+function getAzkarByCategory(category) {
+  if (category === "all") return DAILY_AZKAR;
+  return DAILY_AZKAR.filter(
+    (item) => item.category === category || Boolean(item.categories?.includes(category))
+  );
+}
+var DAILY_AZKAR = [
+  // 1. Ayətül-Kürsi (Müsəlman Qalası, #75)
+  {
+    id: "ayetul-kursi-zikr",
+    category: "seher",
+    categories: ["seher", "axsam"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "Ay\u0259t\xFCl-K\xFCrsi (B\u0259q\u0259r\u0259 sur\u0259si, 255)",
+    arabicText: "\u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0645\u0650\u0646\u064E \u0627\u0644\u0634\u064E\u0651\u064A\u0652\u0637\u064E\u0627\u0646\u0650 \u0627\u0644\u0631\u064E\u0651\u062C\u0650\u064A\u0645\u0650 \u06DD \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0647\u064F\u0648\u064E \u0627\u0644\u0652\u062D\u064E\u064A\u064F\u0651 \u0627\u0644\u0652\u0642\u064E\u064A\u064F\u0651\u0648\u0645\u064F \u06DA \u0644\u064E\u0627 \u062A\u064E\u0623\u0652\u062E\u064F\u0630\u064F\u0647\u064F \u0633\u0650\u0646\u064E\u0629\u064C \u0648\u064E\u0644\u064E\u0627 \u0646\u064E\u0648\u0652\u0645\u064C \u06DA \u0644\u064E\u0647\u064F \u0645\u064E\u0627 \u0641\u0650\u064A \u0627\u0644\u0633\u064E\u0651\u0645\u064E\u0627\u0648\u064E\u0627\u062A\u0650 \u0648\u064E\u0645\u064E\u0627 \u0641\u0650\u064A \u0627\u0644\u0652\u0623\u064E\u0631\u0652\u0636\u0650 \u06D7 \u0645\u064E\u0646\u0652 \u0630\u064E\u0627 \u0627\u0644\u064E\u0651\u0630\u0650\u064A \u064A\u064E\u0634\u0652\u0641\u064E\u0639\u064F \u0639\u0650\u0646\u0652\u062F\u064E\u0647\u064F \u0625\u0650\u0644\u064E\u0651\u0627 \u0628\u0650\u0625\u0650\u0630\u0652\u0646\u0650\u0647\u0650 \u06DA \u064A\u064E\u0639\u0652\u0644\u064E\u0645\u064F \u0645\u064E\u0627 \u0628\u064E\u064A\u0652\u0646\u064E \u0623\u064E\u064A\u0652\u062F\u0650\u064A\u0647\u0650\u0645\u0652 \u0648\u064E\u0645\u064E\u0627 \u062E\u064E\u0644\u0652\u0641\u064E\u0647\u064F\u0645\u0652 \u06D6 \u0648\u064E\u0644\u064E\u0627 \u064A\u064F\u062D\u0650\u064A\u0637\u064F\u0648\u0646\u064E \u0628\u0650\u0634\u064E\u064A\u0652\u0621\u064D \u0645\u0650\u0646\u0652 \u0639\u0650\u0644\u0652\u0645\u0650\u0647\u0650 \u0625\u0650\u0644\u064E\u0651\u0627 \u0628\u0650\u0645\u064E\u0627 \u0634\u064E\u0627\u0621\u064E \u06DA \u0648\u064E\u0633\u0650\u0639\u064E \u0643\u064F\u0631\u0652\u0633\u0650\u064A\u064F\u0651\u0647\u064F \u0627\u0644\u0633\u064E\u0651\u0645\u064E\u0627\u0648\u064E\u0627\u062A\u0650 \u0648\u064E\u0627\u0644\u0652\u0623\u064E\u0631\u0652\u0636\u064E \u06D6 \u0648\u064E\u0644\u064E\u0627 \u064A\u064E\u0626\u064F\u0648\u062F\u064F\u0647\u064F \u062D\u0650\u0641\u0652\u0638\u064F\u0647\u064F\u0645\u064E\u0627 \u06DA \u0648\u064E\u0647\u064F\u0648\u064E \u0627\u0644\u0652\u0639\u064E\u0644\u0650\u064A\u064F\u0651 \u0627\u0644\u0652\u0639\u064E\u0638\u0650\u064A\u0645\u064F",
+    translation: "L\u0259n\u0259tl\u0259nmi\u015F \u015Feytandan Allaha s\u0131\u011F\u0131n\u0131ram. Allah \u2014 Ondan ba\u015Fqa haqq m\u0259bud yoxdur, \u0259b\u0259di Ya\u015Fayand\u0131r, b\xFCt\xFCn yaratd\u0131qlar\u0131n\u0131n Q\u0259yyumudur. Onu n\u0259 m\xFCrg\xFC, n\u0259 d\u0259 yuxu tutar. G\xF6yl\u0259rd\u0259 v\u0259 yerd\u0259 n\u0259 varsa, Ona m\u0259xsusdur. Onun izni olmadan Onun yan\u0131nda kim \u015F\u0259fa\u0259t ed\u0259 bil\u0259r? O, insanlar\u0131n \xF6n\xFCnd\u0259 olan\u0131 da, arxas\u0131nda olan\u0131 da bilir. Onlar Onun elmind\u0259n Onun ist\u0259diyind\u0259n ba\u015Fqa he\xE7 bir \u015Fey qavraya bilm\u0259zl\u0259r. Onun K\xFCrs\xFCs\xFC g\xF6yl\u0259ri v\u0259 yeri \u0259hat\u0259 etmi\u015Fdir. Bunlar\u0131 qoruyub saxlamaq Ona a\u011F\u0131r g\u0259lm\u0259z. O, Ucad\u0131r, \u018Fz\u0259m\u0259tlidir.",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#75) \xB7 Hakim (1/562)",
+    virtue: "S\u0259h\u0259r oxuyan ax\u015Fama kimi, ax\u015Fam oxuyan is\u0259 s\u0259h\u0259r\u0259 kimi cinl\u0259rin \u015F\u0259rind\u0259n qorunar."
+  },
+  // 2. İxlas, Fələq və Nas surələri (Müsəlman Qalası, #76)
+  {
+    id: "muavvizat-3-qul",
+    category: "seher",
+    categories: ["seher", "axsam"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "\u0130xlas, F\u0259l\u0259q v\u0259 Nas Sur\u0259l\u0259ri",
+    arabicText: "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0627\u0644\u0631\u064E\u0651\u062D\u0652\u0645\u064E\u0670\u0646\u0650 \u0627\u0644\u0631\u064E\u0651\u062D\u0650\u064A\u0645\u0650 \u06DD \u0642\u064F\u0644\u0652 \u0647\u064F\u0648\u064E \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0623\u064E\u062D\u064E\u062F\u064C \u06DD \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0627\u0644\u0635\u064E\u0651\u0645\u064E\u062F\u064F \u06DD \u0644\u064E\u0645\u0652 \u064A\u064E\u0644\u0650\u062F\u0652 \u0648\u064E\u0644\u064E\u0645\u0652 \u064A\u064F\u0648\u0644\u064E\u062F\u0652 \u06DD \u0648\u064E\u0644\u064E\u0645\u0652 \u064A\u064E\u0643\u064F\u0646\u0652 \u0644\u064E\u0647\u064F \u0643\u064F\u0641\u064F\u0648\u064B\u0627 \u0623\u064E\u062D\u064E\u062F\u064C \u06DD \u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0627\u0644\u0631\u064E\u0651\u062D\u0652\u0645\u064E\u0670\u0646\u0650 \u0627\u0644\u0631\u064E\u0651\u062D\u0650\u064A\u0645\u0650 \u06DD \u0642\u064F\u0644\u0652 \u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0631\u064E\u0628\u0650\u0651 \u0627\u0644\u0652\u0641\u064E\u0644\u064E\u0642\u0650 \u06DD \u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u0645\u064E\u0627 \u062E\u064E\u0644\u064E\u0642\u064E \u06DD \u0648\u064E\u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u063A\u064E\u0627\u0633\u0650\u0642\u064D \u0625\u0650\u0630\u064E\u0627 \u0648\u064E\u0642\u064E\u0628\u064E \u06DD \u0648\u064E\u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u0627\u0644\u0646\u064E\u0651\u0641\u064E\u0651\u0627\u062B\u064E\u0627\u062A\u0650 \u0641\u0650\u064A \u0627\u0644\u0652\u0639\u064F\u0642\u064E\u062F\u0650 \u06DD \u0648\u064E\u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u062D\u064E\u0627\u0633\u0650\u062F\u064D \u0625\u0650\u0630\u064E\u0627 \u062D\u064E\u0633\u064E\u062F\u064E \u06DD \u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0627\u0644\u0631\u064E\u0651\u062D\u0652\u0645\u064E\u0670\u0646\u0650 \u0627\u0644\u0631\u064E\u0651\u062D\u0650\u064A\u0645\u0650 \u06DD \u0642\u064F\u0644\u0652 \u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0631\u064E\u0628\u0650\u0651 \u0627\u0644\u0646\u064E\u0651\u0627\u0633\u0650 \u06DD \u0645\u064E\u0644\u0650\u0643\u0650 \u0627\u0644\u0646\u064E\u0651\u0627\u0633\u0650 \u06DD \u0625\u0650\u0644\u064E\u0670\u0647\u0650 \u0627\u0644\u0646\u064E\u0651\u0627\u0633\u0650 \u06DD \u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u0627\u0644\u0652\u0648\u064E\u0633\u0652\u0648\u064E\u0627\u0633\u0650 \u0627\u0644\u0652\u062E\u064E\u0646\u064E\u0651\u0627\u0633\u0650 \u06DD \u0627\u0644\u064E\u0651\u0630\u0650\u064A \u064A\u064F\u0648\u064E\u0633\u0652\u0648\u0650\u0633\u064F \u0641\u0650\u064A \u0635\u064F\u062F\u064F\u0648\u0631\u0650 \u0627\u0644\u0646\u064E\u0651\u0627\u0633\u0650 \u06DD \u0645\u0650\u0646\u064E \u0627\u0644\u0652\u062C\u0650\u0646\u064E\u0651\u0629\u0650 \u0648\u064E\u0627\u0644\u0646\u064E\u0651\u0627\u0633\u0650",
+    translation: 'M\u0259rh\u0259m\u0259tli v\u0259 R\u0259hmli Allah\u0131n ad\u0131 il\u0259! De: "O Allah T\u0259kdir! Allah M\xF6htac deyildir. O, n\u0259 do\u011Fmu\u015F, n\u0259 do\u011Fulmu\u015Fdur! Onun he\xE7 bir tay\u0131-b\u0259rab\u0259ri yoxdur!" \u2014 De: "S\u0131\u011F\u0131n\u0131ram s\xFCbh\xFCn R\u0259bbin\u0259! Yaratd\u0131qlar\u0131n\u0131n \u015F\u0259rind\u0259n, z\xFClm\u0259t\u0259 b\xFCr\xFCnm\u0259kd\u0259 olan gec\u0259nin \u015F\u0259rind\u0259n, d\xFCy\xFCnl\u0259r\u0259 \xFCf\xFCr\u0259n cadug\u0259rl\u0259rin \u015F\u0259rind\u0259n v\u0259 h\u0259s\u0259d apard\u0131\u011F\u0131 zaman h\u0259s\u0259d\xE7inin \u015F\u0259rind\u0259n!" \u2014 De: "S\u0131\u011F\u0131n\u0131ram insanlar\u0131n R\u0259bbin\u0259, insanlar\u0131n H\xF6kmdar\u0131na, insanlar\u0131n M\u0259buduna! V\u0259sv\u0259s\u0259 ver\u0259n, geri \xE7\u0259kil\u0259n \u015Feytan\u0131n \u015F\u0259rind\u0259n \u2014 hans\u0131 ki, insanlar\u0131n k\xF6ksl\u0259rin\u0259 v\u0259sv\u0259s\u0259 sal\u0131r \u2014 ist\u0259r cinl\u0259rd\u0259n olsun, ist\u0259r insanlardan!"',
+    targetCount: 3,
+    countNote: "3 d\u0259f\u0259 (h\u0259r sur\u0259 3 d\u0259f\u0259)",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#76) \xB7 \u018Fbu Davud (4/322), Tirmizi (5/567)",
+    virtue: "S\u0259h\u0259r v\u0259 ax\u015Fam bu \xFC\xE7 sur\u0259ni \xFC\xE7 d\u0259f\u0259 oxumaq insan\u0131 h\u0259r bir \u015F\u0259r\u0259 qar\u015F\u0131 qoruyar v\u0259 ona kifay\u0259t ed\u0259r."
+  },
+  // 3. Əsbəhnə və əsbəhəl-mulku lilləh — Səhər (Müsəlman Qalası, #77)
+  {
+    id: "seher-baslangic",
+    category: "seher",
+    timeLabel: "S\u0259h\u0259r zikri",
+    title: "S\u0259h\u0259r\u0259 \xC7\u0131xark\u0259n H\u0259md, Xeyir \u0130st\u0259yi v\u0259 S\u0131\u011F\u0131nma",
+    arabicText: "\u0623\u064E\u0635\u0652\u0628\u064E\u062D\u0652\u0646\u064E\u0627 \u0648\u064E\u0623\u064E\u0635\u0652\u0628\u064E\u062D\u064E \u0627\u0644\u0652\u0645\u064F\u0644\u0652\u0643\u064F \u0644\u0650\u0644\u064E\u0651\u0647\u0650\u060C \u0648\u064E\u0627\u0644\u0652\u062D\u064E\u0645\u0652\u062F\u064F \u0644\u0650\u0644\u064E\u0651\u0647\u0650\u060C \u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0648\u064E\u062D\u0652\u062F\u064E\u0647\u064F \u0644\u064E\u0627 \u0634\u064E\u0631\u0650\u064A\u0643\u064E \u0644\u064E\u0647\u064F\u060C \u0644\u064E\u0647\u064F \u0627\u0644\u0652\u0645\u064F\u0644\u0652\u0643\u064F \u0648\u064E\u0644\u064E\u0647\u064F \u0627\u0644\u0652\u062D\u064E\u0645\u0652\u062F\u064F \u0648\u064E\u0647\u064F\u0648\u064E \u0639\u064E\u0644\u064E\u0649\u0670 \u0643\u064F\u0644\u0650\u0651 \u0634\u064E\u064A\u0652\u0621\u064D \u0642\u064E\u062F\u0650\u064A\u0631\u064C\u060C \u0631\u064E\u0628\u0650\u0651 \u0623\u064E\u0633\u0652\u0623\u064E\u0644\u064F\u0643\u064E \u062E\u064E\u064A\u0652\u0631\u064E \u0645\u064E\u0627 \u0641\u0650\u064A \u0647\u064E\u0670\u0630\u064E\u0627 \u0627\u0644\u0652\u064A\u064E\u0648\u0652\u0645\u0650 \u0648\u064E\u062E\u064E\u064A\u0652\u0631\u064E \u0645\u064E\u0627 \u0628\u064E\u0639\u0652\u062F\u064E\u0647\u064F\u060C \u0648\u064E\u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u0645\u064E\u0627 \u0641\u0650\u064A \u0647\u064E\u0670\u0630\u064E\u0627 \u0627\u0644\u0652\u064A\u064E\u0648\u0652\u0645\u0650 \u0648\u064E\u0634\u064E\u0631\u0650\u0651 \u0645\u064E\u0627 \u0628\u064E\u0639\u0652\u062F\u064E\u0647\u064F\u060C \u0631\u064E\u0628\u0650\u0651 \u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u064E \u0627\u0644\u0652\u0643\u064E\u0633\u064E\u0644\u0650 \u0648\u064E\u0633\u064F\u0648\u0621\u0650 \u0627\u0644\u0652\u0643\u0650\u0628\u064E\u0631\u0650\u060C \u0631\u064E\u0628\u0650\u0651 \u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u0652 \u0639\u064E\u0630\u064E\u0627\u0628\u064D \u0641\u0650\u064A \u0627\u0644\u0646\u064E\u0651\u0627\u0631\u0650 \u0648\u064E\u0639\u064E\u0630\u064E\u0627\u0628\u064D \u0641\u0650\u064A \u0627\u0644\u0652\u0642\u064E\u0628\u0652\u0631\u0650",
+    translation: "S\u0259h\u0259r\u0259 \xE7\u0131xd\u0131q, m\xFClk d\u0259 Allaha m\u0259xsus olaraq s\u0259h\u0259r\u0259 \xE7\u0131xd\u0131. Allaha h\u0259md olsun! T\u0259k olan Allahdan ba\u015Fqa haqq m\u0259bud yoxdur, Onun \u015F\u0259riki yoxdur. M\xFClk Onundur, h\u0259md Onundur v\u0259 O, h\u0259r \u015Fey\u0259 qadirdir. Ey R\u0259bbim! S\u0259nd\u0259n bu g\xFCn\xFCn v\u0259 bundan sonrak\u0131 g\xFCnl\u0259rin xeyrini dil\u0259yir\u0259m. Bu g\xFCn\xFCn v\u0259 bundan sonrak\u0131 g\xFCnl\u0259rin \u015F\u0259rind\u0259n S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram. Ey R\u0259bbim! T\u0259nb\u0259llikd\u0259n v\u0259 qocal\u0131\u011F\u0131n d\xFC\u015Fg\xFCnl\xFCy\xFCnd\u0259n S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram. Ey R\u0259bbim! C\u0259h\u0259nn\u0259m \u0259zab\u0131ndan v\u0259 q\u0259bir \u0259zab\u0131ndan S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#77) \xB7 S\u0259hih M\xFCslim (4/2088)",
+    virtue: "Pey\u011F\u0259mb\u0259rimizin (s.a.s.) h\u0259r s\u0259h\u0259r oxudu\u011Fu \u0259sas s\u0259h\u0259r zikridir."
+  },
+  // 3b. Əmsəynə və əmsəl-mulku lilləh — Axşam (Müsəlman Qalası, #77)
+  {
+    id: "axsam-baslangic",
+    category: "axsam",
+    timeLabel: "Ax\u015Fam zikri",
+    title: "Ax\u015Fama \xC7\u0131xark\u0259n H\u0259md, Xeyir \u0130st\u0259yi v\u0259 S\u0131\u011F\u0131nma",
+    arabicText: "\u0623\u064E\u0645\u0652\u0633\u064E\u064A\u0652\u0646\u064E\u0627 \u0648\u064E\u0623\u064E\u0645\u0652\u0633\u064E\u0649 \u0627\u0644\u0652\u0645\u064F\u0644\u0652\u0643\u064F \u0644\u0650\u0644\u064E\u0651\u0647\u0650\u060C \u0648\u064E\u0627\u0644\u0652\u062D\u064E\u0645\u0652\u062F\u064F \u0644\u0650\u0644\u064E\u0651\u0647\u0650\u060C \u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0648\u064E\u062D\u0652\u062F\u064E\u0647\u064F \u0644\u064E\u0627 \u0634\u064E\u0631\u0650\u064A\u0643\u064E \u0644\u064E\u0647\u064F\u060C \u0644\u064E\u0647\u064F \u0627\u0644\u0652\u0645\u064F\u0644\u0652\u0643\u064F \u0648\u064E\u0644\u064E\u0647\u064F \u0627\u0644\u0652\u062D\u064E\u0645\u0652\u062F\u064F \u0648\u064E\u0647\u064F\u0648\u064E \u0639\u064E\u0644\u064E\u0649\u0670 \u0643\u064F\u0644\u0650\u0651 \u0634\u064E\u064A\u0652\u0621\u064D \u0642\u064E\u062F\u0650\u064A\u0631\u064C\u060C \u0631\u064E\u0628\u0650\u0651 \u0623\u064E\u0633\u0652\u0623\u064E\u0644\u064F\u0643\u064E \u062E\u064E\u064A\u0652\u0631\u064E \u0645\u064E\u0627 \u0641\u0650\u064A \u0647\u064E\u0670\u0630\u0650\u0647\u0650 \u0627\u0644\u0644\u064E\u0651\u064A\u0652\u0644\u064E\u0629\u0650 \u0648\u064E\u062E\u064E\u064A\u0652\u0631\u064E \u0645\u064E\u0627 \u0628\u064E\u0639\u0652\u062F\u064E\u0647\u064E\u0627\u060C \u0648\u064E\u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u0645\u064E\u0627 \u0641\u0650\u064A \u0647\u064E\u0670\u0630\u0650\u0647\u0650 \u0627\u0644\u0644\u064E\u0651\u064A\u0652\u0644\u064E\u0629\u0650 \u0648\u064E\u0634\u064E\u0631\u0650\u0651 \u0645\u064E\u0627 \u0628\u064E\u0639\u0652\u062F\u064E\u0647\u064E\u0627\u060C \u0631\u064E\u0628\u0650\u0651 \u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u064E \u0627\u0644\u0652\u0643\u064E\u0633\u064E\u0644\u0650 \u0648\u064E\u0633\u064F\u0648\u0621\u0650 \u0627\u0644\u0652\u0643\u0650\u0628\u064E\u0631\u0650\u060C \u0631\u064E\u0628\u0650\u0651 \u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u0652 \u0639\u064E\u0630\u064E\u0627\u0628\u064D \u0641\u0650\u064A \u0627\u0644\u0646\u064E\u0651\u0627\u0631\u0650 \u0648\u064E\u0639\u064E\u0630\u064E\u0627\u0628\u064D \u0641\u0650\u064A \u0627\u0644\u0652\u0642\u064E\u0628\u0652\u0631\u0650",
+    translation: "Ax\u015Fama \xE7\u0131xd\u0131q, m\xFClk d\u0259 Allaha m\u0259xsus olaraq ax\u015Fama \xE7\u0131xd\u0131. Allaha h\u0259md olsun! T\u0259k olan Allahdan ba\u015Fqa haqq m\u0259bud yoxdur, Onun \u015F\u0259riki yoxdur. M\xFClk Onundur, h\u0259md Onundur v\u0259 O, h\u0259r \u015Fey\u0259 qadirdir. Ey R\u0259bbim! S\u0259nd\u0259n bu gec\u0259nin v\u0259 bundan sonrak\u0131 gec\u0259l\u0259rin xeyrini dil\u0259yir\u0259m. Bu gec\u0259nin v\u0259 bundan sonrak\u0131 gec\u0259l\u0259rin \u015F\u0259rind\u0259n S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram. Ey R\u0259bbim! T\u0259nb\u0259llikd\u0259n v\u0259 qocal\u0131\u011F\u0131n d\xFC\u015Fg\xFCnl\xFCy\xFCnd\u0259n S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram. Ey R\u0259bbim! C\u0259h\u0259nn\u0259m \u0259zab\u0131ndan v\u0259 q\u0259bir \u0259zab\u0131ndan S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#77) \xB7 S\u0259hih M\xFCslim (4/2088)",
+    virtue: "Pey\u011F\u0259mb\u0259rimizin (s.a.s.) h\u0259r ax\u015Fam oxudu\u011Fu \u0259sas ax\u015Fam zikridir."
+  },
+  // 4a. Allahummə bikə əsbəhnə — Səhər (Müsəlman Qalası, #78)
+  {
+    id: "seher-bike-esbehne",
+    category: "seher",
+    timeLabel: "S\u0259h\u0259r zikri",
+    title: "S\u0259h\u0259r \u2014 Allah\u0131n \u0130zni il\u0259 Dirili\u015F v\u0259 D\xF6n\xFC\u015F Zikri",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0628\u0650\u0643\u064E \u0623\u064E\u0635\u0652\u0628\u064E\u062D\u0652\u0646\u064E\u0627\u060C \u0648\u064E\u0628\u0650\u0643\u064E \u0623\u064E\u0645\u0652\u0633\u064E\u064A\u0652\u0646\u064E\u0627\u060C \u0648\u064E\u0628\u0650\u0643\u064E \u0646\u064E\u062D\u0652\u064A\u064E\u0627\u060C \u0648\u064E\u0628\u0650\u0643\u064E \u0646\u064E\u0645\u064F\u0648\u062A\u064F\u060C \u0648\u064E\u0625\u0650\u0644\u064E\u064A\u0652\u0643\u064E \u0627\u0644\u0646\u064F\u0651\u0634\u064F\u0648\u0631\u064F",
+    translation: "Allah\u0131m! S\u0259nin k\xF6m\u0259yinl\u0259 s\u0259h\u0259r\u0259 \xE7\u0131xd\u0131q, S\u0259nin k\xF6m\u0259yinl\u0259 ax\u015Fama \xE7\u0131xd\u0131q, S\u0259nin \u0259mrinl\u0259 ya\u015Fay\u0131r\u0131q, S\u0259nin \u0259mrinl\u0259 \xF6l\xFCr\xFCk v\u0259 qay\u0131d\u0131\u015F da yaln\u0131z S\u0259n\u0259dir!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#78) \xB7 Tirmizi (5/466)",
+    virtue: "H\u0259yat v\u0259 \xF6l\xFCm\xFCn yaln\u0131z Allah\u0131n \u0259lind\u0259 oldu\u011Funu t\u0259sdiql\u0259y\u0259n s\u0259h\u0259r zikridir."
+  },
+  // 4b. Allahummə bikə əmsəynə — Axşam (Müsəlman Qalası, #78)
+  {
+    id: "axsam-bike-emseyne",
+    category: "axsam",
+    timeLabel: "Ax\u015Fam zikri",
+    title: "Ax\u015Fam \u2014 Allah\u0131n \u0130zni il\u0259 Qay\u0131d\u0131\u015F Zikri",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0628\u0650\u0643\u064E \u0623\u064E\u0645\u0652\u0633\u064E\u064A\u0652\u0646\u064E\u0627\u060C \u0648\u064E\u0628\u0650\u0643\u064E \u0623\u064E\u0635\u0652\u0628\u064E\u062D\u0652\u0646\u064E\u0627\u060C \u0648\u064E\u0628\u0650\u0643\u064E \u0646\u064E\u062D\u0652\u064A\u064E\u0627\u060C \u0648\u064E\u0628\u0650\u0643\u064E \u0646\u064E\u0645\u064F\u0648\u062A\u064F\u060C \u0648\u064E\u0625\u0650\u0644\u064E\u064A\u0652\u0643\u064E \u0627\u0644\u0652\u0645\u064E\u0635\u0650\u064A\u0631\u064F",
+    translation: "Allah\u0131m! S\u0259nin k\xF6m\u0259yinl\u0259 ax\u015Fama \xE7\u0131xd\u0131q, S\u0259nin k\xF6m\u0259yinl\u0259 s\u0259h\u0259r\u0259 \xE7\u0131xd\u0131q, S\u0259nin \u0259mrinl\u0259 ya\u015Fay\u0131r\u0131q, S\u0259nin \u0259mrinl\u0259 \xF6l\xFCr\xFCk v\u0259 d\xF6n\xFC\u015F d\u0259 yaln\u0131z S\u0259n\u0259dir!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#78) \xB7 Tirmizi (5/466)",
+    virtue: "Ax\u015Fam vaxt\u0131 Allaha t\u0259slimiyy\u0259ti v\u0259 d\xF6n\xFC\u015F\xFC xat\u0131rladan m\xFCbar\u0259k zikrdir."
+  },
+  // 5. Seyyidül-İstiğfar (Müsəlman Qalası, #79)
+  {
+    id: "sayyidul-istighfar",
+    category: "seher",
+    categories: ["seher", "axsam"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "Seyyid\xFCl-\u0130sti\u011Ffar (\u0130sti\u011Ffarlar\u0131n A\u011Fas\u0131)",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0623\u064E\u0646\u0652\u062A\u064E \u0631\u064E\u0628\u0650\u0651\u064A \u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0623\u064E\u0646\u0652\u062A\u064E\u060C \u062E\u064E\u0644\u064E\u0642\u0652\u062A\u064E\u0646\u0650\u064A \u0648\u064E\u0623\u064E\u0646\u064E\u0627 \u0639\u064E\u0628\u0652\u062F\u064F\u0643\u064E\u060C \u0648\u064E\u0623\u064E\u0646\u064E\u0627 \u0639\u064E\u0644\u064E\u0649\u0670 \u0639\u064E\u0647\u0652\u062F\u0650\u0643\u064E \u0648\u064E\u0648\u064E\u0639\u0652\u062F\u0650\u0643\u064E \u0645\u064E\u0627 \u0627\u0633\u0652\u062A\u064E\u0637\u064E\u0639\u0652\u062A\u064F\u060C \u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u0645\u064E\u0627 \u0635\u064E\u0646\u064E\u0639\u0652\u062A\u064F\u060C \u0623\u064E\u0628\u064F\u0648\u0621\u064F \u0644\u064E\u0643\u064E \u0628\u0650\u0646\u0650\u0639\u0652\u0645\u064E\u062A\u0650\u0643\u064E \u0639\u064E\u0644\u064E\u064A\u064E\u0651\u060C \u0648\u064E\u0623\u064E\u0628\u064F\u0648\u0621\u064F \u0628\u0650\u0630\u064E\u0646\u0652\u0628\u0650\u064A \u0641\u064E\u0627\u063A\u0652\u0641\u0650\u0631\u0652 \u0644\u0650\u064A \u0641\u064E\u0625\u0650\u0646\u064E\u0651\u0647\u064F \u0644\u064E\u0627 \u064A\u064E\u063A\u0652\u0641\u0650\u0631\u064F \u0627\u0644\u0630\u064F\u0651\u0646\u064F\u0648\u0628\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0623\u064E\u0646\u0652\u062A\u064E",
+    translation: "Allah\u0131m! S\u0259n m\u0259nim R\u0259bbims\u0259n, S\u0259nd\u0259n ba\u015Fqa haqq m\u0259bud yoxdur. M\u0259ni S\u0259n yaratd\u0131n v\u0259 m\u0259n S\u0259nin qulunam. G\xFCc\xFCm \xE7atd\u0131\u011F\u0131 q\u0259d\u0259r S\u0259nin \u0259hd-peyman\u0131na v\u0259 v\u0259din\u0259 sadiq\u0259m. Etdiyim pis \u0259m\u0259ll\u0259rin \u015F\u0259rind\u0259n S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram. M\u0259n\u0259 verdiyin nem\u0259tl\u0259ri etiraf edir\u0259m v\u0259 g\xFCnahlar\u0131m\u0131 da boynuma al\u0131ram. M\u0259ni ba\u011F\u0131\u015Fla; \u015F\xFCbh\u0259siz ki, g\xFCnahlar\u0131 S\u0259nd\u0259n ba\u015Fqa ba\u011F\u0131\u015Flayan yoxdur.",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#79) \xB7 S\u0259hih \u0259l-Buxari (7/150)",
+    virtue: "Y\u0259qinlikl\u0259 g\xFCnd\xFCz oxuyub ax\u015Famdan \u0259vv\u0259l v\u0259 ya ax\u015Fam oxuyub s\u0259h\u0259rd\u0259n \u0259vv\u0259l v\u0259fat ed\u0259n C\u0259nn\u0259t \u0259hlind\u0259n olar."
+  },
+  // 6a. Şahidlik Zikri — Səhər (Müsəlman Qalası, #80)
+  {
+    id: "seher-ushhiduke",
+    category: "seher",
+    timeLabel: "S\u0259h\u0259r zikri",
+    title: "S\u0259h\u0259r \u2014 Allah\u0131, \u018Fr\u015Fin Da\u015F\u0131y\u0131c\u0131lar\u0131n\u0131 v\u0259 M\u0259l\u0259kl\u0259ri \u015Eahid Tutmaq",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0625\u0650\u0646\u0650\u0651\u064A \u0623\u064E\u0635\u0652\u0628\u064E\u062D\u0652\u062A\u064F \u0623\u064F\u0634\u0652\u0647\u0650\u062F\u064F\u0643\u064E\u060C \u0648\u064E\u0623\u064F\u0634\u0652\u0647\u0650\u062F\u064F \u062D\u064E\u0645\u064E\u0644\u064E\u0629\u064E \u0639\u064E\u0631\u0652\u0634\u0650\u0643\u064E\u060C \u0648\u064E\u0645\u064E\u0644\u064E\u0627\u0626\u0650\u0643\u064E\u062A\u064E\u0643\u064E\u060C \u0648\u064E\u062C\u064E\u0645\u0650\u064A\u0639\u064E \u062E\u064E\u0644\u0652\u0642\u0650\u0643\u064E\u060C \u0623\u064E\u0646\u064E\u0651\u0643\u064E \u0623\u064E\u0646\u0652\u062A\u064E \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0623\u064E\u0646\u0652\u062A\u064E \u0648\u064E\u062D\u0652\u062F\u064E\u0643\u064E \u0644\u064E\u0627 \u0634\u064E\u0631\u0650\u064A\u0643\u064E \u0644\u064E\u0643\u064E\u060C \u0648\u064E\u0623\u064E\u0646\u064E\u0651 \u0645\u064F\u062D\u064E\u0645\u064E\u0651\u062F\u064B\u0627 \u0639\u064E\u0628\u0652\u062F\u064F\u0643\u064E \u0648\u064E\u0631\u064E\u0633\u064F\u0648\u0644\u064F\u0643\u064E",
+    translation: "Allah\u0131m! S\u0259h\u0259r\u0259 \xE7\u0131xd\u0131m v\u0259 S\u0259ni, \u018Fr\u015Fini da\u015F\u0131yanlar\u0131, m\u0259l\u0259kl\u0259rini v\u0259 b\xFCt\xFCn yaratd\u0131qlar\u0131n\u0131 \u015Fahid tuturam ki, S\u0259n \xD6z\xFCnd\u0259n ba\u015Fqa haqq m\u0259bud olmayan T\u0259k Allahsan, S\u0259nin \u015F\u0259rikin yoxdur v\u0259 Muh\u0259mm\u0259d (s.a.s.) S\u0259nin qulun v\u0259 el\xE7indir.",
+    targetCount: 4,
+    countNote: "4 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#80) \xB7 \u018Fbu Davud (4/317)",
+    virtue: "Kim bu zikri s\u0259h\u0259r v\u0259 ya ax\u015Fam d\xF6rd d\u0259f\u0259 oxuyarsa, Allah onu C\u0259h\u0259nn\u0259m odundan azad ed\u0259r."
+  },
+  // 6b. Şahidlik Zikri — Axşam (Müsəlman Qalası, #80)
+  {
+    id: "axsam-ushhiduke",
+    category: "axsam",
+    timeLabel: "Ax\u015Fam zikri",
+    title: "Ax\u015Fam \u2014 Allah\u0131, \u018Fr\u015Fin Da\u015F\u0131y\u0131c\u0131lar\u0131n\u0131 v\u0259 M\u0259l\u0259kl\u0259ri \u015Eahid Tutmaq",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0625\u0650\u0646\u0650\u0651\u064A \u0623\u064E\u0645\u0652\u0633\u064E\u064A\u0652\u062A\u064F \u0623\u064F\u0634\u0652\u0647\u0650\u062F\u064F\u0643\u064E\u060C \u0648\u064E\u0623\u064F\u0634\u0652\u0647\u0650\u062F\u064F \u062D\u064E\u0645\u064E\u0644\u064E\u0629\u064E \u0639\u064E\u0631\u0652\u0634\u0650\u0643\u064E\u060C \u0648\u064E\u0645\u064E\u0644\u064E\u0627\u0626\u0650\u0643\u064E\u062A\u064E\u0643\u064E\u060C \u0648\u064E\u062C\u064E\u0645\u0650\u064A\u0639\u064E \u062E\u064E\u0644\u0652\u0642\u0650\u0643\u064E\u060C \u0623\u064E\u0646\u064E\u0651\u0643\u064E \u0623\u064E\u0646\u0652\u062A\u064E \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0623\u064E\u0646\u0652\u062A\u064E \u0648\u064E\u062D\u0652\u062F\u064E\u0643\u064E \u0644\u064E\u0627 \u0634\u064E\u0631\u0650\u064A\u0643\u064E \u0644\u064E\u0643\u064E\u060C \u0648\u064E\u0623\u064E\u0646\u064E\u0651 \u0645\u064F\u062D\u064E\u0645\u064E\u0651\u062F\u064B\u0627 \u0639\u064E\u0628\u0652\u062F\u064F\u0643\u064E \u0648\u064E\u0631\u064E\u0633\u064F\u0648\u0644\u064F\u0643\u064E",
+    translation: "Allah\u0131m! Ax\u015Fama \xE7\u0131xd\u0131m v\u0259 S\u0259ni, \u018Fr\u015Fini da\u015F\u0131yanlar\u0131, m\u0259l\u0259kl\u0259rini v\u0259 b\xFCt\xFCn yaratd\u0131qlar\u0131n\u0131 \u015Fahid tuturam ki, S\u0259n \xD6z\xFCnd\u0259n ba\u015Fqa haqq m\u0259bud olmayan T\u0259k Allahsan, S\u0259nin \u015F\u0259rikin yoxdur v\u0259 Muh\u0259mm\u0259d (s.a.s.) S\u0259nin qulun v\u0259 el\xE7indir.",
+    targetCount: 4,
+    countNote: "4 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#80) \xB7 \u018Fbu Davud (4/317)",
+    virtue: "Kim bu zikri s\u0259h\u0259r v\u0259 ya ax\u015Fam d\xF6rd d\u0259f\u0259 oxuyarsa, Allah onu C\u0259h\u0259nn\u0259m odundan azad ed\u0259r."
+  },
+  // 7a. Nemətə Şükür — Səhər (Müsəlman Qalası, #81)
+  {
+    id: "seher-nime-shukur",
+    category: "seher",
+    timeLabel: "S\u0259h\u0259r zikri",
+    title: "S\u0259h\u0259r \u2014 Nem\u0259tl\u0259rin Yaln\u0131z Allahdan Oldu\u011Funa \u015E\xFCk\xFCr Zikri",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0645\u064E\u0627 \u0623\u064E\u0635\u0652\u0628\u064E\u062D\u064E \u0628\u0650\u064A \u0645\u0650\u0646\u0652 \u0646\u0650\u0639\u0652\u0645\u064E\u0629\u064D \u0623\u064E\u0648\u0652 \u0628\u0650\u0623\u064E\u062D\u064E\u062F\u064D \u0645\u0650\u0646\u0652 \u062E\u064E\u0644\u0652\u0642\u0650\u0643\u064E \u0641\u064E\u0645\u0650\u0646\u0652\u0643\u064E \u0648\u064E\u062D\u0652\u062F\u064E\u0643\u064E \u0644\u064E\u0627 \u0634\u064E\u0631\u0650\u064A\u0643\u064E \u0644\u064E\u0643\u064E\u060C \u0641\u064E\u0644\u064E\u0643\u064E \u0627\u0644\u0652\u062D\u064E\u0645\u0652\u062F\u064F \u0648\u064E\u0644\u064E\u0643\u064E \u0627\u0644\u0634\u064F\u0651\u0643\u0652\u0631\u064F",
+    translation: "Allah\u0131m! Bu s\u0259h\u0259r m\u0259n\u0259 v\u0259 ya yaratd\u0131qlar\u0131ndan h\u0259r hans\u0131 birin\u0259 n\u0259sib olan h\u0259r bir nem\u0259t yaln\u0131z S\u0259nd\u0259ndir, S\u0259nin \u015F\u0259rikin yoxdur. H\u0259md d\u0259 S\u0259n\u0259dir, \u015F\xFCk\xFCr d\u0259 S\u0259n\u0259dir!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#81) \xB7 \u018Fbu Davud (4/318)",
+    virtue: "Kim bu duan\u0131 s\u0259h\u0259r oxuyarsa, o g\xFCn\xFCn \u015F\xFCkr\xFCn\xFC yerin\u0259 yetirmi\u015F olar."
+  },
+  // 7b. Nemətə Şükür — Axşam (Müsəlman Qalası, #81)
+  {
+    id: "axsam-nime-shukur",
+    category: "axsam",
+    timeLabel: "Ax\u015Fam zikri",
+    title: "Ax\u015Fam \u2014 Nem\u0259tl\u0259rin Yaln\u0131z Allahdan Oldu\u011Funa \u015E\xFCk\xFCr Zikri",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0645\u064E\u0627 \u0623\u064E\u0645\u0652\u0633\u064E\u0649 \u0628\u0650\u064A \u0645\u0650\u0646\u0652 \u0646\u0650\u0639\u0652\u0645\u064E\u0629\u064D \u0623\u064E\u0648\u0652 \u0628\u0650\u0623\u064E\u062D\u064E\u062F\u064D \u0645\u0650\u0646\u0652 \u062E\u064E\u0644\u0652\u0642\u0650\u0643\u064E \u0641\u064E\u0645\u0650\u0646\u0652\u0643\u064E \u0648\u064E\u062D\u0652\u062F\u064E\u0643\u064E \u0644\u064E\u0627 \u0634\u064E\u0631\u0650\u064A\u0643\u064E \u0644\u064E\u0643\u064E\u060C \u0641\u064E\u0644\u064E\u0643\u064E \u0627\u0644\u0652\u062D\u064E\u0645\u0652\u062F\u064F \u0648\u064E\u0644\u064E\u0643\u064E \u0627\u0644\u0634\u064F\u0651\u0643\u0652\u0631\u064F",
+    translation: "Allah\u0131m! Bu ax\u015Fam m\u0259n\u0259 v\u0259 ya yaratd\u0131qlar\u0131ndan h\u0259r hans\u0131 birin\u0259 n\u0259sib olan h\u0259r bir nem\u0259t yaln\u0131z S\u0259nd\u0259ndir, S\u0259nin \u015F\u0259rikin yoxdur. H\u0259md d\u0259 S\u0259n\u0259dir, \u015F\xFCk\xFCr d\u0259 S\u0259n\u0259dir!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#81) \xB7 \u018Fbu Davud (4/318)",
+    virtue: "Kim bu duan\u0131 ax\u015Fam oxuyarsa, o gec\u0259nin \u015F\xFCkr\xFCn\xFC yerin\u0259 yetirmi\u015F olar."
+  },
+  // 8. Bədən, Qulaq və Göz Sağlamlığı (Müsəlman Qalası, #82)
+  {
+    id: "afini-fi-bedeni",
+    category: "seher",
+    categories: ["seher", "axsam"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "B\u0259d\u0259n, E\u015Fitm\u0259 v\u0259 G\xF6rm\u0259 Sa\u011Flaml\u0131\u011F\u0131 \u0130st\u0259yi",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0639\u064E\u0627\u0641\u0650\u0646\u0650\u064A \u0641\u0650\u064A \u0628\u064E\u062F\u064E\u0646\u0650\u064A\u060C \u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0639\u064E\u0627\u0641\u0650\u0646\u0650\u064A \u0641\u0650\u064A \u0633\u064E\u0645\u0652\u0639\u0650\u064A\u060C \u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0639\u064E\u0627\u0641\u0650\u0646\u0650\u064A \u0641\u0650\u064A \u0628\u064E\u0635\u064E\u0631\u0650\u064A\u060C \u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0623\u064E\u0646\u0652\u062A\u064E\u060C \u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0625\u0650\u0646\u0650\u0651\u064A \u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u064E \u0627\u0644\u0652\u0643\u064F\u0641\u0652\u0631\u0650 \u0648\u064E\u0627\u0644\u0652\u0641\u064E\u0642\u0652\u0631\u0650\u060C \u0648\u064E\u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u0652 \u0639\u064E\u0630\u064E\u0627\u0628\u0650 \u0627\u0644\u0652\u0642\u064E\u0628\u0652\u0631\u0650\u060C \u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0623\u064E\u0646\u0652\u062A\u064E",
+    translation: "Allah\u0131m! B\u0259d\u0259nim\u0259 sa\u011Flaml\u0131q ver! Allah\u0131m! Qula\u011F\u0131ma sa\u011Flaml\u0131q ver! Allah\u0131m! G\xF6z\xFCm\u0259 sa\u011Flaml\u0131q ver! S\u0259nd\u0259n ba\u015Fqa haqq m\u0259bud yoxdur. Allah\u0131m! K\xFCfrd\u0259n v\u0259 yoxsulluqdan S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram. Q\u0259bir \u0259zab\u0131ndan S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram. S\u0259nd\u0259n ba\u015Fqa haqq m\u0259bud yoxdur!",
+    targetCount: 3,
+    countNote: "3 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#82) \xB7 \u018Fbu Davud (4/324), \u018Fhm\u0259d (5/42)",
+    virtue: "S\u0259h\u0259r v\u0259 ax\u015Fam 3 d\u0259f\u0259 oxunaraq h\u0259m b\u0259d\u0259n afiy\u0259ti, h\u0259m d\u0259 q\u0259bir \u0259zab\u0131ndan qorunma dil\u0259nir."
+  },
+  // 9. Təvəkkül Zikri (Müsəlman Qalası, #83)
+  {
+    id: "hasbiyallahu",
+    category: "seher",
+    categories: ["seher", "axsam"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "D\xFCnya v\u0259 Axir\u0259t Qay\u011F\u0131lar\u0131na Qar\u015F\u0131 T\u0259v\u0259kk\xFCl Zikri",
+    arabicText: "\u062D\u064E\u0633\u0652\u0628\u0650\u064A\u064E \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0647\u064F\u0648\u064E\u060C \u0639\u064E\u0644\u064E\u064A\u0652\u0647\u0650 \u062A\u064E\u0648\u064E\u0643\u064E\u0651\u0644\u0652\u062A\u064F\u060C \u0648\u064E\u0647\u064F\u0648\u064E \u0631\u064E\u0628\u064F\u0651 \u0627\u0644\u0652\u0639\u064E\u0631\u0652\u0634\u0650 \u0627\u0644\u0652\u0639\u064E\u0638\u0650\u064A\u0645\u0650",
+    translation: "M\u0259n\u0259 Allah yet\u0259r! Ondan ba\u015Fqa haqq m\u0259bud yoxdur. M\u0259n yaln\u0131z Ona t\u0259v\u0259kk\xFCl etdim. O, \u0259z\u0259m\u0259tli \u018Fr\u015Fin R\u0259bbidir!",
+    targetCount: 7,
+    countNote: "7 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#83) \xB7 \u018Fbu Davud (4/321)",
+    virtue: "Kim bunu s\u0259h\u0259r v\u0259 ax\u015Fam yeddi d\u0259f\u0259 dey\u0259rs\u0259, d\xFCnya v\u0259 axir\u0259t il\u0259 ba\u011Fl\u0131 onu narahat ed\u0259n h\u0259r i\u015Fd\u0259 Allah ona kifay\u0259t ed\u0259r."
+  },
+  // 10. Dünya və Axirətdə Bağışlanma və Salamatlıq (Müsəlman Qalası, #84)
+  {
+    id: "afve-vel-afiyete",
+    category: "seher",
+    categories: ["seher", "axsam"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "D\xFCnya v\u0259 Axir\u0259td\u0259 \u018Ffv, Afiy\u0259t v\u0259 Hifz Duas\u0131",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0625\u0650\u0646\u0650\u0651\u064A \u0623\u064E\u0633\u0652\u0623\u064E\u0644\u064F\u0643\u064E \u0627\u0644\u0652\u0639\u064E\u0641\u0652\u0648\u064E \u0648\u064E\u0627\u0644\u0652\u0639\u064E\u0627\u0641\u0650\u064A\u064E\u0629\u064E \u0641\u0650\u064A \u0627\u0644\u062F\u064F\u0651\u0646\u0652\u064A\u064E\u0627 \u0648\u064E\u0627\u0644\u0652\u0622\u062E\u0650\u0631\u064E\u0629\u0650\u060C \u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0625\u0650\u0646\u0650\u0651\u064A \u0623\u064E\u0633\u0652\u0623\u064E\u0644\u064F\u0643\u064E \u0627\u0644\u0652\u0639\u064E\u0641\u0652\u0648\u064E \u0648\u064E\u0627\u0644\u0652\u0639\u064E\u0627\u0641\u0650\u064A\u064E\u0629\u064E \u0641\u0650\u064A \u062F\u0650\u064A\u0646\u0650\u064A \u0648\u064E\u062F\u064F\u0646\u0652\u064A\u064E\u0627\u064A\u064E \u0648\u064E\u0623\u064E\u0647\u0652\u0644\u0650\u064A \u0648\u064E\u0645\u064E\u0627\u0644\u0650\u064A\u060C \u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0627\u0633\u0652\u062A\u064F\u0631\u0652 \u0639\u064E\u0648\u0652\u0631\u064E\u0627\u062A\u0650\u064A \u0648\u064E\u0622\u0645\u0650\u0646\u0652 \u0631\u064E\u0648\u0652\u0639\u064E\u0627\u062A\u0650\u064A\u060C \u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0627\u062D\u0652\u0641\u064E\u0638\u0652\u0646\u0650\u064A \u0645\u0650\u0646\u0652 \u0628\u064E\u064A\u0652\u0646\u0650 \u064A\u064E\u062F\u064E\u064A\u064E\u0651\u060C \u0648\u064E\u0645\u0650\u0646\u0652 \u062E\u064E\u0644\u0652\u0641\u0650\u064A\u060C \u0648\u064E\u0639\u064E\u0646\u0652 \u064A\u064E\u0645\u0650\u064A\u0646\u0650\u064A\u060C \u0648\u064E\u0639\u064E\u0646\u0652 \u0634\u0650\u0645\u064E\u0627\u0644\u0650\u064A\u060C \u0648\u064E\u0645\u0650\u0646\u0652 \u0641\u064E\u0648\u0652\u0642\u0650\u064A\u060C \u0648\u064E\u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0639\u064E\u0638\u064E\u0645\u064E\u062A\u0650\u0643\u064E \u0623\u064E\u0646\u0652 \u0623\u064F\u063A\u0652\u062A\u064E\u0627\u0644\u064E \u0645\u0650\u0646\u0652 \u062A\u064E\u062D\u0652\u062A\u0650\u064A",
+    translation: "Allah\u0131m! D\xFCnya v\u0259 axir\u0259td\u0259 S\u0259nd\u0259n \u0259fv v\u0259 salamatl\u0131q (afiy\u0259t) dil\u0259yir\u0259m. Allah\u0131m! Dinimd\u0259, d\xFCnyamda, ail\u0259md\u0259 v\u0259 mal\u0131mda S\u0259nd\u0259n \u0259fv v\u0259 salamatl\u0131q dil\u0259yir\u0259m. Allah\u0131m! Eyibl\u0259rimi \xF6rt v\u0259 qorxular\u0131mdan m\u0259ni \u0259min-amanl\u0131qda et. Allah\u0131m! M\u0259ni \xF6n\xFCmd\u0259n, arxamdan, sa\u011F\u0131mdan, solumdan v\u0259 yuxar\u0131mdan qoru; alt t\u0259r\u0259fd\u0259n q\u0259fil f\u0259lak\u0259t\u0259 d\xFC\xE7ar olmaqdan da S\u0259nin \u0259z\u0259m\u0259tin\u0259 s\u0131\u011F\u0131n\u0131ram!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#84) \xB7 \u018Fbu Davud, \u0130bn Mac\u0259 (2/332)",
+    virtue: "Pey\u011F\u0259mb\u0259rimizin (s.a.s.) s\u0259h\u0259r v\u0259 ax\u015Fam he\xE7 vaxt t\u0259rk etm\u0259diyi \u0259hat\u0259li qorunma duas\u0131d\u0131r."
+  },
+  // 11. Qeybi və Aşkarı Bilən Allaha Sığınma (Müsəlman Qalası, #85)
+  {
+    id: "alimel-gaybi",
+    category: "seher",
+    categories: ["seher", "axsam"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "N\u0259fsin v\u0259 \u015Eeytan\u0131n \u015E\u0259rind\u0259n S\u0131\u011F\u0131nma Duas\u0131",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0639\u064E\u0627\u0644\u0650\u0645\u064E \u0627\u0644\u0652\u063A\u064E\u064A\u0652\u0628\u0650 \u0648\u064E\u0627\u0644\u0634\u064E\u0651\u0647\u064E\u0627\u062F\u064E\u0629\u0650 \u0641\u064E\u0627\u0637\u0650\u0631\u064E \u0627\u0644\u0633\u064E\u0651\u0645\u064E\u0627\u0648\u064E\u0627\u062A\u0650 \u0648\u064E\u0627\u0644\u0652\u0623\u064E\u0631\u0652\u0636\u0650\u060C \u0631\u064E\u0628\u064E\u0651 \u0643\u064F\u0644\u0650\u0651 \u0634\u064E\u064A\u0652\u0621\u064D \u0648\u064E\u0645\u064E\u0644\u0650\u064A\u0643\u064E\u0647\u064F\u060C \u0623\u064E\u0634\u0652\u0647\u064E\u062F\u064F \u0623\u064E\u0646\u0652 \u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0623\u064E\u0646\u0652\u062A\u064E\u060C \u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u0646\u064E\u0641\u0652\u0633\u0650\u064A\u060C \u0648\u064E\u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u0627\u0644\u0634\u064E\u0651\u064A\u0652\u0637\u064E\u0627\u0646\u0650 \u0648\u064E\u0634\u0650\u0631\u0652\u0643\u0650\u0647\u0650\u060C \u0648\u064E\u0623\u064E\u0646\u0652 \u0623\u064E\u0642\u0652\u062A\u064E\u0631\u0650\u0641\u064E \u0639\u064E\u0644\u064E\u0649\u0670 \u0646\u064E\u0641\u0652\u0633\u0650\u064A \u0633\u064F\u0648\u0621\u064B\u0627 \u0623\u064E\u0648\u0652 \u0623\u064E\u062C\u064F\u0631\u064E\u0651\u0647\u064F \u0625\u0650\u0644\u064E\u0649\u0670 \u0645\u064F\u0633\u0652\u0644\u0650\u0645\u064D",
+    translation: "Ey qeybi v\u0259 a\u015Fkar\u0131 Bil\u0259n, g\xF6yl\u0259ri v\u0259 yeri Yaradan Allah\u0131m! Ey h\u0259r \u015Feyin R\u0259bbi v\u0259 Sahibi! \u015E\u0259had\u0259t verir\u0259m ki, S\u0259nd\u0259n ba\u015Fqa haqq m\u0259bud yoxdur. N\u0259fsimin \u015F\u0259rind\u0259n, \u015Feytan\u0131n \u015F\u0259rind\u0259n v\u0259 \u015Firkind\u0259n, \xF6z\xFCm\u0259 qar\u015F\u0131 pislik etm\u0259kd\u0259n v\u0259 ya onu bir m\xFCs\u0259lmana y\xF6n\u0259ltm\u0259kd\u0259n S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#85) \xB7 Tirmizi, \u018Fbu Davud (4/317)",
+    virtue: "S\u0259h\u0259r, ax\u015Fam v\u0259 yata\u011Fa uzananda oxunan n\u0259fis qorunma zikridir."
+  },
+  // 12. Hər Cür Zərərdən Qorunma (Müsəlman Qalası, #86)
+  {
+    id: "seher-qorunma",
+    category: "seher",
+    categories: ["seher", "axsam"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "H\u0259r C\xFCr B\u0259la v\u0259 Q\u0259fil Z\u0259r\u0259rd\u0259n Qorunma Zikri",
+    arabicText: "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0627\u0644\u064E\u0651\u0630\u0650\u064A \u0644\u064E\u0627 \u064A\u064E\u0636\u064F\u0631\u064F\u0651 \u0645\u064E\u0639\u064E \u0627\u0633\u0652\u0645\u0650\u0647\u0650 \u0634\u064E\u064A\u0652\u0621\u064C \u0641\u0650\u064A \u0627\u0644\u0652\u0623\u064E\u0631\u0652\u0636\u0650 \u0648\u064E\u0644\u064E\u0627 \u0641\u0650\u064A \u0627\u0644\u0633\u064E\u0651\u0645\u064E\u0627\u0621\u0650 \u0648\u064E\u0647\u064F\u0648\u064E \u0627\u0644\u0633\u064E\u0651\u0645\u0650\u064A\u0639\u064F \u0627\u0644\u0652\u0639\u064E\u0644\u0650\u064A\u0645\u064F",
+    translation: "Ad\u0131 il\u0259 yerd\u0259 v\u0259 g\xF6yd\u0259 he\xE7 bir \u015Feyin z\u0259r\u0259r ver\u0259 bilm\u0259y\u0259c\u0259yi Allah\u0131n ad\u0131 il\u0259! O, E\u015Fid\u0259ndir, Bil\u0259ndir.",
+    targetCount: 3,
+    countNote: "3 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#86) \xB7 \u018Fbu Davud (4/323), Tirmizi (5/465)",
+    virtue: "S\u0259h\u0259r 3 d\u0259f\u0259 oxuyana ax\u015Fama q\u0259d\u0259r, ax\u015Fam 3 d\u0259f\u0259 oxuyana s\u0259h\u0259r\u0259 q\u0259d\u0259r q\u0259fil b\u0259la toxunmaz."
+  },
+  // 13. İman və İslamdan Razılıq (Müsəlman Qalası, #87)
+  {
+    id: "seher-razi-olmaq",
+    category: "seher",
+    categories: ["seher", "axsam"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "Allahdan, \u0130slamdan v\u0259 Pey\u011F\u0259mb\u0259rd\u0259n (s.a.s.) Raz\u0131l\u0131q Zikri",
+    arabicText: "\u0631\u064E\u0636\u0650\u064A\u062A\u064F \u0628\u0650\u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0631\u064E\u0628\u064B\u0651\u0627\u060C \u0648\u064E\u0628\u0650\u0627\u0644\u0652\u0625\u0650\u0633\u0652\u0644\u064E\u0627\u0645\u0650 \u062F\u0650\u064A\u0646\u064B\u0627\u060C \u0648\u064E\u0628\u0650\u0645\u064F\u062D\u064E\u0645\u064E\u0651\u062F\u064D \u0635\u064E\u0644\u064E\u0651\u0649 \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0639\u064E\u0644\u064E\u064A\u0652\u0647\u0650 \u0648\u064E\u0633\u064E\u0644\u064E\u0651\u0645\u064E \u0646\u064E\u0628\u0650\u064A\u064B\u0651\u0627",
+    translation: "Allah\u0131n R\u0259bb, \u0130slam\u0131n din, Muh\u0259mm\u0259din (s.a.s.) is\u0259 pey\u011F\u0259mb\u0259r olmas\u0131na raz\u0131 qald\u0131m.",
+    targetCount: 3,
+    countNote: "3 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#87) \xB7 \u018Fhm\u0259d (4/337), \u018Fbu Davud (4/318)",
+    virtue: "Kim bunu s\u0259h\u0259r v\u0259 ax\u015Fam \xFC\xE7 d\u0259f\u0259 dey\u0259rs\u0259, Qiyam\u0259t g\xFCn\xFC Allah\u0131n onu raz\u0131 salmas\u0131 haqq olar."
+  },
+  // 14. Ya Həyyu ya Qəyyumu birəhmətikə əstəğis (Müsəlman Qalası, #88)
+  {
+    id: "ya-hayyu-ya-qayyum",
+    category: "seher",
+    categories: ["seher", "axsam"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "B\xFCt\xFCn \u0130\u015Fl\u0259rin Islah\u0131 \xDC\xE7\xFCn Allahdan Yard\u0131m \u0130st\u0259yi",
+    arabicText: "\u064A\u064E\u0627 \u062D\u064E\u064A\u064F\u0651 \u064A\u064E\u0627 \u0642\u064E\u064A\u064F\u0651\u0648\u0645\u064F \u0628\u0650\u0631\u064E\u062D\u0652\u0645\u064E\u062A\u0650\u0643\u064E \u0623\u064E\u0633\u0652\u062A\u064E\u063A\u0650\u064A\u062B\u064F \u0623\u064E\u0635\u0652\u0644\u0650\u062D\u0652 \u0644\u0650\u064A \u0634\u064E\u0623\u0652\u0646\u0650\u064A \u0643\u064F\u0644\u064E\u0651\u0647\u064F \u0648\u064E\u0644\u064E\u0627 \u062A\u064E\u0643\u0650\u0644\u0652\u0646\u0650\u064A \u0625\u0650\u0644\u064E\u0649\u0670 \u0646\u064E\u0641\u0652\u0633\u0650\u064A \u0637\u064E\u0631\u0652\u0641\u064E\u0629\u064E \u0639\u064E\u064A\u0652\u0646\u064D",
+    translation: "Ey \u018Fb\u0259di Ya\u015Fayan (H\u0259yy), ey h\u0259r \u015Feyi Qoruyub \u0130dar\u0259 Ed\u0259n (Q\u0259yyum)! S\u0259nin m\u0259rh\u0259m\u0259tinl\u0259 S\u0259nd\u0259n imdad dil\u0259yir\u0259m. B\xFCt\xFCn i\u015Fl\u0259rimi islah et (yoluna qoy) v\u0259 m\u0259ni bir g\xF6z q\u0131rp\u0131m\u0131 bel\u0259 \xF6z n\u0259fsimin \xF6hd\u0259sin\u0259 buraxma!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#88) \xB7 Hakim (1/545), N\u0259sai",
+    virtue: "Qulun acizliyini etiraf edib b\xFCt\xFCn i\u015Fl\u0259rind\u0259 Allah\u0131n m\u0259rh\u0259m\u0259tin\u0259 s\u0131\u011F\u0131nd\u0131\u011F\u0131 zikrdir."
+  },
+  // 15a. Günün Fəthi, Nuru və Bərəkəti — Səhər (Müsəlman Qalası, #89)
+  {
+    id: "seher-feth-nur",
+    category: "seher",
+    timeLabel: "S\u0259h\u0259r zikri",
+    title: "S\u0259h\u0259r \u2014 G\xFCn\xFCn F\u0259thi, Nuru, B\u0259r\u0259k\u0259ti v\u0259 Hiday\u0259ti \u0130st\u0259yi",
+    arabicText: "\u0623\u064E\u0635\u0652\u0628\u064E\u062D\u0652\u0646\u064E\u0627 \u0648\u064E\u0623\u064E\u0635\u0652\u0628\u064E\u062D\u064E \u0627\u0644\u0652\u0645\u064F\u0644\u0652\u0643\u064F \u0644\u0650\u0644\u064E\u0651\u0647\u0650 \u0631\u064E\u0628\u0650\u0651 \u0627\u0644\u0652\u0639\u064E\u0627\u0644\u064E\u0645\u0650\u064A\u0646\u064E\u060C \u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0625\u0650\u0646\u0650\u0651\u064A \u0623\u064E\u0633\u0652\u0623\u064E\u0644\u064F\u0643\u064E \u062E\u064E\u064A\u0652\u0631\u064E \u0647\u064E\u0670\u0630\u064E\u0627 \u0627\u0644\u0652\u064A\u064E\u0648\u0652\u0645\u0650: \u0641\u064E\u062A\u0652\u062D\u064E\u0647\u064F\u060C \u0648\u064E\u0646\u064E\u0635\u0652\u0631\u064E\u0647\u064F\u060C \u0648\u064E\u0646\u064F\u0648\u0631\u064E\u0647\u064F\u060C \u0648\u064E\u0628\u064E\u0631\u064E\u0643\u064E\u062A\u064E\u0647\u064F\u060C \u0648\u064E\u0647\u064F\u062F\u064E\u0627\u0647\u064F\u060C \u0648\u064E\u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u0645\u064E\u0627 \u0641\u0650\u064A\u0647\u0650 \u0648\u064E\u0634\u064E\u0631\u0650\u0651 \u0645\u064E\u0627 \u0628\u064E\u0639\u0652\u062F\u064E\u0647\u064F",
+    translation: "S\u0259h\u0259r\u0259 \xE7\u0131xd\u0131q v\u0259 m\xFClk d\u0259 al\u0259ml\u0259rin R\u0259bbi Allaha m\u0259xsus olaraq s\u0259h\u0259r\u0259 \xE7\u0131xd\u0131. Allah\u0131m! S\u0259nd\u0259n bu g\xFCn\xFCn xeyrini \u2014 f\u0259thini, z\u0259f\u0259rini, nurunu, b\u0259r\u0259k\u0259tini v\u0259 hiday\u0259tini dil\u0259yir\u0259m. Bu g\xFCnd\u0259 v\u0259 bundan sonrak\u0131 g\xFCnl\u0259rd\u0259 olan \u015F\u0259rd\u0259n S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#89) \xB7 \u018Fbu Davud (4/322)",
+    virtue: "G\xFCn\xFCn b\u0259r\u0259k\u0259t, nur v\u0259 hiday\u0259t i\xE7ind\u0259 ke\xE7m\u0259si \xFC\xE7\xFCn s\u0259h\u0259rl\u0259r oxunur."
+  },
+  // 15b. Gecənin Fəthi, Nuru və Bərəkəti — Axşam (Müsəlman Qalası, #89)
+  {
+    id: "axsam-feth-nur",
+    category: "axsam",
+    timeLabel: "Ax\u015Fam zikri",
+    title: "Ax\u015Fam \u2014 Gec\u0259nin F\u0259thi, Nuru, B\u0259r\u0259k\u0259ti v\u0259 Hiday\u0259ti \u0130st\u0259yi",
+    arabicText: "\u0623\u064E\u0645\u0652\u0633\u064E\u064A\u0652\u0646\u064E\u0627 \u0648\u064E\u0623\u064E\u0645\u0652\u0633\u064E\u0649 \u0627\u0644\u0652\u0645\u064F\u0644\u0652\u0643\u064F \u0644\u0650\u0644\u064E\u0651\u0647\u0650 \u0631\u064E\u0628\u0650\u0651 \u0627\u0644\u0652\u0639\u064E\u0627\u0644\u064E\u0645\u0650\u064A\u0646\u064E\u060C \u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0625\u0650\u0646\u0650\u0651\u064A \u0623\u064E\u0633\u0652\u0623\u064E\u0644\u064F\u0643\u064E \u062E\u064E\u064A\u0652\u0631\u064E \u0647\u064E\u0670\u0630\u0650\u0647\u0650 \u0627\u0644\u0644\u064E\u0651\u064A\u0652\u0644\u064E\u0629\u0650: \u0641\u064E\u062A\u0652\u062D\u064E\u0647\u064E\u0627\u060C \u0648\u064E\u0646\u064E\u0635\u0652\u0631\u064E\u0647\u064E\u0627\u060C \u0648\u064E\u0646\u064F\u0648\u0631\u064E\u0647\u064E\u0627\u060C \u0648\u064E\u0628\u064E\u0631\u064E\u0643\u064E\u062A\u064E\u0647\u064E\u0627\u060C \u0648\u064E\u0647\u064F\u062F\u064E\u0627\u0647\u064E\u0627\u060C \u0648\u064E\u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E \u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u0645\u064E\u0627 \u0641\u0650\u064A\u0647\u064E\u0627 \u0648\u064E\u0634\u064E\u0631\u0650\u0651 \u0645\u064E\u0627 \u0628\u064E\u0639\u0652\u062F\u064E\u0647\u064E\u0627",
+    translation: "Ax\u015Fama \xE7\u0131xd\u0131q v\u0259 m\xFClk d\u0259 al\u0259ml\u0259rin R\u0259bbi Allaha m\u0259xsus olaraq ax\u015Fama \xE7\u0131xd\u0131. Allah\u0131m! S\u0259nd\u0259n bu gec\u0259nin xeyrini \u2014 f\u0259thini, z\u0259f\u0259rini, nurunu, b\u0259r\u0259k\u0259tini v\u0259 hiday\u0259tini dil\u0259yir\u0259m. Bu gec\u0259d\u0259 v\u0259 bundan sonrak\u0131 gec\u0259l\u0259rd\u0259 olan \u015F\u0259rd\u0259n S\u0259n\u0259 s\u0131\u011F\u0131n\u0131ram!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#89) \xB7 \u018Fbu Davud (4/322)",
+    virtue: "Gec\u0259nin xeyir, nur v\u0259 \u0259min-amanl\u0131q i\xE7ind\u0259 ke\xE7m\u0259si \xFC\xE7\xFCn ax\u015Famlar oxunur."
+  },
+  // 16a. İslam Fitrəti Üzrə — Səhər (Müsəlman Qalası, #90)
+  {
+    id: "seher-fitret",
+    category: "seher",
+    timeLabel: "S\u0259h\u0259r zikri",
+    title: "S\u0259h\u0259r \u2014 \u0130slam Fitr\u0259ti v\u0259 \u0130xlas K\u0259lm\u0259si \xDCz\u0259r\u0259 \xC7\u0131xmaq",
+    arabicText: "\u0623\u064E\u0635\u0652\u0628\u064E\u062D\u0652\u0646\u064E\u0627 \u0639\u064E\u0644\u064E\u0649\u0670 \u0641\u0650\u0637\u0652\u0631\u064E\u0629\u0650 \u0627\u0644\u0652\u0625\u0650\u0633\u0652\u0644\u064E\u0627\u0645\u0650\u060C \u0648\u064E\u0639\u064E\u0644\u064E\u0649\u0670 \u0643\u064E\u0644\u0650\u0645\u064E\u0629\u0650 \u0627\u0644\u0652\u0625\u0650\u062E\u0652\u0644\u064E\u0627\u0635\u0650\u060C \u0648\u064E\u0639\u064E\u0644\u064E\u0649\u0670 \u062F\u0650\u064A\u0646\u0650 \u0646\u064E\u0628\u0650\u064A\u0650\u0651\u0646\u064E\u0627 \u0645\u064F\u062D\u064E\u0645\u064E\u0651\u062F\u064D \u0635\u064E\u0644\u064E\u0651\u0649 \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0639\u064E\u0644\u064E\u064A\u0652\u0647\u0650 \u0648\u064E\u0633\u064E\u0644\u064E\u0651\u0645\u064E\u060C \u0648\u064E\u0639\u064E\u0644\u064E\u0649\u0670 \u0645\u0650\u0644\u064E\u0651\u0629\u0650 \u0623\u064E\u0628\u0650\u064A\u0646\u064E\u0627 \u0625\u0650\u0628\u0652\u0631\u064E\u0627\u0647\u0650\u064A\u0645\u064E \u062D\u064E\u0646\u0650\u064A\u0641\u064B\u0627 \u0645\u064F\u0633\u0652\u0644\u0650\u0645\u064B\u0627 \u0648\u064E\u0645\u064E\u0627 \u0643\u064E\u0627\u0646\u064E \u0645\u0650\u0646\u064E \u0627\u0644\u0652\u0645\u064F\u0634\u0652\u0631\u0650\u0643\u0650\u064A\u0646\u064E",
+    translation: "\u0130slam fitr\u0259ti, ixlas k\u0259lm\u0259si (L\u0259 ilah\u0259 ill\u0259llah), Pey\u011F\u0259mb\u0259rimiz Muh\u0259mm\u0259din (s.a.s.) dini v\u0259 h\u0259nif, m\xFCs\u0259lman olan, m\xFC\u015Frikl\u0259rd\u0259n olmayan atam\u0131z \u0130brahimin mill\u0259ti \xFCz\u0259r\u0259 s\u0259h\u0259r\u0259 \xE7\u0131xd\u0131q!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#90) \xB7 \u018Fhm\u0259d (3/406)",
+    virtue: "T\xF6vhid v\u0259 fitr\u0259t \xFCz\u0259r\u0259 sabit qalmaq \xFC\xE7\xFCn s\u0259h\u0259rl\u0259r oxunur."
+  },
+  // 16b. İslam Fitrəti Üzrə — Axşam (Müsəlman Qalası, #90)
+  {
+    id: "axsam-fitret",
+    category: "axsam",
+    timeLabel: "Ax\u015Fam zikri",
+    title: "Ax\u015Fam \u2014 \u0130slam Fitr\u0259ti v\u0259 \u0130xlas K\u0259lm\u0259si \xDCz\u0259r\u0259 \xC7\u0131xmaq",
+    arabicText: "\u0623\u064E\u0645\u0652\u0633\u064E\u064A\u0652\u0646\u064E\u0627 \u0639\u064E\u0644\u064E\u0649\u0670 \u0641\u0650\u0637\u0652\u0631\u064E\u0629\u0650 \u0627\u0644\u0652\u0625\u0650\u0633\u0652\u0644\u064E\u0627\u0645\u0650\u060C \u0648\u064E\u0639\u064E\u0644\u064E\u0649\u0670 \u0643\u064E\u0644\u0650\u0645\u064E\u0629\u0650 \u0627\u0644\u0652\u0625\u0650\u062E\u0652\u0644\u064E\u0627\u0635\u0650\u060C \u0648\u064E\u0639\u064E\u0644\u064E\u0649\u0670 \u062F\u0650\u064A\u0646\u0650 \u0646\u064E\u0628\u0650\u064A\u0650\u0651\u0646\u064E\u0627 \u0645\u064F\u062D\u064E\u0645\u064E\u0651\u062F\u064D \u0635\u064E\u0644\u064E\u0651\u0649 \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0639\u064E\u0644\u064E\u064A\u0652\u0647\u0650 \u0648\u064E\u0633\u064E\u0644\u064E\u0651\u0645\u064E\u060C \u0648\u064E\u0639\u064E\u0644\u064E\u0649\u0670 \u0645\u0650\u0644\u064E\u0651\u0629\u0650 \u0623\u064E\u0628\u0650\u064A\u0646\u064E\u0627 \u0625\u0650\u0628\u0652\u0631\u064E\u0627\u0647\u0650\u064A\u0645\u064E \u062D\u064E\u0646\u0650\u064A\u0641\u064B\u0627 \u0645\u064F\u0633\u0652\u0644\u0650\u0645\u064B\u0627 \u0648\u064E\u0645\u064E\u0627 \u0643\u064E\u0627\u0646\u064E \u0645\u0650\u0646\u064E \u0627\u0644\u0652\u0645\u064F\u0634\u0652\u0631\u0650\u0643\u0650\u064A\u0646\u064E",
+    translation: "\u0130slam fitr\u0259ti, ixlas k\u0259lm\u0259si (L\u0259 ilah\u0259 ill\u0259llah), Pey\u011F\u0259mb\u0259rimiz Muh\u0259mm\u0259din (s.a.s.) dini v\u0259 h\u0259nif, m\xFCs\u0259lman olan, m\xFC\u015Frikl\u0259rd\u0259n olmayan atam\u0131z \u0130brahimin mill\u0259ti \xFCz\u0259r\u0259 ax\u015Fama \xE7\u0131xd\u0131q!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#90) \xB7 \u018Fhm\u0259d (3/406)",
+    virtue: "T\xF6vhid v\u0259 fitr\u0259t \xFCz\u0259r\u0259 sabit qalmaq \xFC\xE7\xFCn ax\u015Famlar oxunur."
+  },
+  // 17. Sübhanəllahi və bihəmdihi — Ədədə xalqihi (Müsəlman Qalası, #93 - Səhər)
+  {
+    id: "subhanallahi-adede-xalqihi",
+    category: "seher",
+    timeLabel: "S\u0259h\u0259r zikri",
+    title: "M\u0259xluqat\u0131n Say\u0131 v\u0259 \u018Fr\u015Fin A\u011F\u0131rl\u0131\u011F\u0131 Q\u0259d\u0259r T\u0259sbih v\u0259 H\u0259md",
+    arabicText: "\u0633\u064F\u0628\u0652\u062D\u064E\u0627\u0646\u064E \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0648\u064E\u0628\u0650\u062D\u064E\u0645\u0652\u062F\u0650\u0647\u0650: \u0639\u064E\u062F\u064E\u062F\u064E \u062E\u064E\u0644\u0652\u0642\u0650\u0647\u0650\u060C \u0648\u064E\u0631\u0650\u0636\u064E\u0627 \u0646\u064E\u0641\u0652\u0633\u0650\u0647\u0650\u060C \u0648\u064E\u0632\u0650\u0646\u064E\u0629\u064E \u0639\u064E\u0631\u0652\u0634\u0650\u0647\u0650\u060C \u0648\u064E\u0645\u0650\u062F\u064E\u0627\u062F\u064E \u0643\u064E\u0644\u0650\u0645\u064E\u0627\u062A\u0650\u0647\u0650",
+    translation: "Allah pak v\u0259 n\xF6qsans\u0131zd\u0131r! Yarad\u0131lm\u0131\u015Flar\u0131n\u0131n say\u0131, \xD6z\xFCn\xFCn raz\u0131 qald\u0131\u011F\u0131, \u018Fr\u015Finin a\u011F\u0131rl\u0131\u011F\u0131 v\u0259 k\u0259lm\u0259l\u0259rinin t\xFCk\u0259nm\u0259zliyi q\u0259d\u0259r Ona h\u0259md olsun!",
+    targetCount: 3,
+    countNote: "3 d\u0259f\u0259 (s\u0259h\u0259r)",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#93) \xB7 S\u0259hih M\xFCslim (4/2090)",
+    virtue: "S\xFCbh namaz\u0131ndan sonra \xFC\xE7 d\u0259f\u0259 oxunmas\u0131 saatlarla zikr etm\u0259y\u0259 b\u0259rab\u0259r savab qazand\u0131rar."
+  },
+  // 18. Faydalı elm, halal ruzi, məqbul əməl (Müsəlman Qalası, #94 - Səhər)
+  {
+    id: "seher-elm-ruzi",
+    category: "seher",
+    timeLabel: "S\u0259h\u0259r zikri",
+    title: "Faydal\u0131 Elm, Halal Ruzi v\u0259 M\u0259qbul \u018Fm\u0259l \u0130st\u0259yi",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0625\u0650\u0646\u0650\u0651\u064A \u0623\u064E\u0633\u0652\u0623\u064E\u0644\u064F\u0643\u064E \u0639\u0650\u0644\u0652\u0645\u064B\u0627 \u0646\u064E\u0627\u0641\u0650\u0639\u064B\u0627\u060C \u0648\u064E\u0631\u0650\u0632\u0652\u0642\u064B\u0627 \u0637\u064E\u064A\u0650\u0651\u0628\u064B\u0627\u060C \u0648\u064E\u0639\u064E\u0645\u064E\u0644\u064B\u0627 \u0645\u064F\u062A\u064E\u0642\u064E\u0628\u064E\u0651\u0644\u064B\u0627",
+    translation: "Allah\u0131m! S\u0259nd\u0259n faydal\u0131 elm, t\u0259miz (halal) ruzi v\u0259 d\u0259rgah\u0131nda q\u0259bul olunan \u0259m\u0259l dil\u0259yir\u0259m!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259 (s\u0259h\u0259r)",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#94) \xB7 \u0130bn Mac\u0259 (925)",
+    virtue: "Pey\u011F\u0259mb\u0259rimiz (s.a.s.) h\u0259r g\xFCn S\xFCbh namaz\u0131n\u0131n salam\u0131ndan sonra bu duan\u0131 oxuyard\u0131."
+  },
+  // 19. Axşam — Allahın tam kəlmələrinə sığınmaq (Müsəlman Qalası, #96 - Axşam)
+  {
+    id: "axsam-kelimeler",
+    category: "axsam",
+    timeLabel: "Ax\u015Fam zikri",
+    title: "Allah\u0131n Tam K\u0259lm\u0259l\u0259rin\u0259 S\u0131\u011F\u0131nmaq",
+    arabicText: "\u0623\u064E\u0639\u064F\u0648\u0630\u064F \u0628\u0650\u0643\u064E\u0644\u0650\u0645\u064E\u0627\u062A\u0650 \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0627\u0644\u062A\u064E\u0651\u0627\u0645\u064E\u0651\u0627\u062A\u0650 \u0645\u0650\u0646\u0652 \u0634\u064E\u0631\u0650\u0651 \u0645\u064E\u0627 \u062E\u064E\u0644\u064E\u0642\u064E",
+    translation: "Yaratd\u0131qlar\u0131n\u0131n \u015F\u0259rind\u0259n Allah\u0131n tam (kamil) k\u0259lm\u0259l\u0259rin\u0259 s\u0131\u011F\u0131n\u0131ram.",
+    targetCount: 3,
+    countNote: "3 d\u0259f\u0259 (ax\u015Fam)",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#96) \xB7 S\u0259hih M\xFCslim (2709), \u018Fhm\u0259d (2/290)",
+    virtue: "Ax\u015Famlar 3 d\u0259f\u0259 oxuyan h\u0259min gec\u0259 z\u0259r\u0259rvericil\u0259rin v\u0259 \u015F\u0259rrin toxunmas\u0131ndan qorunar."
+  },
+  // 20. Sübhanəllahi və bihəmdihi (Müsəlman Qalası, #91)
+  {
+    id: "subhanallahi-ve-bihamdihi",
+    category: "seher",
+    categories: ["seher", "axsam", "umumi"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "S\xFCbhan\u0259llahi v\u0259 Bih\u0259mdihi (G\xFCnahlar\u0131n Ba\u011F\u0131\u015Flanmas\u0131)",
+    arabicText: "\u0633\u064F\u0628\u0652\u062D\u064E\u0627\u0646\u064E \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0648\u064E\u0628\u0650\u062D\u064E\u0645\u0652\u062F\u0650\u0647\u0650",
+    translation: "Allah pak v\u0259 n\xF6qsans\u0131zd\u0131r v\u0259 Ona h\u0259md olsun!",
+    targetCount: 100,
+    countNote: "100 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#91) \xB7 S\u0259hih M\xFCslim (4/2071)",
+    virtue: "S\u0259h\u0259r v\u0259 ax\u015Fam y\xFCz d\u0259f\u0259 oxuyan\u0131n g\xFCnahlar\u0131 d\u0259niz k\xF6p\xFCy\xFC q\u0259d\u0259r olsa bel\u0259 ba\u011F\u0131\u015Flanar; Qiyam\u0259t g\xFCn\xFC ondan daha f\u0259zil\u0259tli \u0259m\u0259l g\u0259tir\u0259n olmaz."
+  },
+  // 21. Lə ilahə illəllahu vəhdəhu... (Müsəlman Qalası, #92)
+  {
+    id: "tahlil-tevhid-zikri",
+    category: "seher",
+    categories: ["seher", "axsam", "umumi"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "T\xF6vhid K\u0259lm\u0259si (10 Qul Azad Etm\u0259k Savab\u0131)",
+    arabicText: "\u0644\u064E\u0627 \u0625\u0650\u0644\u064E\u0670\u0647\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0627\u0644\u0644\u064E\u0651\u0647\u064F \u0648\u064E\u062D\u0652\u062F\u064E\u0647\u064F \u0644\u064E\u0627 \u0634\u064E\u0631\u0650\u064A\u0643\u064E \u0644\u064E\u0647\u064F\u060C \u0644\u064E\u0647\u064F \u0627\u0644\u0652\u0645\u064F\u0644\u0652\u0643\u064F \u0648\u064E\u0644\u064E\u0647\u064F \u0627\u0644\u0652\u062D\u064E\u0645\u0652\u062F\u064F\u060C \u0648\u064E\u0647\u064F\u0648\u064E \u0639\u064E\u0644\u064E\u0649\u0670 \u0643\u064F\u0644\u0650\u0651 \u0634\u064E\u064A\u0652\u0621\u064D \u0642\u064E\u062F\u0650\u064A\u0631\u064C",
+    translation: "T\u0259k olan Allahdan ba\u015Fqa haqq m\u0259bud yoxdur, Onun \u015F\u0259riki yoxdur. M\xFClk d\u0259 Onundur, h\u0259md d\u0259 Onundur v\u0259 O, h\u0259r \u015Fey\u0259 qadirdir.",
+    targetCount: 10,
+    countNote: "10 d\u0259f\u0259 (yaxud s\u0259h\u0259r 100 d\u0259f\u0259; t\u0259nb\u0259llikd\u0259 1 d\u0259f\u0259)",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#92) \xB7 Buxari (4/95), M\xFCslim (4/2071), \u018Fbu Davud (4/319)",
+    virtue: "On d\u0259f\u0259 dey\u0259n\u0259 100 savab yaz\u0131lar, 100 g\xFCnah\u0131 silin\u0259r v\u0259 ax\u015Fama q\u0259d\u0259r \u015Feytandan qoruyucu olar."
+  },
+  // 22. Əstəğfirullahə və ətubu ileyh (Müsəlman Qalası, #95)
+  {
+    id: "istighfar-ve-tevbe",
+    category: "seher",
+    categories: ["seher", "axsam", "umumi"],
+    timeLabel: "S\u0259h\u0259r v\u0259 g\xFCn \u0259rzind\u0259",
+    title: "\u0130sti\u011Ffar v\u0259 Allaha T\xF6vb\u0259 Zikri",
+    arabicText: "\u0623\u064E\u0633\u0652\u062A\u064E\u063A\u0652\u0641\u0650\u0631\u064F \u0627\u0644\u0644\u064E\u0651\u0647\u064E \u0648\u064E\u0623\u064E\u062A\u064F\u0648\u0628\u064F \u0625\u0650\u0644\u064E\u064A\u0652\u0647\u0650",
+    translation: "Allahdan ba\u011F\u0131\u015Flanma dil\u0259yir\u0259m v\u0259 Ona t\xF6vb\u0259 edir\u0259m.",
+    targetCount: 100,
+    countNote: "100 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#95) \xB7 Buxari (7/101), M\xFCslim (4/2075)",
+    virtue: "Pey\u011F\u0259mb\u0259rimiz (s.a.s.) g\xFCnd\u0259 yetmi\u015Fd\u0259n / y\xFCz d\u0259f\u0259d\u0259n \xE7ox Allahdan ba\u011F\u0131\u015Flanma dil\u0259y\u0259r\u0259k t\xF6vb\u0259 ed\u0259rdi."
+  },
+  // 23. Peyğəmbərə (s.a.s.) Salavat (Müsəlman Qalası, #97)
+  {
+    id: "seher-axsam-salavat",
+    category: "seher",
+    categories: ["seher", "axsam", "umumi"],
+    timeLabel: "S\u0259h\u0259r v\u0259 ax\u015Fam",
+    title: "Pey\u011F\u0259mb\u0259rimiz\u0259 (s.a.s.) Salavat",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0635\u064E\u0644\u0650\u0651 \u0648\u064E\u0633\u064E\u0644\u0650\u0651\u0645\u0652 \u0639\u064E\u0644\u064E\u0649\u0670 \u0646\u064E\u0628\u0650\u064A\u0650\u0651\u0646\u064E\u0627 \u0645\u064F\u062D\u064E\u0645\u064E\u0651\u062F\u064D",
+    translation: "Allah\u0131m! Pey\u011F\u0259mb\u0259rimiz Muh\u0259mm\u0259d\u0259 salavat v\u0259 salam g\xF6nd\u0259r!",
+    targetCount: 10,
+    countNote: "10 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#97) \xB7 T\u0259b\u0259rani",
+    virtue: "Kim s\u0259h\u0259r v\u0259 ax\u015Fam on d\u0259f\u0259 salavat g\u0259tir\u0259rs\u0259, Qiyam\u0259t g\xFCn\xFC Pey\u011F\u0259mb\u0259rimizin (s.a.s.) \u015F\u0259fa\u0259tin\u0259 nail olar."
+  },
+  // Namaz sonrası zikrlər
+  {
+    id: "namaz-salam-zikri",
+    category: "namaz",
+    timeLabel: "Namaz sonras\u0131",
+    title: "Salamdan D\u0259rhal Sonra Oxunan Zikr",
+    arabicText: "\u0623\u064E\u0633\u0652\u062A\u064E\u063A\u0652\u0641\u0650\u0631\u064F \u0627\u0644\u0644\u064E\u0651\u0647\u064E\u060C \u0623\u064E\u0633\u0652\u062A\u064E\u063A\u0652\u0641\u0650\u0631\u064F \u0627\u0644\u0644\u064E\u0651\u0647\u064E\u060C \u0623\u064E\u0633\u0652\u062A\u064E\u063A\u0652\u0641\u0650\u0631\u064F \u0627\u0644\u0644\u064E\u0651\u0647\u064E\u060C \u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0623\u064E\u0646\u0652\u062A\u064E \u0627\u0644\u0633\u064E\u0651\u0644\u064E\u0627\u0645\u064F \u0648\u064E\u0645\u0650\u0646\u0652\u0643\u064E \u0627\u0644\u0633\u064E\u0651\u0644\u064E\u0627\u0645\u064F \u062A\u064E\u0628\u064E\u0627\u0631\u064E\u0643\u0652\u062A\u064E \u064A\u064E\u0627 \u0630\u064E\u0627 \u0627\u0644\u0652\u062C\u064E\u0644\u064E\u0627\u0644\u0650 \u0648\u064E\u0627\u0644\u0652\u0625\u0650\u0643\u0652\u0631\u064E\u0627\u0645\u0650",
+    translation: "Allahdan ba\u011F\u0131\u015Flanma dil\u0259yir\u0259m (3 d\u0259f\u0259). Allah\u0131m! S\u0259n S\u0259lamsan (\u0259min-amanl\u0131q m\u0259nb\u0259yis\u0259n) v\u0259 \u0259min-amanl\u0131q yaln\u0131z S\u0259nd\u0259ndir. Ey \u0259z\u0259m\u0259t v\u0259 ikram sahibi, S\u0259n n\u0259 q\u0259d\u0259r uca v\u0259 b\u0259r\u0259k\u0259tlis\u0259n!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259 (3\xD7 \u018Fst\u0259\u011Ffirullah + dua)",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#66) \xB7 S\u0259hih M\xFCslim (591)",
+    virtue: "H\u0259r f\u0259rz namaz\u0131ndan salam verdikd\u0259n sonra d\u0259rhal oxunur."
+  },
+  {
+    id: "namaz-ibadet-duasi",
+    category: "namaz",
+    timeLabel: "Namaz sonras\u0131",
+    title: "Zikr, \u015E\xFCk\xFCr v\u0259 G\xF6z\u0259l \u0130bad\u0259t \u0130st\u0259yi",
+    arabicText: "\u0627\u0644\u0644\u064E\u0651\u0647\u064F\u0645\u064E\u0651 \u0623\u064E\u0639\u0650\u0646\u0650\u0651\u064A \u0639\u064E\u0644\u064E\u0649\u0670 \u0630\u0650\u0643\u0652\u0631\u0650\u0643\u064E \u0648\u064E\u0634\u064F\u0643\u0652\u0631\u0650\u0643\u064E \u0648\u064E\u062D\u064F\u0633\u0652\u0646\u0650 \u0639\u0650\u0628\u064E\u0627\u062F\u064E\u062A\u0650\u0643\u064E",
+    translation: "Allah\u0131m! S\u0259ni zikr etm\u0259kd\u0259, S\u0259n\u0259 \u015F\xFCk\xFCr etm\u0259kd\u0259 v\u0259 S\u0259n\u0259 g\xF6z\u0259l \u015F\u0259kild\u0259 ibad\u0259t etm\u0259kd\u0259 m\u0259n\u0259 k\xF6m\u0259k ol!",
+    targetCount: 1,
+    countNote: "1 d\u0259f\u0259",
+    source: "M\xFCs\u0259lman Qalas\u0131 (#74) \xB7 \u018Fbu Davud (1522), N\u0259sai (1303)",
+    virtue: "Pey\u011F\u0259mb\u0259rimizin (s.a.s.) h\u0259r namazdan sonra t\u0259rk etm\u0259m\u0259yi t\xF6vsiy\u0259 etdiyi dua."
+  },
+  // Gündəlik fəzilət zikrləri
+  {
+    id: "subhanallahil-azim-mizan",
+    category: "umumi",
+    timeLabel: "G\xFCnd\u0259lik f\u0259zil\u0259t",
+    title: "Dild\u0259 Y\xFCng\xFCl, T\u0259r\u0259zid\u0259 A\u011F\u0131r Zikr",
+    arabicText: "\u0633\u064F\u0628\u0652\u062D\u064E\u0627\u0646\u064E \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0648\u064E\u0628\u0650\u062D\u064E\u0645\u0652\u062F\u0650\u0647\u0650\u060C \u0633\u064F\u0628\u0652\u062D\u064E\u0627\u0646\u064E \u0627\u0644\u0644\u064E\u0651\u0647\u0650 \u0627\u0644\u0652\u0639\u064E\u0638\u0650\u064A\u0645\u0650",
+    translation: "Allah pak v\u0259 n\xF6qsans\u0131zd\u0131r v\u0259 Ona h\u0259md olsun! Uca Allah pak v\u0259 n\xF6qsans\u0131zd\u0131r!",
+    targetCount: 33,
+    countNote: "G\xFCnd\u0259lik \xE7oxlu zikr",
+    source: "S\u0259hih \u0259l-Buxari (6406), S\u0259hih M\xFCslim (2694)",
+    virtue: "R\u0259hmana sevimli, dild\u0259 y\xFCng\xFCl, Mizan t\u0259r\u0259zisind\u0259 is\u0259 \xE7ox a\u011F\u0131r olan iki k\u0259lm\u0259dir."
+  },
+  {
+    id: "la-hawla",
+    category: "umumi",
+    timeLabel: "G\xFCnd\u0259lik f\u0259zil\u0259t",
+    title: "C\u0259nn\u0259t X\u0259zin\u0259l\u0259rind\u0259n Biri",
+    arabicText: "\u0644\u064E\u0627 \u062D\u064E\u0648\u0652\u0644\u064E \u0648\u064E\u0644\u064E\u0627 \u0642\u064F\u0648\u064E\u0651\u0629\u064E \u0625\u0650\u0644\u064E\u0651\u0627 \u0628\u0650\u0627\u0644\u0644\u064E\u0651\u0647\u0650",
+    translation: "G\xFCc v\u0259 q\xFCvv\u0259t yaln\u0131z Allah\u0131n k\xF6m\u0259yi il\u0259dir.",
+    targetCount: 33,
+    countNote: "G\xFCnd\u0259lik zikr",
+    source: "S\u0259hih \u0259l-Buxari (4205), S\u0259hih M\xFCslim (2704)",
+    virtue: "\xC7\u0259tinlik anlar\u0131nda acizliyi etiraf ed\u0259r\u0259k Allahdan g\xFCc ist\u0259m\u0259k \xFC\xE7\xFCn oxunur."
+  }
+];
 
 // src/lib/prayerTimes.ts
 var BAKU_UTC_OFFSET_HOURS = 4;
@@ -4565,16 +5138,165 @@ function calculateWeeklyPrayerSchedule(location, startDate = /* @__PURE__ */ new
   return list;
 }
 
+// src/lib/hijriCalendar.ts
+var BLESSED_DAYS_CATALOG = [
+  {
+    id: "ramadan-start",
+    title: "Ramazan ba\u015Flan\u011F\u0131c\u0131",
+    subtitle: "M\xFCbar\u0259k Ramazan ay\u0131n\u0131n ilk g\xFCn\xFC",
+    month: 9,
+    day: 1
+  },
+  {
+    id: "laylat-al-qadr",
+    title: "Q\u0259dr gec\u0259si (27 Ramazan)",
+    subtitle: "Min aydan xeyirli olan gec\u0259nin ehtimal olunan 27-ci g\xFCn\xFC",
+    month: 9,
+    day: 27
+  },
+  {
+    id: "eid-al-fitr",
+    title: "Ramazan Bayram\u0131",
+    subtitle: "1 \u015E\u0259vval \xB7 Fitr bayram\u0131",
+    month: 10,
+    day: 1
+  },
+  {
+    id: "arafah",
+    title: "\u018Fr\u0259f\u0259 g\xFCn\xFC",
+    subtitle: "9 Z\xFClhicc\u0259 \xB7 Dua v\u0259 ba\u011F\u0131\u015Flanma g\xFCn\xFC",
+    month: 12,
+    day: 9
+  },
+  {
+    id: "eid-al-adha",
+    title: "Qurban Bayram\u0131",
+    subtitle: "10 Z\xFClhicc\u0259 \xB7 Qurban bayram\u0131",
+    month: 12,
+    day: 10
+  },
+  {
+    id: "hijri-new-year",
+    title: "Hicri Yeni \u0130l",
+    subtitle: "1 M\u0259h\u0259rr\u0259m \xB7 Yeni Hicri ilin ilk g\xFCn\xFC",
+    month: 1,
+    day: 1
+  },
+  {
+    id: "ashura",
+    title: "A\u015Fura g\xFCn\xFC",
+    subtitle: "10 M\u0259h\u0259rr\u0259m \xB7 M\u0259h\u0259rr\u0259m ay\u0131n\u0131n 10-cu g\xFCn\xFC",
+    month: 1,
+    day: 10
+  }
+];
+function toIsoDateKey(utcDate) {
+  const y = utcDate.getUTCFullYear();
+  const m = String(utcDate.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(utcDate.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+function hijriToGregorianDate(rawYear, rawMonth, rawDay) {
+  const hijriYear = Math.max(1356, Math.min(1500, Math.round(rawYear)));
+  const hijriMonth = Math.max(1, Math.min(12, Math.round(rawMonth)));
+  const hijriDay = Math.max(1, Math.min(30, Math.round(rawDay)));
+  const hijriEpochMs = Date.UTC(622, 6, 19, 12, 0, 0);
+  const approxDays = (hijriYear - 1) * 354.36707 + (hijriMonth - 1) * 29.53059 + (hijriDay - 1);
+  const approxMs = hijriEpochMs + Math.round(approxDays) * 864e5;
+  let monthFallbackCandidate = null;
+  for (let offset = 0; offset <= 60; offset++) {
+    const probes = offset === 0 ? [0] : [offset, -offset];
+    for (const delta of probes) {
+      const candidate = new Date(approxMs + delta * 864e5);
+      const parts = getHijriPartsUmmAlQura(candidate, "UTC");
+      if (parts.year === hijriYear && parts.month === hijriMonth) {
+        if (parts.day === hijriDay) {
+          const y2 = candidate.getUTCFullYear();
+          const m2 = candidate.getUTCMonth() + 1;
+          const d2 = candidate.getUTCDate();
+          return {
+            dateKey: toIsoDateKey(candidate),
+            year: y2,
+            month: m2,
+            day: d2,
+            gregorianLabel: formatGregorianAzerbaijani(y2, m2, d2),
+            hijriYear: parts.year,
+            hijriMonth: parts.month,
+            hijriDay: parts.day,
+            hijriFormatted: parts.formatted,
+            exactDayMatched: true
+          };
+        }
+        if (hijriDay === 30 && parts.day === 29) {
+          monthFallbackCandidate = candidate;
+        }
+      }
+    }
+  }
+  const chosen = monthFallbackCandidate ?? new Date(approxMs);
+  const resolvedParts = getHijriPartsUmmAlQura(chosen, "UTC");
+  const y = chosen.getUTCFullYear();
+  const m = chosen.getUTCMonth() + 1;
+  const d = chosen.getUTCDate();
+  return {
+    dateKey: toIsoDateKey(chosen),
+    year: y,
+    month: m,
+    day: d,
+    gregorianLabel: formatGregorianAzerbaijani(y, m, d),
+    hijriYear: resolvedParts.year,
+    hijriMonth: resolvedParts.month,
+    hijriDay: resolvedParts.day,
+    hijriFormatted: resolvedParts.formatted,
+    exactDayMatched: false
+  };
+}
+function getUpcomingBlessedDays(now = /* @__PURE__ */ new Date(), maxCount = 7) {
+  const todayUtc = new Date(
+    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0)
+  );
+  const currentHijri = getHijriPartsUmmAlQura(todayUtc, "UTC");
+  const entries = [];
+  for (const def of BLESSED_DAYS_CATALOG) {
+    let target = hijriToGregorianDate(currentHijri.year, def.month, def.day);
+    let targetUtc = new Date(Date.UTC(target.year, target.month - 1, target.day, 12, 0, 0));
+    let diffDays = Math.round((targetUtc.getTime() - todayUtc.getTime()) / 864e5);
+    if (diffDays < 0) {
+      target = hijriToGregorianDate(currentHijri.year + 1, def.month, def.day);
+      targetUtc = new Date(Date.UTC(target.year, target.month - 1, target.day, 12, 0, 0));
+      diffDays = Math.round((targetUtc.getTime() - todayUtc.getTime()) / 864e5);
+    }
+    entries.push({
+      id: def.id,
+      title: def.title,
+      subtitle: def.subtitle,
+      hijriYear: target.hijriYear,
+      hijriMonth: target.hijriMonth,
+      hijriDay: target.hijriDay,
+      hijriLabel: target.hijriFormatted,
+      gregorianDateKey: target.dateKey,
+      gregorianLabel: target.gregorianLabel,
+      daysRemaining: Math.max(0, diffDays)
+    });
+  }
+  return entries.sort((a, b) => a.daysRemaining - b.daysRemaining).slice(0, maxCount);
+}
+
 // src/lib/telegramBot.ts
 var TELEGRAM_BOT_COMMANDS = [
   { command: "start", description: "\u018Fsas menyu v\u0259 Telegram Mini App" },
+  { command: "ses", description: "S\u0259sli dinl\u0259: Ay\u0259, Tam Sur\u0259 v\u0259 Qari se\xE7imi" },
   { command: "aye", description: "G\xFCn\xFCn ay\u0259si v\u0259 ya /aye 2:255" },
-  { command: "sure", description: "Sur\u0259 m\u0259lumat\u0131 v\u0259 oxu (/sure Yasin)" },
-  { command: "namaz", description: "Namaz vaxtlar\u0131 (/namaz Bak\u0131)" },
-  { command: "dua", description: "Qurandak\u0131 R\u0259bb\u0259n\u0259 dualar\u0131" },
+  { command: "kart", description: "Ay\u0259 \u015F\u0259kil kart\u0131 al (/kart 2:255)" },
+  { command: "abune", description: "G\xFCnd\u0259lik C\xFCm\u0259, ay\u0259 v\u0259 namaz bildiri\u015Fl\u0259ri" },
+  { command: "sure", description: "Sur\u0259 oxu (/sure Yasin, /sure 36)" },
+  { command: "sehife", description: "M\u0259din\u0259 Mushaf\u0131 s\u0259hif\u0259si (/sehife 42)" },
+  { command: "namaz", description: "Namaz vaxtlar\u0131 v\u0259 Qibl\u0259 (/namaz Bak\u0131)" },
+  { command: "zikr", description: "S\u0259h\u0259r, ax\u015Fam v\u0259 namaz zikrl\u0259ri" },
+  { command: "teqvim", description: "Hicri t\u0259qvim v\u0259 m\xFCbar\u0259k g\xFCnl\u0259r" },
+  { command: "elifba", description: "\u018Fr\u0259b \u0259lifbas\u0131 v\u0259 t\u0259cvid b\u0259l\u0259d\xE7isi" },
   { command: "axtar", description: "Ay\u0259l\u0259rd\u0259 axtar\u0131\u015F (/axtar s\u0259bir)" },
-  { command: "videolar", description: "Son uzun qira\u0259tl\u0259r v\u0259 Shorts" },
-  { command: "yardim", description: "B\xFCt\xFCn \u0259mrl\u0259r haqq\u0131nda m\u0259lumat" }
+  { command: "videolar", description: "Son uzun qira\u0259tl\u0259r v\u0259 Shorts" }
 ];
 var CURATED_TELEGRAM_VERSES = [
   {
@@ -4657,7 +5379,9 @@ function normalizeAzSearchText(value) {
 function parseTelegramCommand(text) {
   const trimmed = String(text ?? "").trim();
   if (!trimmed.startsWith("/")) return null;
-  const match = trimmed.match(/^\/([a-zA-Z0-9_əöüşçğıƏÖÜŞÇĞI]+)(?:@[a-zA-Z0-9_]+)?(?:\s+([\s\S]*))?$/);
+  const match = trimmed.match(
+    /^\/([a-zA-Z0-9_əöüşçğıƏÖÜŞÇĞI]+)(?:@[a-zA-Z0-9_]+)?(?:\s+([\s\S]*))?$/
+  );
   if (!match) return null;
   return {
     command: normalizeAzSearchText(match[1]),
@@ -4670,7 +5394,39 @@ function findSurahForTelegramQuery(query) {
   if (/^\d{1,3}$/.test(clean)) {
     return getSurahByNumber(Number.parseInt(clean, 10));
   }
-  const normalizedWithoutPrefix = clean.replace(/\bsuresi\b/g, "").replace(/\bsura\b/g, "").replace(/\bsurə\b/g, "").trim();
+  const normalizedWithoutPrefix = clean.replace(/\bsuresi\b/g, "").replace(/\bsura\b/g, "").replace(/\bsure\b/g, "").trim();
+  const surahAliases = {
+    fatiha: 1,
+    "al fatiha": 1,
+    baqara: 2,
+    bakara: 2,
+    baqarah: 2,
+    "ayatul kursi": 2,
+    imran: 3,
+    nisa: 4,
+    maida: 5,
+    kahf: 18,
+    maryam: 19,
+    taha: 20,
+    yasin: 36,
+    yaasin: 36,
+    rahman: 55,
+    waqiah: 56,
+    mulk: 67,
+    tebareke: 67,
+    naba: 78,
+    insirah: 94,
+    qadr: 97,
+    asr: 103,
+    kevser: 108,
+    ikhlas: 112,
+    ihlas: 112,
+    falaq: 113,
+    nas: 114
+  };
+  if (surahAliases[normalizedWithoutPrefix]) {
+    return getSurahByNumber(surahAliases[normalizedWithoutPrefix]);
+  }
   const exact = SURAH_CATALOG.find((s) => {
     const nAz = normalizeAzSearchText(s.name);
     const nAr = normalizeAzSearchText(s.arabicName);
@@ -4724,11 +5480,195 @@ function getCuratedVerseForDate(now = /* @__PURE__ */ new Date()) {
   const dayIndex = Math.floor(now.getTime() / 864e5);
   return CURATED_TELEGRAM_VERSES[Math.abs(dayIndex) % CURATED_TELEGRAM_VERSES.length];
 }
+function getTelegramAyahAudioUrl(surahNumber, ayahNumber, reciterInput) {
+  const reciter = resolveMuhaffizReciter(reciterInput);
+  return getEveryAyahAudioUrl(surahNumber, ayahNumber, reciter.id);
+}
+function getTelegramSurahAudioUrl(surahNumber, reciterInput) {
+  const reciter = resolveMuhaffizReciter(reciterInput);
+  return getFullSurahAudioUrl(surahNumber, reciter.id);
+}
+var QARI_TOKEN_PATTERNS = [
+  { pattern: /\b(maher|mahir|muayqil|mueyqil)\b/i, id: "MaherAlMuaiqly128kbps" },
+  { pattern: /\b(yasser|yasir|dosari|dossary|dovseri)\b/i, id: "Yasser_Ad-Dussary_128kbps" },
+  { pattern: /\b(husary|husari|huseri|xalil|xelil)\b/i, id: "Husary_128kbps" },
+  { pattern: /\b(minshawy|minshawi|minsawi|minsavi|siddiq)\b/i, id: "Minshawy_Murattal_128kbps" },
+  { pattern: /\b(basit|abdulbasit|ebdulbasit)\b/i, id: "Abdul_Basit_Murattal_192kbps" },
+  { pattern: /\b(afasy|alafasy|efesi|misari|mishari|mishary)\b/i, id: "Alafasy_128kbps" }
+];
+function parseAudioQueryArgs(args) {
+  let working = normalizeAzSearchText(args);
+  let reciterId = "Alafasy_128kbps";
+  for (const item of QARI_TOKEN_PATTERNS) {
+    if (item.pattern.test(working)) {
+      reciterId = item.id;
+      working = working.replace(item.pattern, " ").replace(/\s+/g, " ").trim();
+      break;
+    }
+  }
+  const refMatch = working.match(/\b(\d{1,3}):(\d{1,3})\b/);
+  if (refMatch) {
+    const sNum = Number.parseInt(refMatch[1], 10);
+    const aNum = Number.parseInt(refMatch[2], 10);
+    const surah = getSurahByNumber(sNum);
+    if (surah) {
+      return {
+        surahNumber: surah.number,
+        ayahNumber: Math.max(1, Math.min(surah.ayahCount, aNum)),
+        reciterId,
+        hasExplicitTarget: true
+      };
+    }
+  }
+  const nameAndAyahMatch = working.match(/^(.+?)\s+(\d{1,3})$/);
+  if (nameAndAyahMatch) {
+    const surah = findSurahForTelegramQuery(nameAndAyahMatch[1]);
+    const aNum = Number.parseInt(nameAndAyahMatch[2], 10);
+    if (surah) {
+      return {
+        surahNumber: surah.number,
+        ayahNumber: Math.max(1, Math.min(surah.ayahCount, aNum)),
+        reciterId,
+        hasExplicitTarget: true
+      };
+    }
+  }
+  if (working) {
+    const surah = findSurahForTelegramQuery(working);
+    if (surah) {
+      return {
+        surahNumber: surah.number,
+        ayahNumber: 1,
+        reciterId,
+        hasExplicitTarget: true
+      };
+    }
+  }
+  const fallbackVerse = getCuratedVerseForDate();
+  return {
+    surahNumber: fallbackVerse.surahNumber,
+    ayahNumber: fallbackVerse.ayahNumber,
+    reciterId,
+    hasExplicitTarget: false
+  };
+}
+function parseKartQueryArgs(args) {
+  let working = normalizeAzSearchText(args);
+  let theme = "emerald";
+  let format = "story";
+  if (/\b(parchment|aciq|ag|light|krem)\b/.test(working)) {
+    theme = "parchment";
+    working = working.replace(/\b(parchment|aciq|ag|light|krem)\b/g, " ").trim();
+  } else if (/\b(emerald|zumrud|tund|dark)\b/.test(working)) {
+    theme = "emerald";
+    working = working.replace(/\b(emerald|zumrud|tund|dark)\b/g, " ").trim();
+  }
+  if (/\b(square|kvadrat|1:1)\b/.test(working)) {
+    format = "square";
+    working = working.replace(/\b(square|kvadrat|1:1)\b/g, " ").trim();
+  } else if (/\b(story|hekaye|status|9:16)\b/.test(working)) {
+    format = "story";
+    working = working.replace(/\b(story|hekaye|status|9:16)\b/g, " ").trim();
+  }
+  const target = parseAudioQueryArgs(working);
+  return {
+    surahNumber: target.surahNumber,
+    ayahNumber: target.ayahNumber,
+    theme,
+    format,
+    hasExplicitTarget: target.hasExplicitTarget
+  };
+}
+function parseInlineAyahRef(query) {
+  let working = normalizeAzSearchText(query);
+  if (!working) return null;
+  let reciterId = "Alafasy_128kbps";
+  for (const item of QARI_TOKEN_PATTERNS) {
+    if (item.pattern.test(working)) {
+      reciterId = item.id;
+      working = working.replace(item.pattern, " ").replace(/\s+/g, " ").trim();
+      break;
+    }
+  }
+  const refMatch = working.match(/^(\d{1,3}):(\d{1,3})$/);
+  if (refMatch) {
+    const sNum = Number.parseInt(refMatch[1], 10);
+    const aNum = Number.parseInt(refMatch[2], 10);
+    const surah = getSurahByNumber(sNum);
+    if (surah && aNum >= 1 && aNum <= surah.ayahCount) {
+      return { surahNumber: surah.number, ayahNumber: aNum, reciterId };
+    }
+  }
+  const nameAndAyahMatch = working.match(/^(.+?)\s+(\d{1,3})$/);
+  if (nameAndAyahMatch) {
+    const surah = findSurahForTelegramQuery(nameAndAyahMatch[1]);
+    const aNum = Number.parseInt(nameAndAyahMatch[2], 10);
+    if (surah && aNum >= 1 && aNum <= surah.ayahCount) {
+      return { surahNumber: surah.number, ayahNumber: aNum, reciterId };
+    }
+  }
+  return null;
+}
 function buildMiniAppButton(text, url) {
   return {
     text,
     web_app: { url }
   };
+}
+function mapCallbackToBotDeepLink(callbackData, botUsername) {
+  const cleanBot = botUsername.replace(/^@/, "") || "Quranqiraetibot";
+  const amenuMatch = callbackData.match(/^(?:amenu|aplay:(?:ayah|surah)|audio):(\d{1,3}):(\d{1,3}):/);
+  if (amenuMatch) {
+    return `https://t.me/${cleanBot}?start=ses_${amenuMatch[1]}_${amenuMatch[2]}`;
+  }
+  const kartMatch = callbackData.match(/^kart:(\d{1,3}):(\d{1,3}):/);
+  if (kartMatch) {
+    return `https://t.me/${cleanBot}?start=kart_${kartMatch[1]}_${kartMatch[2]}`;
+  }
+  if (callbackData.startsWith("namaz:")) {
+    return `https://t.me/${cleanBot}?start=namaz`;
+  }
+  if (callbackData.startsWith("zikr:")) {
+    return `https://t.me/${cleanBot}?start=zikr`;
+  }
+  if (callbackData === "teqvim:now") {
+    return `https://t.me/${cleanBot}?start=teqvim`;
+  }
+  if (callbackData === "aye:random") {
+    return `https://t.me/${cleanBot}?start=gunun_ayesi`;
+  }
+  if (callbackData.startsWith("sub:")) {
+    return `https://t.me/${cleanBot}?start=abune`;
+  }
+  return null;
+}
+function toShareableInlineMarkup(markup, botUsername = "Quranqiraetibot") {
+  if (!markup?.inline_keyboard?.length) return void 0;
+  const convertedRows = [];
+  for (const row of markup.inline_keyboard) {
+    const nextRow = [];
+    for (const btn of row) {
+      if (btn.web_app?.url) {
+        nextRow.push({ text: btn.text, url: btn.web_app.url });
+      } else if (btn.url) {
+        nextRow.push({ text: btn.text, url: btn.url });
+      } else if (btn.callback_data) {
+        const mapped = mapCallbackToBotDeepLink(btn.callback_data, botUsername);
+        if (mapped) {
+          nextRow.push({ text: btn.text, url: mapped });
+        }
+      } else if (btn.switch_inline_query_current_chat !== void 0) {
+        nextRow.push({
+          text: btn.text,
+          switch_inline_query_current_chat: btn.switch_inline_query_current_chat
+        });
+      }
+    }
+    if (nextRow.length > 0) {
+      convertedRows.push(nextRow);
+    }
+  }
+  return convertedRows.length > 0 ? { inline_keyboard: convertedRows } : void 0;
 }
 function formatStartMessage(origin) {
   const baseUrl = normalizeBaseUrl(origin);
@@ -4737,14 +5677,20 @@ function formatStartMessage(origin) {
     "<b>Quran Qiraeti</b> r\u0259smi Telegram botuna v\u0259 Mini T\u0259tbiqin\u0259 xo\u015F g\u0259lmisiniz.",
     "",
     "<b>S\xF6hb\u0259td\u0259 istifad\u0259 ed\u0259 bil\u0259c\u0259yiniz \u0259mrl\u0259r:</b>",
-    "\u2022 /aye \u2014 G\xFCn\xFCn ay\u0259si <i>(v\u0259 ya /aye 2:255)</i>",
-    "\u2022 /sure \u2014 Sur\u0259 oxu v\u0259 m\u0259lumat al <i>(m\u0259s. /sure Yasin)</i>",
-    "\u2022 /namaz \u2014 Namaz vaxtlar\u0131 <i>(m\u0259s. /namaz Bak\u0131)</i>",
-    "\u2022 /dua \u2014 Qurandan R\u0259bb\u0259n\u0259 dualar\u0131",
+    "\u2022 /ses \u2014 S\u0259sli dinl\u0259: Ay\u0259, Tam Sur\u0259 v\u0259 Qari se\xE7imi <i>(m\u0259s. /ses Yasin)</i>",
+    "\u2022 /aye \u2014 G\xFCn\xFCn ay\u0259si v\u0259 s\u0259sli tilav\u0259t <i>(v\u0259 ya /aye 2:255)</i>",
+    "\u2022 /kart \u2014 WhatsApp / Story \xFC\xE7\xFCn haz\u0131r ay\u0259 \u015F\u0259kil kart\u0131 <i>(m\u0259s. /kart 2:255)</i>",
+    "\u2022 /abune \u2014 G\xFCnd\u0259lik C\xFCm\u0259 K\u0259hf, ay\u0259 v\u0259 namaz bildiri\u015Fl\u0259ri",
+    "\u2022 /sure \u2014 Sur\u0259 oxu v\u0259 dinl\u0259 <i>(m\u0259s. /sure Yasin)</i>",
+    "\u2022 /sehife \u2014 M\u0259din\u0259 Mushaf\u0131 s\u0259hif\u0259si <i>(m\u0259s. /sehife 42)</i>",
+    "\u2022 /namaz \u2014 Namaz vaxtlar\u0131 v\u0259 Qibl\u0259 <i>(m\u0259s. /namaz Bak\u0131)</i>",
+    "\u2022 /zikr \u2014 S\u0259h\u0259r, ax\u015Fam v\u0259 namaz sonras\u0131 zikrl\u0259r",
+    "\u2022 /teqvim \u2014 Hicri t\u0259qvim v\u0259 m\xFCbar\u0259k g\xFCnl\u0259r say\u011Fac\u0131",
+    "\u2022 /elifba \u2014 \u018Fr\u0259b \u0259lifbas\u0131 v\u0259 t\u0259cvid b\u0259l\u0259d\xE7isi",
     "\u2022 /axtar \u2014 Ay\u0259l\u0259rd\u0259 axtar\u0131\u015F <i>(m\u0259s. /axtar s\u0259bir)</i>",
-    "\u2022 /videolar \u2014 Kanal\u0131n son tilav\u0259tl\u0259ri v\u0259 Shorts",
+    "\u2022 /videolar \u2014 Kanal\u0131n son uzun qira\u0259tl\u0259ri v\u0259 Shorts",
     "",
-    "A\u015Fa\u011F\u0131dak\u0131 d\xFCym\u0259 il\u0259 tam <b>604 s\u0259hif\u0259lik M\u0259din\u0259 Mushaf\u0131, 114 sur\u0259, M\xFChafiz \u0259zb\u0259r testi v\u0259 qira\u0259t arxivini</b> birba\u015Fa Telegram i\xE7ind\u0259 a\xE7a bil\u0259rsiniz:"
+    "Tam <b>604 s\u0259hif\u0259lik M\u0259din\u0259 Mushaf\u0131, 114 sur\u0259 v\u0259 M\xFChafiz \u0259zb\u0259r al\u0259tini</b> birba\u015Fa Telegram i\xE7ind\u0259 a\xE7a bil\u0259rsiniz:"
   ].join("\n");
   return {
     text,
@@ -4756,15 +5702,83 @@ function formatStartMessage(origin) {
           buildMiniAppButton("\u{1F9E0} M\xFChafiz \u018Fzb\u0259r", `${baseUrl}/muhaffiz`)
         ],
         [
-          { text: "\u{1F305} G\xFCn\xFCn Ay\u0259si", callback_data: "aye:random" },
-          { text: "\u{1F932} R\u0259bb\u0259n\u0259 Duas\u0131", callback_data: "dua:next" }
+          { text: "\u{1F3A7} S\u0259sli Dinl\u0259", callback_data: "amenu:1:1:afasy" },
+          { text: "\u{1F305} G\xFCn\xFCn Ay\u0259si", callback_data: "aye:random" }
         ],
         [
-          { text: "\u{1F50E} \xC7atda Payla\u015F (Inline)", switch_inline_query_current_chat: "yasin" },
+          { text: "\u{1F5BC} Ay\u0259 Kart\u0131 (2:255)", callback_data: "kart:2:255:emerald" },
+          { text: "\u{1F514} G\xFCnd\u0259lik Abun\u0259lik", callback_data: "sub:menu" }
+        ],
+        [
+          { text: "\u{1F319} Zikrl\u0259r", callback_data: "zikr:seher" },
+          { text: "\u{1F4C5} Hicri T\u0259qvim", callback_data: "teqvim:now" }
+        ],
+        [
+          { text: "\u{1F50E} \xC7atda Payla\u015F (Inline)", switch_inline_query_current_chat: "2:255" }
+        ],
+        [
+          buildMiniAppButton("\u{1F524} \u018Flifba & T\u0259cvid", `${baseUrl}/elifba`),
           { text: "\u{1F4FA} YouTube Kanal", url: "https://youtube.com/@quranqiraeti" }
         ]
       ]
     }
+  };
+}
+function formatAudioSelectorMessage(origin, params) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const surah = getSurahByNumber(params.surahNumber) ?? getSurahByNumber(1);
+  const safeAyah = Math.max(1, Math.min(surah.ayahCount, Math.trunc(params.ayahNumber || 1)));
+  const reciter = resolveMuhaffizReciter(params.reciterInput);
+  const lines = [
+    "<b>\u{1F3A7} S\u0259sli Tilav\u0259t \u2014 Ay\u0259, Tam Sur\u0259 v\u0259 Qari Se\xE7imi</b>",
+    "",
+    `\u{1F4D6} <b>Sur\u0259:</b> ${surah.number}. ${escapeTelegramHtml(surah.name)} (${escapeTelegramHtml(surah.arabicName)})`,
+    `\u{1F516} <b>Se\xE7ilmi\u015F Ay\u0259:</b> ${surah.number}:${safeAyah} (${surah.ayahCount} ay\u0259)`,
+    `\u{1F399} <b>Qari:</b> ${escapeTelegramHtml(reciter.label)}`,
+    "",
+    "A\u015Fa\u011F\u0131dan <b>t\u0259k ay\u0259ni</b> v\u0259 ya <b>tam sur\u0259ni</b> dinl\u0259yin, ist\u0259diyiniz zaman qarini d\u0259yi\u015Fin:",
+    "<i>M\u0259s\u0259l\u0259n: /ses Yasin, /ses 2:255, /ses R\u0259hman maher</i>"
+  ];
+  const qariRow1 = MUHAFFIZ_RECITERS.slice(0, 3).map((r) => ({
+    text: r.id === reciter.id ? `\u2713 ${r.shortLabel}` : r.shortLabel,
+    callback_data: `asrc:${surah.number}:${safeAyah}:${r.code}`
+  }));
+  const qariRow2 = MUHAFFIZ_RECITERS.slice(3, 6).map((r) => ({
+    text: r.id === reciter.id ? `\u2713 ${r.shortLabel}` : r.shortLabel,
+    callback_data: `asrc:${surah.number}:${safeAyah}:${r.code}`
+  }));
+  const keyboard = [
+    [
+      {
+        text: `\u{1F3A7} Ay\u0259ni Dinl\u0259 (${surah.number}:${safeAyah})`,
+        callback_data: `aplay:ayah:${surah.number}:${safeAyah}:${reciter.code}`
+      },
+      {
+        text: `\u{1F4C0} Tam Sur\u0259 (${surah.name})`,
+        callback_data: `aplay:surah:${surah.number}:${safeAyah}:${reciter.code}`
+      }
+    ],
+    qariRow1,
+    qariRow2
+  ];
+  if (params.showPresets) {
+    keyboard.push([
+      { text: "Fatih\u0259", callback_data: `asrc:1:1:${reciter.code}` },
+      { text: "Ay\u0259t\xFCl-K\xFCrsi", callback_data: `asrc:2:255:${reciter.code}` },
+      { text: "Yasin", callback_data: `asrc:36:1:${reciter.code}` },
+      { text: "R\u0259hman", callback_data: `asrc:55:1:${reciter.code}` },
+      { text: "M\xFClk", callback_data: `asrc:67:1:${reciter.code}` }
+    ]);
+  }
+  keyboard.push([
+    buildMiniAppButton(
+      `\u{1F4D6} ${surah.name} \u2014 T\u0259tbiqd\u0259 Tam Dinl\u0259`,
+      `${baseUrl}/quran/sure/${surah.number}?reciter=${encodeURIComponent(reciter.id)}#ayah-${safeAyah}`
+    )
+  ]);
+  return {
+    text: lines.join("\n"),
+    reply_markup: { inline_keyboard: keyboard }
   };
 }
 function formatVerseMessage(origin, params) {
@@ -4784,14 +5798,21 @@ function formatVerseMessage(origin, params) {
     reply_markup: {
       inline_keyboard: [
         [
+          {
+            text: "\u{1F3A7} S\u0259sli Dinl\u0259 (Ay\u0259 / Sur\u0259 / Qari)",
+            callback_data: `amenu:${params.surahNumber}:${params.ayahNumber}:afasy`
+          },
           buildMiniAppButton(
-            `\u{1F4D6} ${params.surahName} sur\u0259sini a\xE7`,
+            `\u{1F4D6} Sur\u0259d\u0259 a\xE7`,
             `${baseUrl}/quran/sure/${params.surahNumber}#ayah-${params.ayahNumber}`
           )
         ],
         [
-          { text: "\u{1F504} Ba\u015Fqa Ay\u0259", callback_data: "aye:random" },
-          { text: "\u{1F932} Dua Oxu", callback_data: "dua:next" }
+          {
+            text: "\u{1F5BC} \u015E\u0259kil Kart\u0131 Al",
+            callback_data: `kart:${params.surahNumber}:${params.ayahNumber}:emerald`
+          },
+          { text: "\u{1F504} Ba\u015Fqa Ay\u0259", callback_data: "aye:random" }
         ]
       ]
     }
@@ -4819,9 +5840,58 @@ function formatSurahMessage(origin, surah, sampleAyahs = []) {
       inline_keyboard: [
         [buildMiniAppButton(`\u{1F4D6} ${surah.name} sur\u0259sini oxu`, `${baseUrl}/quran/sure/${surah.number}`)],
         [
+          {
+            text: "\u{1F3A7} S\u0259sli Dinl\u0259 (Ay\u0259 / Tam Sur\u0259 / Qari)",
+            callback_data: `amenu:${surah.number}:1:afasy`
+          },
+          {
+            text: "\u{1F4C0} Tam Sur\u0259 MP3",
+            callback_data: `aplay:surah:${surah.number}:1:afasy`
+          }
+        ],
+        [
           buildMiniAppButton(`\u{1F4C4} S\u0259hif\u0259 ${surah.startPage}`, `${baseUrl}/quran/sehife/${surah.startPage}`),
-          buildMiniAppButton("\u{1F9E0} M\xFChafizd\u0259 \u018Fzb\u0259rl\u0259", `${baseUrl}/muhaffiz/${surah.startPage}`)
+          buildMiniAppButton("\u{1F9E0} M\xFChafiz", `${baseUrl}/muhaffiz/${surah.startPage}`)
         ]
+      ]
+    }
+  };
+}
+function formatMushafPageMessage(origin, pageNumber, summaryText = "", sampleAyahs = []) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const safePage = Math.max(1, Math.min(TOTAL_QURAN_PAGES, Math.trunc(pageNumber)));
+  const juz = getJuzForPage(safePage);
+  const ordinal = formatAzerbaijaniOrdinal(safePage);
+  const lines = [
+    `<b>\u{1F4C4} M\u0259din\u0259 Mushaf\u0131 \u2014 ${ordinal} s\u0259hif\u0259</b> (${juz}-ci C\xFCz)`,
+    ...summaryText ? [`<i>${escapeTelegramHtml(summaryText)}</i>`] : [],
+    ""
+  ];
+  if (sampleAyahs.length > 0) {
+    for (const a of sampleAyahs.slice(0, 2)) {
+      lines.push(`${escapeTelegramHtml(a.arabicText)} \uFD3F${a.ayahNumber}\uFD3E`);
+      lines.push(`<b>${escapeTelegramHtml(a.surahName)} ${a.ayahNumber}:</b> ${escapeTelegramHtml(a.translation)}`);
+      lines.push("");
+    }
+  } else {
+    lines.push("Bu s\u0259hif\u0259ni tam \u0259r\u0259bc\u0259 m\u0259tn, t\u0259cvid r\u0259ngl\u0259m\u0259si v\u0259 qira\u0259t il\u0259 a\xE7\u0131n:");
+  }
+  const navRow = [];
+  if (safePage > 1) {
+    navRow.push({ text: `\u2B05\uFE0F S\u0259hif\u0259 ${safePage - 1}`, callback_data: `mushaf:${safePage - 1}` });
+  }
+  if (safePage < TOTAL_QURAN_PAGES) {
+    navRow.push({ text: `S\u0259hif\u0259 ${safePage + 1} \u27A1\uFE0F`, callback_data: `mushaf:${safePage + 1}` });
+  }
+  return {
+    text: lines.join("\n").trim(),
+    reply_markup: {
+      inline_keyboard: [
+        [
+          buildMiniAppButton(`\u{1F4D6} S\u0259hif\u0259 ${safePage} Oxu`, `${baseUrl}/quran/sehife/${safePage}`),
+          buildMiniAppButton("\u{1F9E0} M\xFChafizd\u0259 \u018Fzb\u0259rl\u0259", `${baseUrl}/muhaffiz/${safePage}`)
+        ],
+        ...navRow.length > 0 ? [navRow] : []
       ]
     }
   };
@@ -4855,33 +5925,95 @@ function formatPrayerTimesMessage(origin, city, now = /* @__PURE__ */ new Date()
           { text: "G\u0259nc\u0259", callback_data: "namaz:ganja" },
           { text: "Sumqay\u0131t", callback_data: "namaz:sumqayit" },
           { text: "Nax\xE7\u0131van", callback_data: "namaz:nakhchivan" }
+        ],
+        [
+          { text: "\u015E\u0259ki", callback_data: "namaz:shaki" },
+          { text: "\u015Eu\u015Fa", callback_data: "namaz:shusha" },
+          { text: "\u0130stanbul", callback_data: "namaz:istanbul" },
+          { text: "M\u0259kk\u0259", callback_data: "namaz:makkah" }
         ]
       ]
     }
   };
 }
-function formatDuaMessage(origin, dua) {
+function formatZikrMessage(origin, category = "seher", indexOffset = 0) {
   const baseUrl = normalizeBaseUrl(origin);
+  const effectivePool = getAzkarByCategory(category);
+  const idx = Math.abs(indexOffset) % effectivePool.length;
+  const item = effectivePool[idx];
+  const categoryLabel = AZKAR_CATEGORY_LABELS[category] ?? "Zikrl\u0259r";
   const text = [
-    `<b>\u{1F932} ${escapeTelegramHtml(dua.title)}</b>`,
-    `<i>${escapeTelegramHtml(dua.surahName)} sur\u0259si, ${escapeTelegramHtml(dua.ayahLabel)} \xB7 S\u0259hif\u0259 ${dua.pageNumber}</i>`,
+    `<b>\u{1F319} ${escapeTelegramHtml(categoryLabel)} \u2014 ${escapeTelegramHtml(item.title)}</b>`,
+    `<i>Oxunu\u015F say\u0131: ${escapeTelegramHtml(item.countNote ?? `${item.targetCount} d\u0259f\u0259`)} \xB7 ${escapeTelegramHtml(item.source)}</i>`,
     "",
-    `${escapeTelegramHtml(dua.arabicText)}`,
+    escapeTelegramHtml(item.arabicText),
     "",
-    `\xAB${escapeTelegramHtml(dua.translation)}\xBB`
+    `\xAB${escapeTelegramHtml(item.translation)}\xBB`,
+    "",
+    `<i>\u2728 ${escapeTelegramHtml(item.virtue)}</i>`
   ].join("\n");
   return {
     text,
     reply_markup: {
       inline_keyboard: [
+        [buildMiniAppButton("\u{1F4D6} B\xFCt\xFCn Zikrl\u0259ri A\xE7", `${baseUrl}/zikr`)],
         [
-          buildMiniAppButton(
-            "\u{1F4D6} Ay\u0259d\u0259 A\xE7",
-            `${baseUrl}/quran/sure/${dua.surahNumber}#ayah-${dua.ayahNumber}`
-          ),
-          buildMiniAppButton("\u{1F932} B\xFCt\xFCn Dualar", `${baseUrl}/dualar`)
+          { text: "\u{1F305} S\u0259h\u0259r", callback_data: "zikr:seher:0" },
+          { text: "\u{1F319} Ax\u015Fam", callback_data: "zikr:axsam:0" },
+          { text: "\u{1F54C} Namaz sonras\u0131", callback_data: "zikr:namaz:0" }
         ],
-        [{ text: "\u{1F504} Ba\u015Fqa Dua", callback_data: "dua:next" }]
+        [
+          {
+            text: `\u{1F504} N\xF6vb\u0259ti Zikr (${idx + 1}/${effectivePool.length})`,
+            callback_data: `zikr:${category}:${idx + 1}`
+          }
+        ]
+      ]
+    }
+  };
+}
+function formatHijriCalendarMessage(origin, now = /* @__PURE__ */ new Date()) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const todayHijri = getHijriPartsUmmAlQura(now, "Asia/Baku");
+  const upcoming = getUpcomingBlessedDays(now, 5);
+  const lines = [
+    "<b>\u{1F4C5} Hicri\u2013Miladi T\u0259qvim (\xDCmm\xFCl-Qura)</b>",
+    `\u{1F319} Bu g\xFCn (Hicri): <b>${escapeTelegramHtml(todayHijri.formatted)}</b>`,
+    "",
+    "<b>Qar\u015F\u0131dak\u0131 M\xFCbar\u0259k G\xFCnl\u0259r:</b>",
+    ...upcoming.map(
+      (item) => `\u2022 <b>${escapeTelegramHtml(item.title)}</b>
+   ${escapeTelegramHtml(item.hijriLabel)} (${escapeTelegramHtml(item.gregorianLabel)}) \u2014 <b>${item.daysRemaining === 0 ? "Bu g\xFCn!" : `${item.daysRemaining} g\xFCn qal\u0131b`}</b>`
+    )
+  ];
+  return {
+    text: lines.join("\n"),
+    reply_markup: {
+      inline_keyboard: [
+        [
+          buildMiniAppButton("\u{1F4C5} Tarix \xC7evirici & T\u0259qvim", `${baseUrl}/teqvim`),
+          buildMiniAppButton("\u{1F54B} Namaz Vaxtlar\u0131", `${baseUrl}/namaz-vaxtlari`)
+        ]
+      ]
+    }
+  };
+}
+function formatAlphabetMessage(origin) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const text = [
+    "<b>\u{1F524} \u018Fr\u0259b \u018Flifbas\u0131, H\u0259r\u0259k\u0259l\u0259r v\u0259 T\u0259cvid B\u0259l\u0259d\xE7isi</b>",
+    "",
+    "\u2022 28 \u0259r\u0259b h\u0259rfinin t\u0259k, ba\u015Fda, ortada v\u0259 sonda yaz\u0131l\u0131\u015F formalar\u0131",
+    "\u2022 H\u0259r bir h\u0259rfin m\u0259xr\u0259c n\xF6qt\u0259si (bo\u011Faz, dil, dodaq) v\u0259 s\u0259sli t\u0259l\u0259ff\xFCz\xFC",
+    "\u2022 Canl\u0131 H\u0259r\u0259k\u0259 Qurucusu (F\u0259th\u0259, K\u0259sr\u0259, D\u0259mm\u0259, T\u0259nvin, \u015E\u0259dd\u0259, S\xFCkun)",
+    "\u2022 \u018Fsas T\u0259cvid qaydalar\u0131 (Qalqal\u0259, \u011E\xFCnn\u0259, \u0130xfa, \u0130d\u011Fam, M\u0259dd) Quran ay\u0259l\u0259ri \xFCz\u0259rind\u0259 n\xFCmun\u0259l\u0259rl\u0259"
+  ].join("\n");
+  return {
+    text,
+    reply_markup: {
+      inline_keyboard: [
+        [buildMiniAppButton("\u{1F524} \u0130nteraktiv \u018Flifba B\u0259l\u0259d\xE7isini A\xE7", `${baseUrl}/elifba`)],
+        [buildMiniAppButton("\u{1F9E0} M\xFChafiz \u018Fzb\u0259r Mushaf\u0131", `${baseUrl}/muhaffiz`)]
       ]
     }
   };
@@ -4911,7 +6043,127 @@ function formatVideosMessage(origin, videos, heading = "\u{1F3AC} Kanal\u0131n S
     }
   };
 }
-function buildInlineQueryResults(origin, query, videos, now = /* @__PURE__ */ new Date()) {
+function buildInlineAyahResults(origin, botUsername, verse, reciterInput) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const cleanBot = botUsername.replace(/^@/, "") || "Quranqiraetibot";
+  const reciter = resolveMuhaffizReciter(reciterInput);
+  const ayahAudioUrl = getTelegramAyahAudioUrl(verse.surahNumber, verse.ayahNumber, reciter.id);
+  const cardUrl = `${baseUrl}/api/telegram/verse-card.png?surah=${verse.surahNumber}&ayah=${verse.ayahNumber}&theme=emerald&format=story`;
+  const articleText = [
+    `<b>\u{1F4D6} ${escapeTelegramHtml(verse.surahName)} sur\u0259si, ${verse.surahNumber}:${verse.ayahNumber}</b>`,
+    "",
+    `${escapeTelegramHtml(verse.arabicText)} \uFD3F${verse.ayahNumber}\uFD3E`,
+    "",
+    `\xAB${escapeTelegramHtml(verse.translation)}\xBB`,
+    "<i>T\u0259rc\xFCm\u0259: \u018Flixan Musayev</i>"
+  ].join("\n");
+  const sharedMarkup = toShareableInlineMarkup(
+    {
+      inline_keyboard: [
+        [
+          {
+            text: "\u{1F3A7} S\u0259sli Dinl\u0259",
+            url: `https://t.me/${cleanBot}?start=ses_${verse.surahNumber}_${verse.ayahNumber}`
+          },
+          {
+            text: "\u{1F5BC} \u015E\u0259kil Kart\u0131 Al",
+            url: `https://t.me/${cleanBot}?start=kart_${verse.surahNumber}_${verse.ayahNumber}`
+          }
+        ],
+        [
+          {
+            text: `\u{1F4D6} ${verse.surahName} sur\u0259sini oxu`,
+            url: `${baseUrl}/quran/sure/${verse.surahNumber}#ayah-${verse.ayahNumber}`
+          }
+        ]
+      ]
+    },
+    cleanBot
+  );
+  return [
+    {
+      type: "article",
+      id: `ayah-${verse.surahNumber}-${verse.ayahNumber}`,
+      title: `\u{1F4D6} ${verse.surahName} ${verse.surahNumber}:${verse.ayahNumber}`,
+      description: verse.translation.slice(0, 110),
+      input_message_content: {
+        message_text: articleText,
+        parse_mode: "HTML",
+        disable_web_page_preview: true
+      },
+      reply_markup: sharedMarkup
+    },
+    {
+      type: "audio",
+      id: `audio-${verse.surahNumber}-${verse.ayahNumber}-${reciter.code}`,
+      audio_url: ayahAudioUrl,
+      title: `${verse.surahName} ${verse.surahNumber}:${verse.ayahNumber}`,
+      performer: reciter.label,
+      caption: `\u{1F3A7} <b>${escapeTelegramHtml(verse.surahName)} ${verse.surahNumber}:${verse.ayahNumber}</b> \xB7 ${escapeTelegramHtml(reciter.label)}
+\xAB${escapeTelegramHtml(verse.translation.slice(0, 220))}\xBB`,
+      parse_mode: "HTML",
+      reply_markup: sharedMarkup
+    },
+    {
+      type: "photo",
+      id: `card-${verse.surahNumber}-${verse.ayahNumber}`,
+      photo_url: cardUrl,
+      thumbnail_url: cardUrl,
+      photo_width: 1080,
+      photo_height: 1920,
+      title: `\u{1F5BC} Ay\u0259 \u015E\u0259kil Kart\u0131 (${verse.surahNumber}:${verse.ayahNumber})`,
+      description: "WhatsApp Durum / Instagram Hekay\u0259 \xFC\xE7\xFCn haz\u0131r dizayn",
+      caption: `<b>${escapeTelegramHtml(verse.surahName)} ${verse.surahNumber}:${verse.ayahNumber}</b>
+\xAB${escapeTelegramHtml(verse.translation.slice(0, 220))}\xBB
+@quranqiraeti`,
+      parse_mode: "HTML",
+      reply_markup: sharedMarkup
+    }
+  ];
+}
+function buildInlineSearchResults(origin, botUsername, matches) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const cleanBot = botUsername.replace(/^@/, "") || "Quranqiraetibot";
+  return matches.slice(0, 6).map((m) => ({
+    type: "article",
+    id: `search-${m.surahNumber}-${m.ayahNumber}`,
+    title: `\u{1F50E} ${m.surahName} ${m.surahNumber}:${m.ayahNumber}`,
+    description: m.snippet.slice(0, 120),
+    input_message_content: {
+      message_text: [
+        `<b>\u{1F50E} ${escapeTelegramHtml(m.surahName)} sur\u0259si, ${m.surahNumber}:${m.ayahNumber}</b>`,
+        "",
+        `\xAB${escapeTelegramHtml(m.snippet)}\xBB`
+      ].join("\n"),
+      parse_mode: "HTML",
+      disable_web_page_preview: true
+    },
+    reply_markup: toShareableInlineMarkup(
+      {
+        inline_keyboard: [
+          [
+            {
+              text: "\u{1F3A7} S\u0259sli Dinl\u0259",
+              url: `https://t.me/${cleanBot}?start=ses_${m.surahNumber}_${m.ayahNumber}`
+            },
+            {
+              text: "\u{1F5BC} \u015E\u0259kil Kart\u0131 Al",
+              url: `https://t.me/${cleanBot}?start=kart_${m.surahNumber}_${m.ayahNumber}`
+            }
+          ],
+          [
+            {
+              text: "\u{1F4D6} Sur\u0259d\u0259 A\xE7",
+              url: `${baseUrl}/quran/sure/${m.surahNumber}#ayah-${m.ayahNumber}`
+            }
+          ]
+        ]
+      },
+      cleanBot
+    )
+  }));
+}
+function buildInlineQueryResults(origin, query, videos, now = /* @__PURE__ */ new Date(), botUsername = "Quranqiraetibot") {
   const baseUrl = normalizeBaseUrl(origin);
   const clean = normalizeAzSearchText(query);
   const results = [];
@@ -4928,7 +6180,22 @@ function buildInlineQueryResults(origin, query, videos, now = /* @__PURE__ */ ne
         parse_mode: "HTML",
         disable_web_page_preview: true
       },
-      reply_markup: prayerMsg.reply_markup
+      reply_markup: toShareableInlineMarkup(prayerMsg.reply_markup, botUsername)
+    });
+  }
+  if (clean && (clean.includes("teqvim") || clean.includes("hicri") || clean.includes("ramazan"))) {
+    const calMsg = formatHijriCalendarMessage(baseUrl, now);
+    results.push({
+      type: "article",
+      id: "hijri-calendar",
+      title: "\u{1F4C5} Hicri T\u0259qvim v\u0259 M\xFCbar\u0259k G\xFCnl\u0259r",
+      description: "Ramazan, Q\u0259dr gec\u0259si v\u0259 bayramlara qalan g\xFCnl\u0259r",
+      input_message_content: {
+        message_text: calMsg.text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true
+      },
+      reply_markup: toShareableInlineMarkup(calMsg.reply_markup, botUsername)
     });
   }
   const matchedSurahs = clean ? SURAH_CATALOG.filter((s) => {
@@ -4947,29 +6214,12 @@ function buildInlineQueryResults(origin, query, videos, now = /* @__PURE__ */ ne
         parse_mode: "HTML",
         disable_web_page_preview: true
       },
-      reply_markup: msg.reply_markup
+      reply_markup: toShareableInlineMarkup(msg.reply_markup, botUsername)
     });
   }
-  const matchedDuas = clean ? QURAN_DUAS.filter((d) => {
-    const hay = normalizeAzSearchText(`${d.title} ${d.surahName} ${d.translation}`);
-    return hay.includes(clean);
-  }).slice(0, 3) : QURAN_DUAS.slice(0, 2);
-  for (const dua of matchedDuas) {
-    const msg = formatDuaMessage(baseUrl, dua);
-    results.push({
-      type: "article",
-      id: `dua-${dua.id}`,
-      title: `\u{1F932} ${dua.title} (${dua.ayahLabel})`,
-      description: dua.translation.slice(0, 90),
-      input_message_content: {
-        message_text: msg.text,
-        parse_mode: "HTML",
-        disable_web_page_preview: true
-      },
-      reply_markup: msg.reply_markup
-    });
-  }
-  const matchedVideos = clean ? videos.filter((v) => normalizeAzSearchText(`${v.title} ${v.surahName} ${v.reciter}`).includes(clean)).slice(0, 4) : videos.slice(0, 3);
+  const matchedVideos = clean ? videos.filter(
+    (v) => normalizeAzSearchText(`${v.title} ${v.surahName} ${v.reciter}`).includes(clean)
+  ).slice(0, 4) : videos.slice(0, 3);
   for (const video of matchedVideos) {
     const safeDesc = video.seoDescription || `${video.surahName} (${video.ayahRange}) \u2014 ${video.reciter}`;
     results.push({
@@ -4988,29 +6238,946 @@ function buildInlineQueryResults(origin, query, videos, now = /* @__PURE__ */ ne
         ].join("\n"),
         parse_mode: "HTML"
       },
-      reply_markup: {
-        inline_keyboard: [
-          [buildMiniAppButton("\u25B6\uFE0F Mini App-d\u0259 \u0130zl\u0259", `${baseUrl}/video/${video.videoId}`)]
-        ]
-      }
+      reply_markup: toShareableInlineMarkup(
+        {
+          inline_keyboard: [
+            [buildMiniAppButton("\u25B6\uFE0F Mini App-d\u0259 \u0130zl\u0259", `${baseUrl}/video/${video.videoId}`)]
+          ]
+        },
+        botUsername
+      )
     });
   }
   return results.slice(0, 12);
 }
 
+// src/lib/telegramSubscriptions.ts
+var SUBSCRIPTION_CITY_IDS = [
+  "baku",
+  "ganja",
+  "sumqayit",
+  "nakhchivan",
+  "shaki",
+  "shusha",
+  "istanbul",
+  "makkah"
+];
+var SUBSCRIPTION_HOURS_BAKU = [6, 8, 9, 12, 18, 20];
+function createDefaultSubscription(chatId) {
+  return {
+    chatId: String(chatId),
+    active: true,
+    cityId: "baku",
+    hourBaku: 9,
+    fridayKahf: true,
+    dailyVerseZikr: true,
+    dailyPrayer: true,
+    updatedAt: Date.now()
+  };
+}
+function normalizeTelegramSubscription(raw) {
+  const validCity = WORLD_PRAYER_CITIES.some((c) => c.id === raw.cityId) ? String(raw.cityId) : "baku";
+  const parsedHour = Number(raw.hourBaku);
+  const hourBaku = Number.isFinite(parsedHour) && parsedHour >= 0 && parsedHour <= 23 ? Math.trunc(parsedHour) : 9;
+  return {
+    chatId: String(raw.chatId),
+    active: raw.active !== void 0 ? Boolean(raw.active) : true,
+    cityId: validCity,
+    hourBaku,
+    fridayKahf: raw.fridayKahf !== void 0 ? Boolean(raw.fridayKahf) : true,
+    dailyVerseZikr: raw.dailyVerseZikr !== void 0 ? Boolean(raw.dailyVerseZikr) : true,
+    dailyPrayer: raw.dailyPrayer !== void 0 ? Boolean(raw.dailyPrayer) : true,
+    updatedAt: Number.isFinite(Number(raw.updatedAt)) ? Number(raw.updatedAt) : Date.now(),
+    ...raw.lastSentDateKey ? { lastSentDateKey: String(raw.lastSentDateKey) } : {}
+  };
+}
+function getBakuDateParts(now = /* @__PURE__ */ new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Baku",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+    weekday: "short"
+  }).formatToParts(now);
+  const get = (type) => parts.find((p) => p.type === type)?.value ?? "";
+  const year = get("year") || "2026";
+  const month = get("month") || "01";
+  const day = get("day") || "01";
+  const hourRaw = Number.parseInt(get("hour") || "0", 10);
+  const hour = Number.isFinite(hourRaw) ? hourRaw % 24 : 0;
+  const weekdayShort = get("weekday");
+  return {
+    dateKey: `${year}-${month}-${day}`,
+    hour,
+    weekdayShort,
+    isFriday: weekdayShort.toLowerCase().startsWith("fri")
+  };
+}
+function reduceSubscriptionEvents(records) {
+  const latestByChat = /* @__PURE__ */ new Map();
+  for (const raw of records) {
+    if (!raw?.chatId) continue;
+    const normalized = normalizeTelegramSubscription(raw);
+    const existing = latestByChat.get(normalized.chatId);
+    if (!existing || normalized.updatedAt >= existing.updatedAt) {
+      latestByChat.set(normalized.chatId, normalized);
+    }
+  }
+  return Array.from(latestByChat.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+function parseAbuneCommandArgs(args, current) {
+  const clean = normalizeAzSearchText(args);
+  if (!clean) {
+    return {
+      ...current,
+      active: true,
+      updatedAt: Date.now()
+    };
+  }
+  if (/\b(dayandir|sondur|stop|off|legv)\b/.test(clean)) {
+    return {
+      ...current,
+      active: false,
+      updatedAt: Date.now()
+    };
+  }
+  let next = {
+    ...current,
+    active: true,
+    updatedAt: Date.now()
+  };
+  const hourMatch = clean.match(/\b(\d{1,2})(?::00)?\b/);
+  if (hourMatch) {
+    const h = Number.parseInt(hourMatch[1], 10);
+    if (h >= 5 && h <= 22) {
+      next = { ...next, hourBaku: h };
+    }
+  }
+  const cityCandidate = clean.replace(/\b(\d{1,2})(?::00)?\b/g, " ").replace(/\s+/g, " ").trim();
+  if (cityCandidate && !/\b(aktiv|ac|on|start|basla)\b/.test(cityCandidate)) {
+    const matchedCity = findCityForTelegramQuery(cityCandidate);
+    next = { ...next, cityId: matchedCity.id };
+  }
+  return next;
+}
+function formatSubscriptionSettingsMessage(origin, sub) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const city = WORLD_PRAYER_CITIES.find((c) => c.id === sub.cityId) ?? WORLD_PRAYER_CITIES[0];
+  const hourStr = `${String(sub.hourBaku).padStart(2, "0")}:00`;
+  const lines = [
+    "<b>\u{1F514} G\xFCnd\u0259lik Telegram Bildiri\u015Fl\u0259ri (/abune)</b>",
+    "",
+    `<b>Status:</b> ${sub.active ? "\u2705 Aktivdir" : "\u23F8 Dayand\u0131r\u0131l\u0131b"}`,
+    `<b>\u015E\u0259h\u0259r:</b> ${escapeTelegramHtml(city.name)}`,
+    `<b>Saat (Bak\u0131):</b> <code>${hourStr}</code>`,
+    "",
+    "<b>Se\xE7ilmi\u015F paketl\u0259r:</b>",
+    `${sub.fridayKahf ? "\u2705" : "\u2B1C\uFE0F"} C\xFCm\u0259 g\xFCn\xFC K\u0259hf sur\u0259si xat\u0131rlatmas\u0131`,
+    `${sub.dailyVerseZikr ? "\u2705" : "\u2B1C\uFE0F"} G\xFCn\xFCn ay\u0259si v\u0259 S\u0259h\u0259r/Ax\u015Fam zikri`,
+    `${sub.dailyPrayer ? "\u2705" : "\u2B1C\uFE0F"} G\xFCnd\u0259lik namaz / Ramazan c\u0259dv\u0259li`,
+    "",
+    "<i>A\u015Fa\u011F\u0131dak\u0131 d\xFCym\u0259l\u0259rl\u0259 \u015F\u0259h\u0259r, saat v\u0259 ya paketl\u0259ri d\u0259yi\u015F\u0259 bil\u0259rsiniz (v\u0259 ya /abune G\u0259nc\u0259 08 yaz\u0131n):</i>"
+  ];
+  const cityRow1 = SUBSCRIPTION_CITY_IDS.slice(0, 4).map((id) => {
+    const c = WORLD_PRAYER_CITIES.find((item) => item.id === id) ?? WORLD_PRAYER_CITIES[0];
+    return {
+      text: id === sub.cityId ? `\u2713 ${c.name}` : c.name,
+      callback_data: `sub:city:${id}`
+    };
+  });
+  const cityRow2 = SUBSCRIPTION_CITY_IDS.slice(4, 8).map((id) => {
+    const c = WORLD_PRAYER_CITIES.find((item) => item.id === id) ?? WORLD_PRAYER_CITIES[0];
+    return {
+      text: id === sub.cityId ? `\u2713 ${c.name}` : c.name,
+      callback_data: `sub:city:${id}`
+    };
+  });
+  const hourRow = SUBSCRIPTION_HOURS_BAKU.map((h) => ({
+    text: h === sub.hourBaku ? `\u2713 ${String(h).padStart(2, "0")}:00` : `${String(h).padStart(2, "0")}`,
+    callback_data: `sub:hour:${h}`
+  }));
+  return {
+    text: lines.join("\n"),
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: sub.active ? "\u23F8 Abun\u0259liyi Dayand\u0131r" : "\u2705 Abun\u0259liyi Aktivl\u0259\u015Fdir",
+            callback_data: "sub:tog:active"
+          },
+          {
+            text: "\u{1F4E8} N\xFCmun\u0259ni \u0130ndi G\xF6nd\u0259r",
+            callback_data: "sub:test"
+          }
+        ],
+        [
+          {
+            text: `${sub.fridayKahf ? "\u2713" : "\u25CB"} C\xFCm\u0259 K\u0259hf`,
+            callback_data: "sub:tog:kahf"
+          },
+          {
+            text: `${sub.dailyVerseZikr ? "\u2713" : "\u25CB"} Ay\u0259 & Zikr`,
+            callback_data: "sub:tog:verse"
+          },
+          {
+            text: `${sub.dailyPrayer ? "\u2713" : "\u25CB"} Namaz C\u0259dv\u0259li`,
+            callback_data: "sub:tog:prayer"
+          }
+        ],
+        cityRow1,
+        cityRow2,
+        hourRow,
+        [
+          {
+            text: "\u{1F4C5} T\u0259qvim & Namaz Vaxtlar\u0131",
+            web_app: { url: `${baseUrl}/namaz-vaxtlari` }
+          }
+        ]
+      ]
+    }
+  };
+}
+function buildDailyDigestMessage(origin, sub, now = /* @__PURE__ */ new Date()) {
+  if (!sub.active) return null;
+  if (!sub.fridayKahf && !sub.dailyVerseZikr && !sub.dailyPrayer) return null;
+  const baseUrl = normalizeBaseUrl(origin);
+  const city = WORLD_PRAYER_CITIES.find((c) => c.id === sub.cityId) ?? WORLD_PRAYER_CITIES[0];
+  const bakuDate = getBakuDateParts(now);
+  const hijri = getHijriPartsUmmAlQura(now, "Asia/Baku");
+  const verse = getCuratedVerseForDate(now);
+  const dayIndex = Math.abs(Math.floor(now.getTime() / 864e5));
+  const preferredZikrCat = sub.hourBaku >= 16 ? "axsam" : "seher";
+  const zikrPool = getAzkarByCategory(preferredZikrCat);
+  const zikrItem = zikrPool[dayIndex % Math.max(1, zikrPool.length)];
+  const prayerSchedule = calculateWeeklyPrayerSchedule(city, now, 1)[0];
+  const sections = [
+    `<b>\u2600\uFE0F G\xFCnd\u0259lik Ruhani Xat\u0131rlatma \u2014 ${escapeTelegramHtml(city.name)}</b>`,
+    `<i>${escapeTelegramHtml(hijri.formatted)}</i>`
+  ];
+  const inlineButtons = [];
+  if (sub.fridayKahf && bakuDate.isFriday) {
+    sections.push(
+      "",
+      "<b>\u{1F54C} C\xFCm\u0259niz M\xFCbar\u0259k! \u2014 K\u0259hf Sur\u0259si</b>",
+      "Bu g\xFCn C\xFCm\u0259 g\xFCn\xFCd\xFCr. K\u0259hf sur\u0259sini (18-ci sur\u0259) oxumaq v\u0259 ya s\u0259sli dinl\u0259m\u0259k iki c\xFCm\u0259 aras\u0131n\u0131 nurland\u0131rar."
+    );
+    inlineButtons.push([
+      { text: "\u{1F3A7} K\u0259hf Sur\u0259sini Dinl\u0259", callback_data: "amenu:18:1:afasy" },
+      { text: "\u{1F4D6} K\u0259hfi Oxu", web_app: { url: `${baseUrl}/quran/sure/18` } }
+    ]);
+  }
+  if (sub.dailyVerseZikr) {
+    sections.push(
+      "",
+      `<b>\u2728 G\xFCn\xFCn Ay\u0259si (${escapeTelegramHtml(verse.surahName)} ${verse.surahNumber}:${verse.ayahNumber}):</b>`,
+      `${escapeTelegramHtml(verse.arabicText)}`,
+      `\xAB${escapeTelegramHtml(verse.translation)}\xBB`,
+      "",
+      `<b>\u{1F319} Zikr (${escapeTelegramHtml(zikrItem.title)}):</b>`,
+      `\xAB${escapeTelegramHtml(zikrItem.translation)}\xBB`
+    );
+    inlineButtons.push([
+      {
+        text: "\u{1F5BC} Ay\u0259 Kart\u0131 Al",
+        callback_data: `kart:${verse.surahNumber}:${verse.ayahNumber}:emerald`
+      },
+      {
+        text: "\u{1F3A7} Ay\u0259ni Dinl\u0259",
+        callback_data: `amenu:${verse.surahNumber}:${verse.ayahNumber}:afasy`
+      }
+    ]);
+  }
+  if (sub.dailyPrayer && prayerSchedule) {
+    const timesLine = prayerSchedule.times.map((t) => `${escapeTelegramHtml(t.label)}: <code>${escapeTelegramHtml(t.formattedTime)}</code>`).join(" \xB7 ");
+    sections.push(
+      "",
+      `<b>\u{1F54B} Namaz Vaxtlar\u0131 (${escapeTelegramHtml(city.name)}):</b>`,
+      timesLine
+    );
+  }
+  inlineButtons.push([
+    { text: "\u2699\uFE0F Abun\u0259liyi \u0130dar\u0259 Et", callback_data: "sub:menu" }
+  ]);
+  return {
+    text: sections.join("\n"),
+    reply_markup: { inline_keyboard: inlineButtons }
+  };
+}
+
+// src/server/telegramSubscriptions.ts
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+var LOCAL_DATA_DIR = path.resolve(process.cwd(), ".data");
+var LOCAL_SUBS_FILE = path.join(LOCAL_DATA_DIR, "telegram-subscriptions.json");
+var KV_SET_KEY = "qq:telegram_sub_chats_v1";
+var KV_REC_PREFIX = "qq:telegram_sub_rec_v1:";
+var KV_SENT_PREFIX = "qq:telegram_sub_sent_v1:";
+var memorySubscriptions = /* @__PURE__ */ new Map();
+var memorySentDayByChat = /* @__PURE__ */ new Map();
+var localDiskLoaded = false;
+function getEncryptionSecret(botToken) {
+  return String(process.env.TELEGRAM_SUB_ENCRYPTION_KEY ?? "").trim() || String(process.env.TELEGRAM_WEBHOOK_SECRET ?? "").trim() || botToken || "quran-qiraeti-sub-fallback-secret-v1";
+}
+function deriveAesKey(secret) {
+  return crypto.createHmac("sha256", secret).update("quran-qiraeti-sub-aes256-v1").digest();
+}
+function hashTelegramChatId(chatId, secretSource) {
+  return crypto.createHmac("sha256", getEncryptionSecret(secretSource)).update(`chat:${String(chatId)}`).digest("hex");
+}
+function encryptSubscriptionPayload(sub, secretSource) {
+  const key = deriveAesKey(getEncryptionSecret(secretSource));
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const compact = JSON.stringify({
+    c: sub.chatId,
+    a: sub.active ? 1 : 0,
+    y: sub.cityId,
+    h: sub.hourBaku,
+    k: sub.fridayKahf ? 1 : 0,
+    v: sub.dailyVerseZikr ? 1 : 0,
+    p: sub.dailyPrayer ? 1 : 0,
+    u: sub.updatedAt,
+    ...sub.lastSentDateKey ? { l: sub.lastSentDateKey } : {}
+  });
+  const encrypted = Buffer.concat([cipher.update(compact, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString("hex")}:${tag.toString("hex")}:${encrypted.toString("hex")}`;
+}
+function decryptSubscriptionPayload(encryptedPayload, secretSource) {
+  try {
+    const parts = String(encryptedPayload ?? "").split(":");
+    if (parts.length !== 3) return null;
+    const iv = Buffer.from(parts[0], "hex");
+    const tag = Buffer.from(parts[1], "hex");
+    const data = Buffer.from(parts[2], "hex");
+    if (iv.length !== 12 || tag.length !== 16 || data.length === 0) return null;
+    const key = deriveAesKey(getEncryptionSecret(secretSource));
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    const plain = Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+    const parsed = JSON.parse(plain);
+    if (!parsed.c) return null;
+    return normalizeTelegramSubscription({
+      chatId: parsed.c,
+      active: parsed.a !== 0,
+      cityId: parsed.y,
+      hourBaku: parsed.h,
+      fridayKahf: parsed.k !== 0,
+      dailyVerseZikr: parsed.v !== 0,
+      dailyPrayer: parsed.p !== 0,
+      updatedAt: parsed.u,
+      ...parsed.l ? { lastSentDateKey: parsed.l } : {}
+    });
+  } catch {
+    return null;
+  }
+}
+function getKvConfig() {
+  const url = String(
+    process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL ?? ""
+  ).trim();
+  const token = String(
+    process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN ?? ""
+  ).trim();
+  if (!url || !token) return null;
+  return { url: url.replace(/\/+$/, ""), token };
+}
+async function kvCommand(args) {
+  const cfg = getKvConfig();
+  if (!cfg) return null;
+  try {
+    const res = await fetch(cfg.url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cfg.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(args),
+      signal: AbortSignal.timeout(4e3)
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.result ?? null;
+  } catch {
+    return null;
+  }
+}
+function loadLocalDiskOnce(secretSource) {
+  if (localDiskLoaded) return;
+  localDiskLoaded = true;
+  if (process.env.VERCEL) return;
+  try {
+    if (!fs.existsSync(LOCAL_SUBS_FILE)) return;
+    const raw = fs.readFileSync(LOCAL_SUBS_FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed?.events)) {
+      for (const ev of parsed.events) {
+        const dec = decryptSubscriptionPayload(ev.encryptedPayload, secretSource);
+        if (dec) {
+          const prev = memorySubscriptions.get(dec.chatId);
+          if (!prev || dec.updatedAt >= prev.updatedAt) {
+            memorySubscriptions.set(dec.chatId, dec);
+          }
+        }
+      }
+    }
+    if (parsed?.sentByHash && typeof parsed.sentByHash === "object") {
+      for (const [k, v] of Object.entries(parsed.sentByHash)) {
+        if (typeof v === "string") memorySentDayByChat.set(k, v);
+      }
+    }
+  } catch {
+  }
+}
+function persistLocalDisk(secretSource) {
+  if (process.env.VERCEL) return;
+  try {
+    fs.mkdirSync(LOCAL_DATA_DIR, { recursive: true });
+    const events = Array.from(memorySubscriptions.values()).map(
+      (sub) => ({
+        eventId: `sub-${hashTelegramChatId(sub.chatId, secretSource).slice(0, 16)}-${sub.updatedAt}`,
+        chatHash: hashTelegramChatId(sub.chatId, secretSource),
+        encryptedPayload: encryptSubscriptionPayload(sub, secretSource),
+        active: sub.active,
+        hourBaku: sub.hourBaku,
+        createdAtMs: sub.updatedAt
+      })
+    );
+    const sentByHash = {};
+    for (const [k, v] of memorySentDayByChat.entries()) {
+      sentByHash[k] = v;
+    }
+    fs.writeFileSync(LOCAL_SUBS_FILE, JSON.stringify({ events, sentByHash }, null, 2), "utf-8");
+  } catch {
+  }
+}
+async function writeEncryptedEventToFirestore(event) {
+  const projectId = firebase_applet_config_default.projectId;
+  const dbId = firebase_applet_config_default.firestoreDatabaseId;
+  const apiKey = firebase_applet_config_default.apiKey;
+  if (!projectId || !dbId || !apiKey) return false;
+  const docName = `projects/${projectId}/databases/${dbId}/documents/telegram_sub_events/${event.eventId}`;
+  const commitUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/${encodeURIComponent(dbId)}/documents:commit?key=${encodeURIComponent(apiKey)}`;
+  try {
+    const res = await fetch(commitUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        writes: [
+          {
+            currentDocument: { exists: false },
+            update: {
+              name: docName,
+              fields: {
+                eventId: { stringValue: event.eventId },
+                chatHash: { stringValue: event.chatHash },
+                encryptedPayload: { stringValue: event.encryptedPayload },
+                active: { booleanValue: event.active },
+                hourBaku: { integerValue: String(event.hourBaku) }
+              }
+            },
+            updateTransforms: [
+              {
+                fieldPath: "createdAt",
+                setToServerValue: "REQUEST_TIME"
+              }
+            ]
+          }
+        ]
+      }),
+      signal: AbortSignal.timeout(4500)
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+async function readSubscriptionsFromFirestore(adminIdToken, secretSource) {
+  if (!adminIdToken) return [];
+  const projectId = firebase_applet_config_default.projectId;
+  const dbId = firebase_applet_config_default.firestoreDatabaseId;
+  const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/${encodeURIComponent(dbId)}/documents/telegram_sub_events?pageSize=500`;
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${adminIdToken}` },
+      signal: AbortSignal.timeout(6e3)
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    const decoded = [];
+    for (const doc of json?.documents ?? []) {
+      const cipher = doc.fields?.encryptedPayload?.stringValue;
+      if (!cipher) continue;
+      const item = decryptSubscriptionPayload(cipher, secretSource);
+      if (item) decoded.push(item);
+    }
+    return decoded;
+  } catch {
+    return [];
+  }
+}
+async function getSubscriptionForChat(chatId, secretSource) {
+  loadLocalDiskOnce(secretSource);
+  const key = String(chatId);
+  const fromMem = memorySubscriptions.get(key);
+  if (fromMem) return fromMem;
+  const chatHash = hashTelegramChatId(key, secretSource);
+  const fromKv = await kvCommand(["GET", `${KV_REC_PREFIX}${chatHash}`]);
+  if (fromKv) {
+    const dec = decryptSubscriptionPayload(fromKv, secretSource);
+    if (dec) {
+      memorySubscriptions.set(dec.chatId, dec);
+      return dec;
+    }
+  }
+  return null;
+}
+async function saveSubscription(sub, secretSource) {
+  loadLocalDiskOnce(secretSource);
+  const normalized = normalizeTelegramSubscription({
+    ...sub,
+    updatedAt: Date.now()
+  });
+  memorySubscriptions.set(normalized.chatId, normalized);
+  persistLocalDisk(secretSource);
+  const chatHash = hashTelegramChatId(normalized.chatId, secretSource);
+  const encryptedPayload = encryptSubscriptionPayload(normalized, secretSource);
+  const eventId = `sub-${chatHash.slice(0, 14)}-${normalized.updatedAt.toString(36)}`;
+  const event = {
+    eventId,
+    chatHash,
+    encryptedPayload: encryptedPayload.slice(0, 1024),
+    active: normalized.active,
+    hourBaku: normalized.hourBaku,
+    createdAtMs: normalized.updatedAt
+  };
+  await Promise.allSettled([
+    writeEncryptedEventToFirestore(event),
+    (async () => {
+      await kvCommand(["SADD", KV_SET_KEY, chatHash]);
+      await kvCommand(["SET", `${KV_REC_PREFIX}${chatHash}`, event.encryptedPayload]);
+    })()
+  ]);
+  return normalized;
+}
+async function loadAllSubscriptions(secretSource, adminIdToken) {
+  loadLocalDiskOnce(secretSource);
+  const allRecords = [...memorySubscriptions.values()];
+  const storageModes = [process.env.VERCEL ? "memory" : "local-file"];
+  const kvCfg = getKvConfig();
+  if (kvCfg) {
+    storageModes.push("kv-redis");
+    const hashes = await kvCommand(["SMEMBERS", KV_SET_KEY]);
+    if (Array.isArray(hashes) && hashes.length > 0) {
+      const kvPayloads = await Promise.all(
+        hashes.slice(0, 500).map((h) => kvCommand(["GET", `${KV_REC_PREFIX}${h}`]))
+      );
+      for (const cipher of kvPayloads) {
+        if (!cipher) continue;
+        const dec = decryptSubscriptionPayload(cipher, secretSource);
+        if (dec) allRecords.push(dec);
+      }
+    }
+  }
+  if (adminIdToken) {
+    const fsRecords = await readSubscriptionsFromFirestore(adminIdToken, secretSource);
+    if (fsRecords.length > 0) {
+      storageModes.push("firestore");
+      allRecords.push(...fsRecords);
+    }
+  }
+  const reduced = reduceSubscriptionEvents(allRecords);
+  for (const item of reduced) {
+    memorySubscriptions.set(item.chatId, item);
+  }
+  return { subscriptions: reduced, storageModes };
+}
+async function hasSentDigestToday(chatId, dateKey, secretSource) {
+  loadLocalDiskOnce(secretSource);
+  const chatHash = hashTelegramChatId(chatId, secretSource);
+  if (memorySentDayByChat.get(chatHash) === dateKey) return true;
+  const fromKv = await kvCommand(["GET", `${KV_SENT_PREFIX}${chatHash}`]);
+  if (fromKv === dateKey) {
+    memorySentDayByChat.set(chatHash, dateKey);
+    return true;
+  }
+  return false;
+}
+async function markDigestSentToday(chatId, dateKey, secretSource) {
+  loadLocalDiskOnce(secretSource);
+  const chatHash = hashTelegramChatId(chatId, secretSource);
+  memorySentDayByChat.set(chatHash, dateKey);
+  persistLocalDisk(secretSource);
+  await kvCommand(["SET", `${KV_SENT_PREFIX}${chatHash}`, dateKey, "EX", 172800]);
+}
+function buildSubscriberSummaryStats(subscriptions, storageModes) {
+  const activeSubs = subscriptions.filter((s) => s.active);
+  const cityCounts = /* @__PURE__ */ new Map();
+  const hourCounts = /* @__PURE__ */ new Map();
+  for (const s of activeSubs) {
+    cityCounts.set(s.cityId, (cityCounts.get(s.cityId) ?? 0) + 1);
+    hourCounts.set(s.hourBaku, (hourCounts.get(s.hourBaku) ?? 0) + 1);
+  }
+  return {
+    totalTracked: subscriptions.length,
+    activeCount: activeSubs.length,
+    pausedCount: subscriptions.length - activeSubs.length,
+    fridayKahfCount: activeSubs.filter((s) => s.fridayKahf).length,
+    dailyVerseZikrCount: activeSubs.filter((s) => s.dailyVerseZikr).length,
+    dailyPrayerCount: activeSubs.filter((s) => s.dailyPrayer).length,
+    cityBreakdown: Array.from(cityCounts.entries()).map(([cityId, count]) => ({ cityId, count })).sort((a, b) => b.count - a.count),
+    hourBreakdown: Array.from(hourCounts.entries()).map(([hourBaku, count]) => ({ hourBaku, count })).sort((a, b) => a.hourBaku - b.hourBaku),
+    storageModes
+  };
+}
+
+// src/server/verseCardSvg.ts
+import fs2 from "node:fs";
+import path2 from "node:path";
+import { Resvg } from "@resvg/resvg-js";
+
+// src/lib/verseCard.ts
+function wrapTextLines(text, maxCharsPerLine, maxLines = 12) {
+  const clean = text.trim().replace(/\s+/g, " ");
+  if (!clean) return [];
+  const limit = Math.max(8, maxCharsPerLine);
+  const words = clean.split(" ");
+  const lines = [];
+  let current = "";
+  let truncated = false;
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    if (!current) {
+      current = word;
+      continue;
+    }
+    if (`${current} ${word}`.length <= limit) {
+      current = `${current} ${word}`;
+    } else {
+      lines.push(current);
+      if (lines.length >= maxLines) {
+        truncated = true;
+        current = "";
+        break;
+      }
+      current = word;
+    }
+  }
+  if (current && lines.length < maxLines) {
+    lines.push(current);
+  }
+  if (truncated && lines.length > 0) {
+    const lastIdx = lines.length - 1;
+    const last = lines[lastIdx];
+    lines[lastIdx] = last.length > 3 ? `${last.slice(0, last.length - 1)}\u2026` : `${last}\u2026`;
+  }
+  return lines;
+}
+function buildVerseReferenceLine(surahName, surahNumber, ayahNumber) {
+  return `${surahName} sur\u0259si \xB7 ${surahNumber}:${ayahNumber} \xB7 \u018Flixan Musayev t\u0259rc\xFCm\u0259si`;
+}
+
+// src/server/verseCardSvg.ts
+function escapeXml2(value) {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function resolveFontFiles() {
+  const candidateDirs = [
+    path2.resolve(process.cwd(), "dist", "fonts"),
+    path2.resolve(process.cwd(), "public", "fonts")
+  ];
+  const filenames = [
+    "NotoNaskhArabic-Regular.ttf",
+    "NotoSans-Regular.ttf",
+    "NotoSans-Bold.ttf"
+  ];
+  for (const dir of candidateDirs) {
+    const resolved = filenames.map((name) => path2.join(dir, name)).filter((p) => fs2.existsSync(p));
+    if (resolved.length === filenames.length) {
+      return resolved;
+    }
+  }
+  const anyFound = [];
+  for (const dir of candidateDirs) {
+    for (const name of filenames) {
+      const p = path2.join(dir, name);
+      if (fs2.existsSync(p) && !anyFound.includes(p)) {
+        anyFound.push(p);
+      }
+    }
+  }
+  return anyFound;
+}
+function stripArabicDiacriticsForMeasure(text) {
+  return text.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "");
+}
+function wrapArabicByVisibleChars(text, maxVisibleCharsPerLine, maxLines) {
+  const clean = text.trim().replace(/\u2026/g, "").replace(/\s+/g, " ");
+  if (!clean) return [];
+  const words = clean.split(" ");
+  const lines = [];
+  let current = "";
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    if (!current) {
+      current = word;
+      continue;
+    }
+    const nextCandidate = `${current} ${word}`;
+    if (stripArabicDiacriticsForMeasure(nextCandidate).length <= maxVisibleCharsPerLine) {
+      current = nextCandidate;
+    } else {
+      lines.push(current);
+      if (lines.length >= maxLines) {
+        current = "";
+        break;
+      }
+      current = word;
+    }
+  }
+  if (current && lines.length < maxLines) {
+    lines.push(current);
+  }
+  return lines;
+}
+function buildVerseCardSvg(input) {
+  const format = input.format === "square" ? "square" : "story";
+  const theme = input.theme === "parchment" ? "parchment" : "emerald";
+  const width = 1080;
+  const height = format === "story" ? 1920 : 1080;
+  const isEmerald = theme === "emerald";
+  const bgTop = isEmerald ? "#0B1B16" : "#FBF8F1";
+  const bgBottom = isEmerald ? "#122922" : "#F2ECE0";
+  const cardSurface = isEmerald ? "#10241D" : "#FFFDF8";
+  const frameStroke = isEmerald ? "rgba(198, 167, 105, 0.36)" : "rgba(15, 76, 58, 0.18)";
+  const accentColor = isEmerald ? "#D4B475" : "#0F4C3A";
+  const primaryText = isEmerald ? "#F5F2EA" : "#17191C";
+  const secondaryText = isEmerald ? "#DAE3DF" : "#2C3135";
+  const mutedText = isEmerald ? "#9BB0A8" : "#66635E";
+  const medallionBg = isEmerald ? "#16342A" : "#EFE8D8";
+  const visibleArabicLen = stripArabicDiacriticsForMeasure(input.arabicText).length;
+  const transLen = input.translation.trim().length;
+  let arabicFontSize;
+  let arabicVisibleChars;
+  let arabicMaxLines;
+  let transFontSize;
+  let transMaxChars;
+  let transMaxLines;
+  if (format === "story") {
+    if (visibleArabicLen <= 120) {
+      arabicFontSize = 56;
+      arabicVisibleChars = 28;
+      arabicMaxLines = 6;
+    } else if (visibleArabicLen <= 280) {
+      arabicFontSize = 44;
+      arabicVisibleChars = 34;
+      arabicMaxLines = 10;
+    } else {
+      arabicFontSize = 36;
+      arabicVisibleChars = 40;
+      arabicMaxLines = 14;
+    }
+    if (transLen <= 200) {
+      transFontSize = 34;
+      transMaxChars = 40;
+      transMaxLines = 8;
+    } else if (transLen <= 480) {
+      transFontSize = 28;
+      transMaxChars = 48;
+      transMaxLines = 14;
+    } else {
+      transFontSize = 24;
+      transMaxChars = 54;
+      transMaxLines = 18;
+    }
+  } else {
+    if (visibleArabicLen <= 120) {
+      arabicFontSize = 48;
+      arabicVisibleChars = 30;
+      arabicMaxLines = 4;
+    } else if (visibleArabicLen <= 260) {
+      arabicFontSize = 38;
+      arabicVisibleChars = 38;
+      arabicMaxLines = 7;
+    } else {
+      arabicFontSize = 31;
+      arabicVisibleChars = 44;
+      arabicMaxLines = 8;
+    }
+    if (transLen <= 180) {
+      transFontSize = 30;
+      transMaxChars = 46;
+      transMaxLines = 5;
+    } else if (transLen <= 420) {
+      transFontSize = 24;
+      transMaxChars = 56;
+      transMaxLines = 8;
+    } else {
+      transFontSize = 21;
+      transMaxChars = 64;
+      transMaxLines = 9;
+    }
+  }
+  const arabicLines = wrapArabicByVisibleChars(input.arabicText, arabicVisibleChars, arabicMaxLines);
+  const transLines = wrapTextLines(`\xAB${input.translation}\xBB`, transMaxChars, transMaxLines);
+  const arabicLineHeight = Math.round(arabicFontSize * 1.68);
+  const transLineHeight = Math.round(transFontSize * 1.46);
+  const dividerGap = format === "story" ? 68 : 44;
+  const arabicBlockHeight = arabicLines.length * arabicLineHeight;
+  const transBlockHeight = transLines.length * transLineHeight;
+  const totalBlockHeight = arabicBlockHeight + dividerGap + transBlockHeight;
+  const headerBaseline = format === "story" ? 164 : 112;
+  const footerTop = format === "story" ? height - 168 : height - 114;
+  const availableTop = headerBaseline + (format === "story" ? 76 : 46);
+  const availableBottom = footerTop - (format === "story" ? 64 : 42);
+  const contentTop = Math.max(
+    availableTop,
+    Math.round(availableTop + (availableBottom - availableTop - totalBlockHeight) / 2)
+  );
+  const arabicElements = arabicLines.map((line, i) => {
+    const y = contentTop + arabicFontSize + i * arabicLineHeight;
+    return `<text x="${width / 2}" y="${y}" text-anchor="middle" direction="rtl" unicode-bidi="bidi-override" fill="${primaryText}" font-family="Noto Naskh Arabic" font-size="${arabicFontSize}">${escapeXml2(line)}</text>`;
+  }).join("\n    ");
+  const dividerY = contentTop + arabicBlockHeight + Math.round(dividerGap / 2);
+  const transStartY = dividerY + Math.round(dividerGap / 2) + transFontSize;
+  const transElements = transLines.map((line, i) => {
+    const y = transStartY + i * transLineHeight;
+    return `<text x="${width / 2}" y="${y}" text-anchor="middle" fill="${secondaryText}" font-family="Noto Sans" font-size="${transFontSize}">${escapeXml2(line)}</text>`;
+  }).join("\n    ");
+  const refLine = buildVerseReferenceLine(input.surahName, input.surahNumber, input.ayahNumber);
+  const pad = format === "story" ? 58 : 48;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <linearGradient id="cardBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${bgTop}" />
+      <stop offset="100%" stop-color="${bgBottom}" />
+    </linearGradient>
+    <radialGradient id="topGlow" cx="50%" cy="18%" r="55%">
+      <stop offset="0%" stop-color="${accentColor}" stop-opacity="${isEmerald ? "0.14" : "0.07"}" />
+      <stop offset="100%" stop-color="${accentColor}" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="${width}" height="${height}" fill="url(#cardBg)" />
+  <rect width="${width}" height="${height}" fill="url(#topGlow)" />
+
+  <rect x="${pad}" y="${pad}" width="${width - pad * 2}" height="${height - pad * 2}" rx="28" fill="${cardSurface}" fill-opacity="0.72" stroke="${frameStroke}" stroke-width="2" />
+  <rect x="${pad + 14}" y="${pad + 14}" width="${width - (pad + 14) * 2}" height="${height - (pad + 14) * 2}" rx="20" fill="none" stroke="${frameStroke}" stroke-opacity="0.45" stroke-width="1" />
+
+  <text x="${width / 2}" y="${headerBaseline}" text-anchor="middle" fill="${accentColor}" font-family="Noto Sans" font-weight="700" font-size="24" letter-spacing="5">QURAN Q\u0130RA\u018FT\u0130</text>
+  <line x1="${width / 2 - 110}" y1="${headerBaseline + 26}" x2="${width / 2 + 110}" y2="${headerBaseline + 26}" stroke="${frameStroke}" stroke-width="1.5" />
+
+  <g>
+    ${arabicElements}
+  </g>
+
+  <line x1="${width / 2 - 180}" y1="${dividerY}" x2="${width / 2 - 42}" y2="${dividerY}" stroke="${frameStroke}" stroke-width="1.5" />
+  <circle cx="${width / 2}" cy="${dividerY}" r="24" fill="${medallionBg}" stroke="${accentColor}" stroke-width="1.5" />
+  <text x="${width / 2}" y="${dividerY + 8}" text-anchor="middle" fill="${accentColor}" font-family="Noto Sans" font-weight="700" font-size="20">${input.ayahNumber}</text>
+  <line x1="${width / 2 + 42}" y1="${dividerY}" x2="${width / 2 + 180}" y2="${dividerY}" stroke="${frameStroke}" stroke-width="1.5" />
+
+  <g>
+    ${transElements}
+  </g>
+
+  <line x1="${width / 2 - 140}" y1="${footerTop - 36}" x2="${width / 2 + 140}" y2="${footerTop - 36}" stroke="${frameStroke}" stroke-width="1" />
+  <text x="${width / 2}" y="${footerTop}" text-anchor="middle" fill="${accentColor}" font-family="Noto Sans" font-weight="700" font-size="24">${escapeXml2(refLine)}</text>
+  <text x="${width / 2}" y="${footerTop + 40}" text-anchor="middle" fill="${mutedText}" font-family="Noto Sans" font-size="20">@quranqiraeti \xB7 quranqiraeti.vercel.app</text>
+</svg>`;
+}
+function renderVerseCardPngBuffer(input) {
+  const svg = buildVerseCardSvg(input);
+  const fontFiles = resolveFontFiles();
+  const resvg = new Resvg(svg, {
+    fitTo: {
+      mode: "width",
+      value: 1080
+    },
+    font: {
+      fontFiles,
+      loadSystemFonts: fontFiles.length === 0,
+      defaultFontFamily: "Noto Sans"
+    }
+  });
+  const rendered = resvg.render();
+  return Buffer.from(rendered.asPng());
+}
+
 // src/server/telegram.ts
+var DEFAULT_PUBLIC_ORIGIN = "https://quranqiraeti.vercel.app";
+var BOOTSTRAPPED_ADMIN_EMAIL_SHA256 = "c00a9c2c72ba2c120b8edf90ac1584dd117552bdfca10d4c69808fa25f01534d";
+var cachedBotUsername = "Quranqiraetibot";
+function getTelegramBotToken() {
+  return String(
+    process.env.TELEGRAM_BOT_TOKEN ?? process.env.bot ?? process.env.BOT ?? ""
+  ).trim();
+}
+function getTelegramWebhookSecret(token) {
+  const explicit = String(process.env.TELEGRAM_WEBHOOK_SECRET ?? "").trim();
+  if (explicit) return explicit;
+  if (!token) return "";
+  return crypto2.createHmac("sha256", token).update("quran-qiraeti-webhook-secret-v1").digest("hex").slice(0, 48);
+}
+function resolvePublicTelegramOrigin(reqOrigin) {
+  const canonical = String(process.env.CANONICAL_ORIGIN ?? "").trim();
+  if (canonical && /^https:\/\//i.test(canonical)) {
+    return normalizeBaseUrl(canonical);
+  }
+  if (reqOrigin && /^https:\/\//i.test(reqOrigin) && !reqOrigin.includes("ais-dev-") && !reqOrigin.includes("127.0.0.1") && !reqOrigin.includes("localhost")) {
+    return normalizeBaseUrl(reqOrigin);
+  }
+  return DEFAULT_PUBLIC_ORIGIN;
+}
 function verifyTimingSafeSecret(provided, expected) {
   if (!provided || !expected) return false;
-  const providedDigest = crypto.createHash("sha256").update(provided).digest();
-  const expectedDigest = crypto.createHash("sha256").update(expected).digest();
-  return crypto.timingSafeEqual(providedDigest, expectedDigest);
+  const providedDigest = crypto2.createHash("sha256").update(provided).digest();
+  const expectedDigest = crypto2.createHash("sha256").update(expected).digest();
+  return crypto2.timingSafeEqual(providedDigest, expectedDigest);
 }
-async function callTelegramApi(token, method, payload) {
+async function verifyFirebaseAdminBearer(authHeader) {
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  const idToken = match?.[1]?.trim();
+  if (!idToken) return false;
+  try {
+    const lookupRes = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(firebase_applet_config_default.apiKey)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+        signal: AbortSignal.timeout(5e3)
+      }
+    );
+    if (!lookupRes.ok) return false;
+    const lookupJson = await lookupRes.json();
+    const user = lookupJson?.users?.[0];
+    if (!user?.localId || !user?.emailVerified || !user?.email) return false;
+    const emailHash = crypto2.createHash("sha256").update(user.email.trim().toLowerCase()).digest("hex");
+    if (verifyTimingSafeSecret(emailHash, BOOTSTRAPPED_ADMIN_EMAIL_SHA256)) {
+      return true;
+    }
+    const adminDocRes = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(firebase_applet_config_default.projectId)}/databases/${encodeURIComponent(firebase_applet_config_default.firestoreDatabaseId)}/documents/admins/${encodeURIComponent(user.localId)}`,
+      {
+        headers: { Authorization: `Bearer ${idToken}` },
+        signal: AbortSignal.timeout(5e3)
+      }
+    );
+    return adminDocRes.ok;
+  } catch {
+    return false;
+  }
+}
+async function callTelegramApi(token, method, payload, timeoutMs = 6e3) {
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload ?? {}),
-    signal: AbortSignal.timeout(6e3)
+    signal: AbortSignal.timeout(timeoutMs)
   });
   const data = await res.json();
   return {
@@ -5027,6 +7194,215 @@ async function sendTelegramHtmlMessage(token, chatId, text, replyMarkup) {
     disable_web_page_preview: true,
     ...replyMarkup ? { reply_markup: replyMarkup } : {}
   });
+}
+async function editTelegramHtmlMessage(token, chatId, messageId, text, replyMarkup) {
+  const res = await callTelegramApi(token, "editMessageText", {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+    ...replyMarkup ? { reply_markup: replyMarkup } : {}
+  });
+  return res.ok;
+}
+async function sendTelegramAyahAudio(token, chatId, surahNumber, ayahNumber, reciterInput) {
+  const surah = findSurahForTelegramQuery(String(surahNumber));
+  if (!surah || ayahNumber < 1 || ayahNumber > surah.ayahCount) return;
+  const reciter = resolveMuhaffizReciter(reciterInput);
+  const audioUrl = getTelegramAyahAudioUrl(surah.number, ayahNumber, reciter.id);
+  await callTelegramApi(token, "sendAudio", {
+    chat_id: chatId,
+    audio: audioUrl,
+    title: `${surah.name} sur\u0259si (${surah.number}:${ayahNumber})`,
+    performer: reciter.label,
+    caption: `\u{1F3A7} ${surah.name} sur\u0259si, ${surah.number}:${ayahNumber} \xB7 ${reciter.label}`
+  });
+}
+async function sendTelegramFullSurahAudio(token, origin, chatId, surahNumber, reciterInput) {
+  const surah = findSurahForTelegramQuery(String(surahNumber));
+  if (!surah) return;
+  const reciter = resolveMuhaffizReciter(reciterInput);
+  const audioUrl = getTelegramSurahAudioUrl(surah.number, reciter.id);
+  const baseUrl = normalizeBaseUrl(origin);
+  let contentLengthBytes = 0;
+  try {
+    const head = await fetch(audioUrl, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(2500)
+    });
+    if (head.ok) {
+      contentLengthBytes = Number.parseInt(head.headers.get("content-length") ?? "0", 10) || 0;
+    }
+  } catch {
+  }
+  if (contentLengthBytes === 0 || contentLengthBytes <= 195e5) {
+    const sent = await callTelegramApi(
+      token,
+      "sendAudio",
+      {
+        chat_id: chatId,
+        audio: audioUrl,
+        title: `${surah.number}. ${surah.name} sur\u0259si (Tam)`,
+        performer: reciter.label,
+        caption: `\u{1F4C0} ${surah.number}. ${surah.name} sur\u0259si (Tam tilav\u0259t) \xB7 ${reciter.label}`
+      },
+      15e3
+    );
+    if (sent.ok) return;
+  }
+  const sizeMb = contentLengthBytes > 0 ? ` (~${(contentLengthBytes / 1048576).toFixed(1)} MB)` : "";
+  await sendTelegramHtmlMessage(
+    token,
+    chatId,
+    [
+      `<b>\u{1F4C0} ${surah.number}. ${escapeTelegramHtml(surah.name)} sur\u0259si (Tam Tilav\u0259t)</b>`,
+      `\u{1F399} <b>Qari:</b> ${escapeTelegramHtml(reciter.label)}${escapeTelegramHtml(sizeMb)}`,
+      "",
+      "Uzun sur\u0259 MP3 fayl\u0131 Telegram bot limiti (20 MB) \xFCz\u0259rind\u0259 oldu\u011Fu \xFC\xE7\xFCn birba\u015Fa audio link v\u0259 ya t\u0259tbiq pleyeri il\u0259 fasil\u0259siz dinl\u0259y\u0259 bil\u0259rsiniz:"
+    ].join("\n"),
+    {
+      inline_keyboard: [
+        [{ text: `\u{1F3A7} MP3-ni Dinl\u0259 / Endir (${reciter.shortLabel})`, url: audioUrl }],
+        [
+          {
+            text: `\u{1F4D6} Mini App-d\u0259 Fasil\u0259siz Dinl\u0259`,
+            web_app: {
+              url: `${baseUrl}/quran/sure/${surah.number}?reciter=${encodeURIComponent(reciter.id)}&audioMode=surah`
+            }
+          }
+        ]
+      ]
+    }
+  );
+}
+async function resolveVersePayloadForBot(surahNumber, ayahNumber, deps) {
+  const surahMeta = findSurahForTelegramQuery(String(surahNumber)) ?? findSurahForTelegramQuery("2");
+  const clampedAyah = Math.max(1, Math.min(surahMeta.ayahCount, Math.trunc(ayahNumber || 1)));
+  const curated = CURATED_TELEGRAM_VERSES.find(
+    (v) => v.surahNumber === surahMeta.number && v.ayahNumber === clampedAyah
+  );
+  try {
+    const payload = await Promise.race([
+      deps.fetchSurahTranslation(surahMeta.number),
+      new Promise((resolve) => setTimeout(() => resolve(void 0), 2400))
+    ]);
+    const hit = payload?.ayahs?.find((a) => a.ayahNumber === clampedAyah);
+    if (hit && hit.arabicText && hit.translation) {
+      return {
+        surahNumber: surahMeta.number,
+        surahName: surahMeta.name,
+        ayahNumber: clampedAyah,
+        arabicText: hit.arabicText,
+        translation: hit.translation
+      };
+    }
+  } catch {
+  }
+  if (curated) return curated;
+  return {
+    surahNumber: surahMeta.number,
+    surahName: surahMeta.name,
+    ayahNumber: clampedAyah,
+    arabicText: `${surahMeta.arabicName} \uFD3F${clampedAyah}\uFD3E`,
+    translation: `${surahMeta.name} sur\u0259si, ${clampedAyah}-ci ay\u0259 (Tam m\u0259tni t\u0259tbiqd\u0259 oxuya bil\u0259rsiniz).`
+  };
+}
+async function sendTelegramVerseCardPhoto(token, origin, chatId, verse, theme = "emerald", format = "story") {
+  const baseUrl = normalizeBaseUrl(origin);
+  const pngBuffer = renderVerseCardPngBuffer({
+    surahName: verse.surahName,
+    surahNumber: verse.surahNumber,
+    ayahNumber: verse.ayahNumber,
+    arabicText: verse.arabicText,
+    translation: verse.translation,
+    theme,
+    format
+  });
+  const altTheme = theme === "emerald" ? "parchment" : "emerald";
+  const altFormat = format === "story" ? "square" : "story";
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        {
+          text: altTheme === "parchment" ? "\u{1F324} A\xE7\u0131q Tema (Par\u015F\xF6men)" : "\u{1F311} Z\xFCmr\xFCd Tema",
+          callback_data: `kart:${verse.surahNumber}:${verse.ayahNumber}:${altTheme}:${format}`
+        },
+        {
+          text: altFormat === "square" ? "\u{1F7E6} Kvadrat (1:1)" : "\u{1F4F1} Story (9:16)",
+          callback_data: `kart:${verse.surahNumber}:${verse.ayahNumber}:${theme}:${altFormat}`
+        }
+      ],
+      [
+        {
+          text: "\u{1F3A7} S\u0259sli Dinl\u0259",
+          callback_data: `amenu:${verse.surahNumber}:${verse.ayahNumber}:afasy`
+        },
+        {
+          text: "\u{1F4D6} Sur\u0259d\u0259 A\xE7",
+          web_app: {
+            url: `${baseUrl}/quran/sure/${verse.surahNumber}#ayah-${verse.ayahNumber}`
+          }
+        }
+      ]
+    ]
+  };
+  const form = new FormData();
+  form.append("chat_id", String(chatId));
+  form.append(
+    "photo",
+    new Blob([new Uint8Array(pngBuffer)], { type: "image/png" }),
+    `quranqiraeti-${verse.surahNumber}-${verse.ayahNumber}-${format}.png`
+  );
+  form.append(
+    "caption",
+    [
+      `<b>\u{1F5BC} ${escapeTelegramHtml(verse.surahName)} sur\u0259si, ${verse.surahNumber}:${verse.ayahNumber}</b>`,
+      `\xAB${escapeTelegramHtml(verse.translation.slice(0, 260))}\xBB`,
+      "<i>@quranqiraeti \xB7 WhatsApp Status / Instagram Story \xFC\xE7\xFCn haz\u0131rd\u0131r</i>"
+    ].join("\n")
+  );
+  form.append("parse_mode", "HTML");
+  form.append("reply_markup", JSON.stringify(replyMarkup));
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(12e3)
+    });
+    const data = await res.json();
+    return Boolean(data?.ok);
+  } catch {
+    return false;
+  }
+}
+async function registerBotWebhookAndMenu(token, webhookSecret, origin) {
+  const webhookUrl = `${origin}/api/telegram/webhook`;
+  const [webhookRes, commandsRes, menuRes] = await Promise.all([
+    callTelegramApi(token, "setWebhook", {
+      url: webhookUrl,
+      secret_token: webhookSecret,
+      allowed_updates: ["message", "callback_query", "inline_query"]
+    }),
+    callTelegramApi(token, "setMyCommands", {
+      commands: TELEGRAM_BOT_COMMANDS
+    }),
+    callTelegramApi(token, "setChatMenuButton", {
+      menu_button: {
+        type: "web_app",
+        text: "\u{1F4D6} Quran\u0131 A\xE7",
+        web_app: { url: `${origin}/quran` }
+      }
+    })
+  ]);
+  return {
+    ok: webhookRes.ok && commandsRes.ok && menuRes.ok,
+    webhookUrl,
+    webhookSet: webhookRes.ok,
+    commandsSet: commandsRes.ok,
+    menuButtonSet: menuRes.ok,
+    error: !webhookRes.ok ? webhookRes.description : void 0
+  };
 }
 async function handleQuranTextSearch(origin, query) {
   const baseUrl = normalizeBaseUrl(origin);
@@ -5054,7 +7430,7 @@ async function handleQuranTextSearch(origin, query) {
           "",
           ...matches.map(
             (m, idx) => `${idx + 1}. <b>${escapeTelegramHtml(m.surahName)} ${m.surahNumber}:${m.ayahNumber}</b>
-\xAB${escapeTelegramHtml(m.translation.slice(0, 220))}${m.translation.length > 220 ? "\u2026" : ""}\xBB`
+\xAB${escapeTelegramHtml(m.snippet.slice(0, 220))}${m.snippet.length > 220 ? "\u2026" : ""}\xBB`
           )
         ];
         return {
@@ -5092,13 +7468,458 @@ async function handleQuranTextSearch(origin, query) {
     }
   };
 }
+async function resolveMushafPageReply(origin, pageNumber, deps) {
+  const safePage = Math.max(1, Math.min(TOTAL_QURAN_PAGES, Math.trunc(pageNumber)));
+  let summaryText = "";
+  let sampleAyahs = [];
+  try {
+    const payload = await Promise.race([
+      deps.fetchMushafPage(safePage),
+      new Promise((resolve) => setTimeout(() => resolve(void 0), 2200))
+    ]);
+    if (payload) {
+      summaryText = summarizeMushafPageContents(payload);
+      sampleAyahs = payload.ayahs.slice(0, 2).map((a) => ({
+        surahName: a.surahName.replace(/\s+surəsi$/i, ""),
+        ayahNumber: a.ayahNumber,
+        arabicText: a.arabicText,
+        translation: a.translation
+      }));
+    }
+  } catch {
+  }
+  return formatMushafPageMessage(origin, safePage, summaryText, sampleAyahs);
+}
+async function processTelegramUpdate(update, origin, token, deps) {
+  if (update.inline_query?.id) {
+    const inlineQueryId = String(update.inline_query.id);
+    const queryText = String(update.inline_query.query ?? "").trim().slice(0, 80);
+    const { longVideos, shorts } = await deps.getChannelDataForSeo();
+    const collected = [];
+    const ayahRef = parseInlineAyahRef(queryText);
+    if (ayahRef) {
+      const verse = await resolveVersePayloadForBot(
+        ayahRef.surahNumber,
+        ayahRef.ayahNumber,
+        deps
+      );
+      collected.push(
+        ...buildInlineAyahResults(origin, cachedBotUsername, verse, ayahRef.reciterId)
+      );
+    } else if (queryText.length >= 3) {
+      try {
+        const encoded = encodeURIComponent(queryText);
+        const searchRes = await fetch(
+          `https://api.alquran.cloud/v1/search/${encoded}/all/az.mammadaliyev`,
+          {
+            signal: AbortSignal.timeout(2200),
+            headers: { "User-Agent": "Mozilla/5.0" }
+          }
+        );
+        if (searchRes.ok) {
+          const searchJson = await searchRes.json();
+          const matches = parseAlQuranSearchPayload(searchJson).slice(0, 4);
+          if (matches.length > 0) {
+            collected.push(
+              ...buildInlineSearchResults(origin, cachedBotUsername, matches)
+            );
+          }
+        }
+      } catch {
+      }
+    }
+    const baseResults = buildInlineQueryResults(
+      origin,
+      queryText,
+      [...longVideos, ...shorts],
+      /* @__PURE__ */ new Date(),
+      cachedBotUsername
+    );
+    const seenIds = new Set(collected.map((item) => item.id));
+    for (const item of baseResults) {
+      if (!seenIds.has(item.id)) {
+        collected.push(item);
+        seenIds.add(item.id);
+      }
+    }
+    await callTelegramApi(token, "answerInlineQuery", {
+      inline_query_id: inlineQueryId,
+      results: collected.slice(0, 15),
+      cache_time: 120,
+      is_personal: false
+    });
+    return;
+  }
+  if (update.callback_query?.id && update.callback_query.message?.chat?.id !== void 0) {
+    const cbId = String(update.callback_query.id);
+    const chatId = update.callback_query.message.chat.id;
+    const messageId = update.callback_query.message.message_id;
+    const data = String(update.callback_query.data ?? "");
+    await callTelegramApi(token, "answerCallbackQuery", { callback_query_id: cbId });
+    if (data === "aye:random") {
+      const pick = CURATED_TELEGRAM_VERSES[Math.floor(Math.random() * CURATED_TELEGRAM_VERSES.length)];
+      const msg = formatVerseMessage(origin, { ...pick, heading: "\u2728 Se\xE7ilmi\u015F Ay\u0259" });
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (data.startsWith("kart:")) {
+      const [, sRaw, aRaw, themeRaw, formatRaw] = data.split(":");
+      const sNum = Number.parseInt(sRaw ?? "2", 10) || 2;
+      const aNum = Number.parseInt(aRaw ?? "255", 10) || 255;
+      const theme = themeRaw === "parchment" ? "parchment" : "emerald";
+      const format = formatRaw === "square" ? "square" : "story";
+      const verse = await resolveVersePayloadForBot(sNum, aNum, deps);
+      await sendTelegramVerseCardPhoto(token, origin, chatId, verse, theme, format);
+    } else if (data.startsWith("sub:")) {
+      const existing = await getSubscriptionForChat(chatId, token) ?? createDefaultSubscription(chatId);
+      if (data === "sub:test") {
+        const saved = await saveSubscription({ ...existing, active: true }, token);
+        const digest = buildDailyDigestMessage(origin, saved, /* @__PURE__ */ new Date());
+        if (digest) {
+          await sendTelegramHtmlMessage(token, chatId, digest.text, digest.reply_markup);
+        }
+        return;
+      }
+      let updated = existing;
+      if (data === "sub:menu") {
+        if (!await getSubscriptionForChat(chatId, token)) {
+          updated = await saveSubscription(existing, token);
+        }
+      } else if (data === "sub:tog:active") {
+        updated = await saveSubscription({ ...existing, active: !existing.active }, token);
+      } else if (data === "sub:tog:kahf") {
+        updated = await saveSubscription(
+          { ...existing, active: true, fridayKahf: !existing.fridayKahf },
+          token
+        );
+      } else if (data === "sub:tog:verse") {
+        updated = await saveSubscription(
+          { ...existing, active: true, dailyVerseZikr: !existing.dailyVerseZikr },
+          token
+        );
+      } else if (data === "sub:tog:prayer") {
+        updated = await saveSubscription(
+          { ...existing, active: true, dailyPrayer: !existing.dailyPrayer },
+          token
+        );
+      } else if (data.startsWith("sub:city:")) {
+        const cityId = data.slice("sub:city:".length);
+        const city = findCityForTelegramQuery(cityId);
+        updated = await saveSubscription({ ...existing, active: true, cityId: city.id }, token);
+      } else if (data.startsWith("sub:hour:")) {
+        const hour = Number.parseInt(data.slice("sub:hour:".length), 10);
+        if (hour >= 0 && hour <= 23) {
+          updated = await saveSubscription({ ...existing, active: true, hourBaku: hour }, token);
+        }
+      }
+      const settingsReply = formatSubscriptionSettingsMessage(origin, updated);
+      if (data !== "sub:menu" && typeof messageId === "number") {
+        const edited = await editTelegramHtmlMessage(
+          token,
+          chatId,
+          messageId,
+          settingsReply.text,
+          settingsReply.reply_markup
+        );
+        if (edited) return;
+      }
+      await sendTelegramHtmlMessage(
+        token,
+        chatId,
+        settingsReply.text,
+        settingsReply.reply_markup
+      );
+    } else if (data.startsWith("amenu:")) {
+      const [, sRaw, aRaw, qariCode] = data.split(":");
+      const sNum = Number.parseInt(sRaw ?? "1", 10) || 1;
+      const aNum = Number.parseInt(aRaw ?? "1", 10) || 1;
+      const msg = formatAudioSelectorMessage(origin, {
+        surahNumber: sNum,
+        ayahNumber: aNum,
+        reciterInput: qariCode,
+        showPresets: sNum === 1 && aNum === 1
+      });
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (data.startsWith("asrc:")) {
+      const [, sRaw, aRaw, qariCode] = data.split(":");
+      const sNum = Number.parseInt(sRaw ?? "1", 10) || 1;
+      const aNum = Number.parseInt(aRaw ?? "1", 10) || 1;
+      const msg = formatAudioSelectorMessage(origin, {
+        surahNumber: sNum,
+        ayahNumber: aNum,
+        reciterInput: qariCode,
+        showPresets: true
+      });
+      if (typeof messageId === "number") {
+        const edited = await editTelegramHtmlMessage(
+          token,
+          chatId,
+          messageId,
+          msg.text,
+          msg.reply_markup
+        );
+        if (!edited) {
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        }
+      } else {
+        await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+      }
+    } else if (data.startsWith("aplay:")) {
+      const [, mode, sRaw, aRaw, qariCode] = data.split(":");
+      const sNum = Number.parseInt(sRaw ?? "1", 10) || 1;
+      const aNum = Number.parseInt(aRaw ?? "1", 10) || 1;
+      if (mode === "surah") {
+        await sendTelegramFullSurahAudio(token, origin, chatId, sNum, qariCode);
+      } else {
+        await sendTelegramAyahAudio(token, chatId, sNum, aNum, qariCode);
+      }
+    } else if (data.startsWith("audio:")) {
+      const [, sRaw, aRaw, qariCode] = data.split(":");
+      const sNum = Number.parseInt(sRaw ?? "1", 10) || 1;
+      const aNum = Number.parseInt(aRaw ?? "1", 10) || 1;
+      const msg = formatAudioSelectorMessage(origin, {
+        surahNumber: sNum,
+        ayahNumber: aNum,
+        reciterInput: qariCode
+      });
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (data.startsWith("namaz:")) {
+      const cityKey = data.slice("namaz:".length);
+      const city = findCityForTelegramQuery(cityKey);
+      const msg = formatPrayerTimesMessage(origin, city);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (data.startsWith("zikr:")) {
+      const [, rawCat = "seher", rawIdx] = data.split(":");
+      const cat = rawCat === "axsam" || rawCat === "namaz" || rawCat === "umumi" ? rawCat : "seher";
+      const parsedIdx = rawIdx !== void 0 ? Number.parseInt(rawIdx, 10) : NaN;
+      const offset = Number.isFinite(parsedIdx) && parsedIdx >= 0 ? parsedIdx : Math.floor(Math.random() * 25);
+      const msg = formatZikrMessage(origin, cat, offset);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (data === "teqvim:now") {
+      const msg = formatHijriCalendarMessage(origin);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (data.startsWith("mushaf:")) {
+      const pageNum = Number.parseInt(data.slice("mushaf:".length), 10);
+      if (pageNum >= 1 && pageNum <= TOTAL_QURAN_PAGES) {
+        const msg = await resolveMushafPageReply(origin, pageNum, deps);
+        await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+      }
+    }
+    return;
+  }
+  if (update.message?.chat?.id !== void 0 && typeof update.message.text === "string") {
+    const chatId = update.message.chat.id;
+    const rawText = update.message.text.trim();
+    const parsed = parseTelegramCommand(rawText);
+    if (!parsed) {
+      const inlineRefHit = parseInlineAyahRef(rawText);
+      if (inlineRefHit) {
+        const verse = await resolveVersePayloadForBot(
+          inlineRefHit.surahNumber,
+          inlineRefHit.ayahNumber,
+          deps
+        );
+        const msg = formatVerseMessage(origin, {
+          ...verse,
+          heading: `\u{1F4D6} ${verse.surahName} sur\u0259si`
+        });
+        await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        return;
+      }
+      const surahHit = findSurahForTelegramQuery(rawText);
+      if (surahHit && rawText.length <= 30) {
+        let sampleAyahs = [];
+        try {
+          const payload = await Promise.race([
+            deps.fetchSurahTranslation(surahHit.number),
+            new Promise((resolve) => setTimeout(() => resolve(void 0), 2e3))
+          ]);
+          if (payload) sampleAyahs = payload.ayahs.slice(0, 2);
+        } catch {
+        }
+        const msg = formatSurahMessage(origin, surahHit, sampleAyahs);
+        await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+      } else {
+        const msg = await handleQuranTextSearch(origin, rawText);
+        await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+      }
+      return;
+    }
+    const { command, args } = parsed;
+    if (command === "start" || command === "help" || command === "yardim" || command === "menu") {
+      const deepArg = args.trim();
+      const deepKart = deepArg.match(/^kart_(\d{1,3})_(\d{1,3})$/i);
+      if (deepKart) {
+        const s = Number.parseInt(deepKart[1], 10);
+        const a = Number.parseInt(deepKart[2], 10);
+        const verse = await resolveVersePayloadForBot(s, a, deps);
+        await sendTelegramVerseCardPhoto(token, origin, chatId, verse, "emerald", "story");
+        return;
+      }
+      const deepSes = deepArg.match(/^ses_(\d{1,3})_(\d{1,3})$/i);
+      if (deepSes) {
+        const s = Number.parseInt(deepSes[1], 10);
+        const a = Number.parseInt(deepSes[2], 10);
+        const msg2 = formatAudioSelectorMessage(origin, {
+          surahNumber: s,
+          ayahNumber: a,
+          reciterInput: "afasy"
+        });
+        await sendTelegramHtmlMessage(token, chatId, msg2.text, msg2.reply_markup);
+        return;
+      }
+      const deepAye = deepArg.match(/^aye_(\d{1,3})_(\d{1,3})$/i);
+      if (deepAye) {
+        const s = Number.parseInt(deepAye[1], 10);
+        const a = Number.parseInt(deepAye[2], 10);
+        const verse = await resolveVersePayloadForBot(s, a, deps);
+        const msg2 = formatVerseMessage(origin, {
+          ...verse,
+          heading: `\u{1F4D6} ${verse.surahName} sur\u0259si`
+        });
+        await sendTelegramHtmlMessage(token, chatId, msg2.text, msg2.reply_markup);
+        return;
+      }
+      if (deepArg.toLowerCase() === "abune") {
+        const existing = await getSubscriptionForChat(chatId, token) ?? createDefaultSubscription(chatId);
+        const saved = await saveSubscription(existing, token);
+        const msg2 = formatSubscriptionSettingsMessage(origin, saved);
+        await sendTelegramHtmlMessage(token, chatId, msg2.text, msg2.reply_markup);
+        return;
+      }
+      const msg = formatStartMessage(origin);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (command === "kart" || command === "sekil" || command === "card") {
+      const kartTarget = parseKartQueryArgs(args);
+      const verse = await resolveVersePayloadForBot(
+        kartTarget.surahNumber,
+        kartTarget.ayahNumber,
+        deps
+      );
+      const ok = await sendTelegramVerseCardPhoto(
+        token,
+        origin,
+        chatId,
+        verse,
+        kartTarget.theme,
+        kartTarget.format
+      );
+      if (!ok) {
+        const fallbackMsg = formatVerseMessage(origin, verse);
+        await sendTelegramHtmlMessage(token, chatId, fallbackMsg.text, fallbackMsg.reply_markup);
+      }
+    } else if (command === "abune" || command === "bildiris" || command === "sub") {
+      const current = await getSubscriptionForChat(chatId, token) ?? createDefaultSubscription(chatId);
+      const nextSub = parseAbuneCommandArgs(args, current);
+      const saved = await saveSubscription(nextSub, token);
+      const msg = formatSubscriptionSettingsMessage(origin, saved);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (command === "ses" || command === "dinle" || command === "qiraet" || command === "qari") {
+      const audioTarget = parseAudioQueryArgs(args);
+      const msg = formatAudioSelectorMessage(origin, {
+        surahNumber: audioTarget.surahNumber,
+        ayahNumber: audioTarget.ayahNumber,
+        reciterInput: audioTarget.reciterId,
+        showPresets: !audioTarget.hasExplicitTarget
+      });
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (command === "aye" || command === "gunun_ayesi") {
+      const refMatch = args.match(/^(\d{1,3}):(\d{1,3})$/);
+      if (refMatch) {
+        const surahNum = Number.parseInt(refMatch[1], 10);
+        const ayahNum = Number.parseInt(refMatch[2], 10);
+        const surahMeta = findSurahForTelegramQuery(String(surahNum));
+        if (surahMeta && ayahNum >= 1 && ayahNum <= surahMeta.ayahCount) {
+          const verse = await resolveVersePayloadForBot(surahNum, ayahNum, deps);
+          const msg2 = formatVerseMessage(origin, {
+            ...verse,
+            heading: `\u{1F4D6} ${surahMeta.name} sur\u0259si`
+          });
+          await sendTelegramHtmlMessage(token, chatId, msg2.text, msg2.reply_markup);
+          return;
+        }
+      }
+      const daily = getCuratedVerseForDate();
+      const msg = formatVerseMessage(origin, daily);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (command === "sure" || command === "surah") {
+      if (!args) {
+        await sendTelegramHtmlMessage(
+          token,
+          chatId,
+          "Z\u0259hm\u0259t olmasa sur\u0259 ad\u0131 v\u0259 ya n\xF6mr\u0259si yaz\u0131n. M\u0259s\u0259l\u0259n:\n<code>/sure Yasin</code> v\u0259 ya <code>/sure 36</code>"
+        );
+      } else {
+        const surah = findSurahForTelegramQuery(args);
+        if (!surah) {
+          await sendTelegramHtmlMessage(
+            token,
+            chatId,
+            `\xAB${escapeTelegramHtml(args)}\xBB adl\u0131 sur\u0259 tap\u0131lmad\u0131. 1\u2013114 aras\u0131 n\xF6mr\u0259 v\u0259 ya sur\u0259 ad\u0131 yaz\u0131n.`
+          );
+        } else {
+          let sampleAyahs = [];
+          try {
+            const payload = await Promise.race([
+              deps.fetchSurahTranslation(surah.number),
+              new Promise((resolve) => setTimeout(() => resolve(void 0), 2e3))
+            ]);
+            if (payload) sampleAyahs = payload.ayahs.slice(0, 2);
+          } catch {
+          }
+          const msg = formatSurahMessage(origin, surah, sampleAyahs);
+          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        }
+      }
+    } else if (command === "sehife" || command === "mushaf" || command === "page") {
+      const num = Number.parseInt(args || "1", 10);
+      if (Number.isNaN(num) || num < 1 || num > TOTAL_QURAN_PAGES) {
+        await sendTelegramHtmlMessage(
+          token,
+          chatId,
+          "M\u0259din\u0259 Mushaf\u0131 s\u0259hif\u0259l\u0259ri 1 il\u0259 604 aras\u0131ndad\u0131r. M\u0259s\u0259l\u0259n: <code>/sehife 42</code>"
+        );
+      } else {
+        const msg = await resolveMushafPageReply(origin, num, deps);
+        await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+      }
+    } else if (command === "namaz" || command === "vaxt") {
+      const city = findCityForTelegramQuery(args || "Bak\u0131");
+      const msg = formatPrayerTimesMessage(origin, city);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (command === "zikr" || command === "tesbih") {
+      const argNorm = args.toLowerCase();
+      const category = argNorm.includes("ax") ? "axsam" : argNorm.includes("namaz") ? "namaz" : "seher";
+      const msg = formatZikrMessage(origin, category, 0);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (command === "teqvim" || command === "hicri") {
+      const msg = formatHijriCalendarMessage(origin);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (command === "elifba" || command === "tecvid") {
+      const msg = formatAlphabetMessage(origin);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (command === "axtar" || command === "search") {
+      const msg = await handleQuranTextSearch(origin, args);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (command === "videolar" || command === "shorts") {
+      const { longVideos, shorts } = await deps.getChannelDataForSeo();
+      const list = command === "shorts" ? shorts : longVideos;
+      const heading = command === "shorts" ? "\u{1F4F1} Quran Qiraeti \u2014 Son Shorts Videolar\u0131" : "\u{1F3AC} Quran Qiraeti \u2014 Se\xE7ilmi\u015F Uzun Tilav\u0259tl\u0259r";
+      const msg = formatVideosMessage(origin, list, heading);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else {
+      const msg = formatStartMessage(origin);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    }
+  }
+}
+var vercelAutoSyncAttempted = false;
 function createTelegramRouter(deps) {
   const router = express.Router();
   router.get("/status", async (req, res) => {
-    const token = String(process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
-    const webhookSecret = String(process.env.TELEGRAM_WEBHOOK_SECRET ?? "").trim();
-    const origin = normalizeBaseUrl(deps.getRequestOrigin(req));
-    const webhookUrl = `${origin}/api/telegram/webhook`;
+    const token = getTelegramBotToken();
+    const webhookSecret = getTelegramWebhookSecret(token);
+    const reqOrigin = normalizeBaseUrl(deps.getRequestOrigin(req));
+    const miniAppOrigin = resolvePublicTelegramOrigin(reqOrigin);
+    const webhookUrl = `${miniAppOrigin}/api/telegram/webhook`;
     let botUsername = null;
     let webhookActiveUrl = null;
     if (token) {
@@ -5109,9 +7930,22 @@ function createTelegramRouter(deps) {
         ]);
         if (me.ok && me.result?.username) {
           botUsername = me.result.username;
+          cachedBotUsername = me.result.username;
         }
         if (info.ok && info.result?.url) {
           webhookActiveUrl = info.result.url;
+        }
+        const isPublicProductionHost = reqOrigin.startsWith("https://") && !reqOrigin.includes("ais-dev-") && !reqOrigin.includes("127.0.0.1") && !reqOrigin.includes("localhost");
+        if (isPublicProductionHost && !vercelAutoSyncAttempted) {
+          vercelAutoSyncAttempted = true;
+          if (!webhookActiveUrl) {
+            const registered = await registerBotWebhookAndMenu(token, webhookSecret, miniAppOrigin);
+            if (registered.webhookSet) {
+              webhookActiveUrl = registered.webhookUrl;
+            }
+          } else {
+            await callTelegramApi(token, "setMyCommands", { commands: TELEGRAM_BOT_COMMANDS });
+          }
         }
       } catch {
       }
@@ -5120,63 +7954,153 @@ function createTelegramRouter(deps) {
     res.json({
       botConfigured: Boolean(token),
       webhookSecretConfigured: Boolean(webhookSecret),
-      isHttpsOrigin: origin.startsWith("https://"),
+      mode: webhookActiveUrl ? "webhook" : token ? "polling" : "unconfigured",
+      miniAppOrigin,
       recommendedWebhookUrl: webhookUrl,
       botUsername,
       webhookActiveUrl,
       commandsCount: TELEGRAM_BOT_COMMANDS.length
     });
   });
+  router.get("/verse-card.png", async (req, res) => {
+    const surahNum = Math.max(1, Math.min(114, Number.parseInt(String(req.query.surah ?? "2"), 10) || 2));
+    const ayahNum = Math.max(1, Number.parseInt(String(req.query.ayah ?? "255"), 10) || 1);
+    const theme = String(req.query.theme ?? "").toLowerCase() === "parchment" ? "parchment" : "emerald";
+    const format = String(req.query.format ?? "").toLowerCase() === "square" ? "square" : "story";
+    try {
+      const verse = await resolveVersePayloadForBot(surahNum, ayahNum, deps);
+      const pngBuffer = renderVerseCardPngBuffer({
+        surahName: verse.surahName,
+        surahNumber: verse.surahNumber,
+        ayahNumber: verse.ayahNumber,
+        arabicText: verse.arabicText,
+        translation: verse.translation,
+        theme,
+        format
+      });
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, s-maxage=86400, max-age=86400, stale-while-revalidate=604800");
+      res.send(pngBuffer);
+    } catch {
+      res.status(500).json({ ok: false, error: "Ay\u0259 \u015F\u0259kil kart\u0131 haz\u0131rlana bilm\u0259di." });
+    }
+  });
+  router.get("/subscribers", async (req, res) => {
+    const authHeader = String(req.header("authorization") ?? "");
+    const adminOk = await verifyFirebaseAdminBearer(authHeader);
+    if (!adminOk) {
+      res.status(401).json({ ok: false, error: "\u0130caz\u0259siz sor\u011Fu. Admin giri\u015Fi t\u0259l\u0259b olunur." });
+      return;
+    }
+    const token = getTelegramBotToken();
+    const idToken = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const { subscriptions, storageModes } = await loadAllSubscriptions(token, idToken);
+    const summary = buildSubscriberSummaryStats(subscriptions, storageModes);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, ...summary });
+  });
+  async function handleCronDispatch(req, res) {
+    const token = getTelegramBotToken();
+    const webhookSecret = getTelegramWebhookSecret(token);
+    const cronSecret = String(process.env.CRON_SECRET ?? "").trim();
+    const authHeader = String(req.header("authorization") ?? "").trim();
+    const bearerValue = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const setupSecret = String(req.header("x-telegram-setup-secret") ?? "").trim();
+    let authorized = false;
+    let adminIdToken = "";
+    if (cronSecret && bearerValue && verifyTimingSafeSecret(bearerValue, cronSecret)) {
+      authorized = true;
+    } else if (setupSecret && webhookSecret && verifyTimingSafeSecret(setupSecret, webhookSecret)) {
+      authorized = true;
+    } else if (authHeader && await verifyFirebaseAdminBearer(authHeader)) {
+      authorized = true;
+      adminIdToken = bearerValue;
+    }
+    if (!authorized) {
+      res.status(401).json({ ok: false, error: "\u0130caz\u0259siz cron sor\u011Fusu." });
+      return;
+    }
+    if (!token) {
+      res.status(400).json({ ok: false, error: "TELEGRAM_BOT_TOKEN konfiqurasiya edilm\u0259yib." });
+      return;
+    }
+    const now = /* @__PURE__ */ new Date();
+    const bakuDate = getBakuDateParts(now);
+    const origin = resolvePublicTelegramOrigin(deps.getRequestOrigin(req));
+    const sendAll = req.query.all === "1" || req.query.all === "true";
+    const force = req.query.force === "1" || req.query.force === "true";
+    const { subscriptions, storageModes } = await loadAllSubscriptions(token, adminIdToken);
+    const activeSubs = subscriptions.filter((s) => s.active);
+    let attempted = 0;
+    let sent = 0;
+    let skippedAlreadySent = 0;
+    let skippedHour = 0;
+    let failed = 0;
+    for (const sub of activeSubs) {
+      if (!sendAll && sub.hourBaku !== bakuDate.hour) {
+        skippedHour++;
+        continue;
+      }
+      if (!force && await hasSentDigestToday(sub.chatId, bakuDate.dateKey, token)) {
+        skippedAlreadySent++;
+        continue;
+      }
+      const reply = buildDailyDigestMessage(origin, sub, now);
+      if (!reply) continue;
+      attempted++;
+      const apiRes = await callTelegramApi(token, "sendMessage", {
+        chat_id: sub.chatId,
+        text: reply.text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        ...reply.reply_markup ? { reply_markup: reply.reply_markup } : {}
+      });
+      if (apiRes.ok) {
+        sent++;
+        await markDigestSentToday(sub.chatId, bakuDate.dateKey, token);
+      } else {
+        failed++;
+      }
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      ok: true,
+      dateKey: bakuDate.dateKey,
+      hourBaku: bakuDate.hour,
+      isFriday: bakuDate.isFriday,
+      totalActive: activeSubs.length,
+      attempted,
+      sent,
+      skippedAlreadySent,
+      skippedHour,
+      failed,
+      storageModes
+    });
+  }
+  router.get("/cron", handleCronDispatch);
+  router.post("/cron", handleCronDispatch);
   router.post("/setup", async (req, res) => {
-    const token = String(process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
-    const webhookSecret = String(process.env.TELEGRAM_WEBHOOK_SECRET ?? "").trim();
+    const token = getTelegramBotToken();
+    const webhookSecret = getTelegramWebhookSecret(token);
     if (!token || !webhookSecret) {
       res.status(400).json({
         ok: false,
-        error: "\u018Fvv\u0259lc\u0259 server m\xFChit d\u0259yi\u015F\u0259nl\u0259rind\u0259 TELEGRAM_BOT_TOKEN v\u0259 TELEGRAM_WEBHOOK_SECRET t\u0259yin edilm\u0259lidir."
+        error: "Server m\xFChit d\u0259yi\u015F\u0259nl\u0259rind\u0259 TELEGRAM_BOT_TOKEN (v\u0259 ya bot) t\u0259yin edilm\u0259yib."
       });
       return;
     }
     const providedSetupSecret = String(req.header("x-telegram-setup-secret") ?? "").trim();
-    if (!verifyTimingSafeSecret(providedSetupSecret, webhookSecret)) {
-      res.status(401).json({ ok: false, error: "\u0130caz\u0259siz sor\u011Fu." });
+    const explicitSetupSecret = String(process.env.TELEGRAM_WEBHOOK_SECRET ?? "").trim();
+    const secretAuthorized = providedSetupSecret.length > 0 && verifyTimingSafeSecret(providedSetupSecret, explicitSetupSecret || webhookSecret);
+    const adminAuthorized = secretAuthorized ? true : await verifyFirebaseAdminBearer(String(req.header("authorization") ?? ""));
+    if (!adminAuthorized) {
+      res.status(401).json({ ok: false, error: "\u0130caz\u0259siz sor\u011Fu. Admin giri\u015Fi t\u0259l\u0259b olunur." });
       return;
     }
-    const origin = normalizeBaseUrl(deps.getRequestOrigin(req));
-    if (!origin.startsWith("https://")) {
-      res.status(400).json({
-        ok: false,
-        error: "Telegram Webhook yaln\u0131z HTTPS \xFCnvan\u0131nda i\u015Fl\u0259yir. CANONICAL_ORIGIN v\u0259 ya HTTPS deploy URL istifad\u0259 edin."
-      });
-      return;
-    }
-    const webhookUrl = `${origin}/api/telegram/webhook`;
+    const origin = resolvePublicTelegramOrigin(deps.getRequestOrigin(req));
     try {
-      const [webhookRes, commandsRes, menuRes] = await Promise.all([
-        callTelegramApi(token, "setWebhook", {
-          url: webhookUrl,
-          secret_token: webhookSecret,
-          allowed_updates: ["message", "callback_query", "inline_query"]
-        }),
-        callTelegramApi(token, "setMyCommands", {
-          commands: TELEGRAM_BOT_COMMANDS
-        }),
-        callTelegramApi(token, "setChatMenuButton", {
-          menu_button: {
-            type: "web_app",
-            text: "\u{1F4D6} Quran\u0131 A\xE7",
-            web_app: { url: `${origin}/quran` }
-          }
-        })
-      ]);
-      res.json({
-        ok: webhookRes.ok && commandsRes.ok && menuRes.ok,
-        webhookUrl,
-        webhookSet: webhookRes.ok,
-        commandsSet: commandsRes.ok,
-        menuButtonSet: menuRes.ok,
-        error: !webhookRes.ok ? webhookRes.description : void 0
-      });
+      const result = await registerBotWebhookAndMenu(token, webhookSecret, origin);
+      res.json(result);
     } catch {
       res.status(502).json({ ok: false, error: "Telegram Bot API il\u0259 \u0259laq\u0259 al\u0131nmad\u0131." });
     }
@@ -5189,8 +8113,8 @@ function createTelegramRouter(deps) {
     });
   });
   router.post("/webhook", async (req, res) => {
-    const token = String(process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
-    const webhookSecret = String(process.env.TELEGRAM_WEBHOOK_SECRET ?? "").trim();
+    const token = getTelegramBotToken();
+    const webhookSecret = getTelegramWebhookSecret(token);
     if (webhookSecret) {
       const headerSecret = String(req.header("x-telegram-bot-api-secret-token") ?? "").trim();
       if (!verifyTimingSafeSecret(headerSecret, webhookSecret)) {
@@ -5203,156 +8127,9 @@ function createTelegramRouter(deps) {
       return;
     }
     const update = req.body ?? {};
-    const origin = normalizeBaseUrl(deps.getRequestOrigin(req));
+    const origin = resolvePublicTelegramOrigin(deps.getRequestOrigin(req));
     try {
-      if (update.inline_query?.id) {
-        const inlineQueryId = String(update.inline_query.id);
-        const queryText = String(update.inline_query.query ?? "").slice(0, 80);
-        const { longVideos, shorts } = await deps.getChannelDataForSeo();
-        const results = buildInlineQueryResults(origin, queryText, [...longVideos, ...shorts]);
-        await callTelegramApi(token, "answerInlineQuery", {
-          inline_query_id: inlineQueryId,
-          results,
-          cache_time: 120,
-          is_personal: false
-        });
-        res.json({ ok: true });
-        return;
-      }
-      if (update.callback_query?.id && update.callback_query.message?.chat?.id !== void 0) {
-        const cbId = String(update.callback_query.id);
-        const chatId = update.callback_query.message.chat.id;
-        const data = String(update.callback_query.data ?? "");
-        await callTelegramApi(token, "answerCallbackQuery", { callback_query_id: cbId });
-        if (data === "dua:next") {
-          const pick = QURAN_DUAS[Math.floor(Math.random() * QURAN_DUAS.length)];
-          const msg = formatDuaMessage(origin, pick);
-          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-        } else if (data === "aye:random") {
-          const pick = CURATED_TELEGRAM_VERSES[Math.floor(Math.random() * CURATED_TELEGRAM_VERSES.length)];
-          const msg = formatVerseMessage(origin, { ...pick, heading: "\u2728 Se\xE7ilmi\u015F Ay\u0259" });
-          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-        } else if (data.startsWith("namaz:")) {
-          const cityKey = data.slice("namaz:".length);
-          const city = findCityForTelegramQuery(cityKey);
-          const msg = formatPrayerTimesMessage(origin, city);
-          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-        }
-        res.json({ ok: true });
-        return;
-      }
-      if (update.message?.chat?.id !== void 0 && typeof update.message.text === "string") {
-        const chatId = update.message.chat.id;
-        const rawText = update.message.text.trim();
-        const parsed = parseTelegramCommand(rawText);
-        if (!parsed) {
-          const surahHit = findSurahForTelegramQuery(rawText);
-          if (surahHit && rawText.length <= 30) {
-            let sampleAyahs = [];
-            try {
-              const payload = await Promise.race([
-                deps.fetchSurahTranslation(surahHit.number),
-                new Promise((resolve) => setTimeout(() => resolve(void 0), 2e3))
-              ]);
-              if (payload) sampleAyahs = payload.ayahs.slice(0, 2);
-            } catch {
-            }
-            const msg = formatSurahMessage(origin, surahHit, sampleAyahs);
-            await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-          } else {
-            const msg = await handleQuranTextSearch(origin, rawText);
-            await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-          }
-          res.json({ ok: true });
-          return;
-        }
-        const { command, args } = parsed;
-        if (command === "start" || command === "help" || command === "yardim" || command === "menu") {
-          const msg = formatStartMessage(origin);
-          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-        } else if (command === "aye" || command === "ay\u0259" || command === "gunun_ayesi") {
-          const refMatch = args.match(/^(\d{1,3}):(\d{1,3})$/);
-          if (refMatch) {
-            const surahNum = Number.parseInt(refMatch[1], 10);
-            const ayahNum = Number.parseInt(refMatch[2], 10);
-            const surahMeta = findSurahForTelegramQuery(String(surahNum));
-            if (surahMeta && ayahNum >= 1 && ayahNum <= surahMeta.ayahCount) {
-              try {
-                const payload = await deps.fetchSurahTranslation(surahNum);
-                const ayah = payload.ayahs.find((a) => a.ayahNumber === ayahNum);
-                if (ayah) {
-                  const msg2 = formatVerseMessage(origin, {
-                    surahNumber: surahNum,
-                    surahName: surahMeta.name,
-                    ayahNumber: ayahNum,
-                    arabicText: ayah.arabicText,
-                    translation: ayah.translation,
-                    heading: `\u{1F4D6} ${surahMeta.name} sur\u0259si`
-                  });
-                  await sendTelegramHtmlMessage(token, chatId, msg2.text, msg2.reply_markup);
-                  res.json({ ok: true });
-                  return;
-                }
-              } catch {
-              }
-            }
-          }
-          const daily = getCuratedVerseForDate();
-          const msg = formatVerseMessage(origin, daily);
-          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-        } else if (command === "sure" || command === "surah") {
-          if (!args) {
-            await sendTelegramHtmlMessage(
-              token,
-              chatId,
-              "Z\u0259hm\u0259t olmasa sur\u0259 ad\u0131 v\u0259 ya n\xF6mr\u0259si yaz\u0131n. M\u0259s\u0259l\u0259n:\n<code>/sure Yasin</code> v\u0259 ya <code>/sure 36</code>"
-            );
-          } else {
-            const surah = findSurahForTelegramQuery(args);
-            if (!surah) {
-              await sendTelegramHtmlMessage(
-                token,
-                chatId,
-                `\xAB${escapeTelegramHtml(args)}\xBB adl\u0131 sur\u0259 tap\u0131lmad\u0131. 1\u2013114 aras\u0131 n\xF6mr\u0259 v\u0259 ya sur\u0259 ad\u0131 yaz\u0131n.`
-              );
-            } else {
-              let sampleAyahs = [];
-              try {
-                const payload = await Promise.race([
-                  deps.fetchSurahTranslation(surah.number),
-                  new Promise((resolve) => setTimeout(() => resolve(void 0), 2e3))
-                ]);
-                if (payload) sampleAyahs = payload.ayahs.slice(0, 2);
-              } catch {
-              }
-              const msg = formatSurahMessage(origin, surah, sampleAyahs);
-              await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-            }
-          }
-        } else if (command === "namaz" || command === "vaxt") {
-          const city = findCityForTelegramQuery(args || "Bak\u0131");
-          const msg = formatPrayerTimesMessage(origin, city);
-          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-        } else if (command === "dua" || command === "dualar") {
-          const pick = args ? QURAN_DUAS.find(
-            (d) => `${d.title} ${d.translation} ${d.surahName}`.toLowerCase().includes(args.toLowerCase())
-          ) ?? QURAN_DUAS[0] : QURAN_DUAS[Math.floor(Math.random() * QURAN_DUAS.length)];
-          const msg = formatDuaMessage(origin, pick);
-          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-        } else if (command === "axtar" || command === "search") {
-          const msg = await handleQuranTextSearch(origin, args);
-          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-        } else if (command === "videolar" || command === "shorts") {
-          const { longVideos, shorts } = await deps.getChannelDataForSeo();
-          const list = command === "shorts" ? shorts : longVideos;
-          const heading = command === "shorts" ? "\u{1F4F1} Quran Qiraeti \u2014 Son Shorts Videolar\u0131" : "\u{1F3AC} Quran Qiraeti \u2014 Se\xE7ilmi\u015F Uzun Tilav\u0259tl\u0259r";
-          const msg = formatVideosMessage(origin, list, heading);
-          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-        } else {
-          const msg = formatStartMessage(origin);
-          await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
-        }
-      }
+      await processTelegramUpdate(update, origin, token, deps);
     } catch (err) {
       console.error("Telegram webhook processing error:", err);
     }
@@ -5778,7 +8555,8 @@ function createApiRouter() {
     createTelegramRouter({
       getRequestOrigin,
       getChannelDataForSeo,
-      fetchSurahTranslation
+      fetchSurahTranslation,
+      fetchMushafPage
     })
   );
   router.get("/channel", async (_req, res) => {
@@ -6167,13 +8945,13 @@ var cachedDistHtml = null;
 function readTemplateHtml() {
   if (cachedDistHtml) return cachedDistHtml;
   const candidates = [
-    path.resolve(process.cwd(), "dist", "index.html"),
-    path.resolve(process.cwd(), "index.html")
+    path3.resolve(process.cwd(), "dist", "index.html"),
+    path3.resolve(process.cwd(), "index.html")
   ];
   for (const filePath of candidates) {
     try {
-      if (fs.existsSync(filePath)) {
-        cachedDistHtml = fs.readFileSync(filePath, "utf-8");
+      if (fs3.existsSync(filePath)) {
+        cachedDistHtml = fs3.readFileSync(filePath, "utf-8");
         return cachedDistHtml;
       }
     } catch {
@@ -6186,7 +8964,7 @@ app.get("*", async (req, res, next) => {
     next();
     return;
   }
-  const baseName = path.posix.basename(req.path);
+  const baseName = path3.posix.basename(req.path);
   if (baseName.includes(".")) {
     res.status(404).send("Not found");
     return;

@@ -129,6 +129,8 @@ test('formatters generate Mini App keyboards, audio callbacks, Mushaf nav, Zikr,
 
   const zikrMsg = formatZikrMessage(origin, 'seher', 0);
   assert.ok(zikrMsg.text.includes('Səhər zikrləri'));
+  assert.equal(zikrMsg.text.includes('📿'), false);
+  assert.equal(start.reply_markup?.inline_keyboard.flat().some((b) => b.text.includes('📿')), false);
 
   const hijriMsg = formatHijriCalendarMessage(origin, new Date('2026-11-22T09:00:00Z'));
   assert.ok(hijriMsg.text.includes('Ramazan'));

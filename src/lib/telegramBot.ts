@@ -1,4 +1,4 @@
-import { AZKAR_CATEGORY_LABELS, AzkarCategory, DAILY_AZKAR } from '../data/azkar';
+import { AZKAR_CATEGORY_LABELS, AzkarCategory, getAzkarByCategory } from '../data/azkar';
 import { RecitationVideo } from './channel';
 import { getUpcomingBlessedDays } from './hijriCalendar';
 import {
@@ -670,7 +670,7 @@ export function formatStartMessage(origin: string): TelegramFormattedReply {
           { text: '🔔 Gündəlik Abunəlik', callback_data: 'sub:menu' },
         ],
         [
-          { text: '📿 Zikr', callback_data: 'zikr:seher' },
+          { text: '🌙 Zikrlər', callback_data: 'zikr:seher' },
           { text: '📅 Hicri Təqvim', callback_data: 'teqvim:now' },
         ],
         [
@@ -956,15 +956,14 @@ export function formatZikrMessage(
   indexOffset = 0
 ): TelegramFormattedReply {
   const baseUrl = normalizeBaseUrl(origin);
-  const pool = DAILY_AZKAR.filter((item) => item.category === category);
-  const effectivePool = pool.length > 0 ? pool : DAILY_AZKAR;
+  const effectivePool = getAzkarByCategory(category);
   const idx = Math.abs(indexOffset) % effectivePool.length;
   const item = effectivePool[idx];
-  const categoryLabel = AZKAR_CATEGORY_LABELS[category] ?? 'Zikr və Təsbih';
+  const categoryLabel = AZKAR_CATEGORY_LABELS[category] ?? 'Zikrlər';
 
   const text = [
-    `<b>📿 ${escapeTelegramHtml(categoryLabel)} — ${escapeTelegramHtml(item.title)}</b>`,
-    `<i>Tövsiyə sayı: ${item.targetCount} dəfə · ${escapeTelegramHtml(item.source)}</i>`,
+    `<b>🌙 ${escapeTelegramHtml(categoryLabel)} — ${escapeTelegramHtml(item.title)}</b>`,
+    `<i>Oxunuş sayı: ${escapeTelegramHtml(item.countNote ?? `${item.targetCount} dəfə`)} · ${escapeTelegramHtml(item.source)}</i>`,
     '',
     escapeTelegramHtml(item.arabicText),
     '',
@@ -977,11 +976,17 @@ export function formatZikrMessage(
     text,
     reply_markup: {
       inline_keyboard: [
-        [buildMiniAppButton('📿 Təsbih Sayğacını Aç', `${baseUrl}/zikr`)],
+        [buildMiniAppButton('📖 Bütün Zikrləri Aç', `${baseUrl}/zikr`)],
         [
-          { text: '🌅 Səhər', callback_data: 'zikr:seher' },
-          { text: '🌙 Axşam', callback_data: 'zikr:axsam' },
-          { text: '🕌 Namaz sonrası', callback_data: 'zikr:namaz' },
+          { text: '🌅 Səhər', callback_data: 'zikr:seher:0' },
+          { text: '🌙 Axşam', callback_data: 'zikr:axsam:0' },
+          { text: '🕌 Namaz sonrası', callback_data: 'zikr:namaz:0' },
+        ],
+        [
+          {
+            text: `🔄 Növbəti Zikr (${idx + 1}/${effectivePool.length})`,
+            callback_data: `zikr:${category}:${idx + 1}`,
+          },
         ],
       ],
     },

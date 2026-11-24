@@ -328,18 +328,19 @@ export function searchGlobalQuickIndex(
   if (
     norm.includes('zikr') ||
     norm.includes('tesbih') ||
-    norm.includes('saygac') ||
+    norm.includes('muselman') ||
+    norm.includes('qala') ||
     norm.includes('seher') ||
     norm.includes('axsam') ||
     norm.includes('subhan') ||
     norm.includes('istigfar')
   ) {
     pushUnique({
-      id: 'tool-zikr-tasbih',
+      id: 'tool-zikr-azkar',
       kind: 'dua',
       kindLabel: 'Zikr',
-      title: 'Zikrlər və İnteraktiv Təsbih Sayğacı',
-      subtitle: 'Səhər-axşam zikrləri, 33+33+34 Namaz təsbihatı və gündəlik sayğac',
+      title: 'Səhər və Axşam Zikrləri (Müsəlman Qalası)',
+      subtitle: 'Müsəlman Qalası kitabından bütün səhər, axşam və namaz sonrası zikrlər',
       path: '/zikr',
     });
   }

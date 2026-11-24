@@ -793,10 +793,12 @@ export async function processTelegramUpdate(
       const msg = formatPrayerTimesMessage(origin, city);
       await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
     } else if (data.startsWith('zikr:')) {
-      const rawCat = data.slice('zikr:'.length);
+      const [, rawCat = 'seher', rawIdx] = data.split(':');
       const cat: AzkarCategory =
         rawCat === 'axsam' || rawCat === 'namaz' || rawCat === 'umumi' ? rawCat : 'seher';
-      const msg = formatZikrMessage(origin, cat, Math.floor(Math.random() * 10));
+      const parsedIdx = rawIdx !== undefined ? Number.parseInt(rawIdx, 10) : NaN;
+      const offset = Number.isFinite(parsedIdx) && parsedIdx >= 0 ? parsedIdx : Math.floor(Math.random() * 25);
+      const msg = formatZikrMessage(origin, cat, offset);
       await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
     } else if (data === 'teqvim:now') {
       const msg = formatHijriCalendarMessage(origin);

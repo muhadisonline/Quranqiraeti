@@ -38,7 +38,7 @@ const EXTRA_SECTION_LINKS = [
   { path: '/namaz-vaxtlari', label: 'Namaz və Qiblə', icon: Clock },
   { path: '/teqvim', label: 'Hicri Təqvim', icon: CalendarDays },
   { path: '/elifba', label: 'Əlifba və Təcvid', icon: BookOpen },
-  { path: '/zikr', label: 'Zikr və Təsbih', icon: Sparkles },
+  { path: '/zikr', label: 'Səhər-Axşam Zikrləri', icon: Sparkles },
   { path: '/gunun-ayesi', label: 'Günün Ayəsi', icon: Sparkles },
   { path: '/haqqinda', label: 'Haqqında', icon: Info },
   { path: '/istek', label: 'İstək göndər', icon: MessageSquarePlus },
