@@ -10,13 +10,16 @@ import {
   FastForward,
   ImageDown,
   Moon,
+  Pencil,
   Play,
+  Printer,
   Square,
   Sun,
   Timer,
   Volume2,
 } from 'lucide-react';
 import { FormEvent, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AyahCloudSyncBar } from '../components/AyahCloudSyncBar';
 import { LineFocusBar } from '../components/LineFocusBar';
 import { MatchingShortsStrip } from '../components/MatchingShortsStrip';
 import { SeoHead } from '../components/SeoHead';
@@ -71,6 +74,7 @@ import {
 import { fetchMushafPageWithFallback } from '../lib/quranClient';
 import {
   AudioPlaybackSpeed,
+  AyahPauseSeconds,
   AyahRepeatCount,
   MUSHAF_AUTOPLAY_NEXT_KEY,
   READER_SCALE_CLASSES,
@@ -108,6 +112,8 @@ export function QuranMushafPage({
   const [retryCount, setRetryCount] = useState<number>(0);
   const [jumpInput, setJumpInput] = useState<string>(String(pageNumber));
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState<string>('');
 
   const {
     reciter,
@@ -118,6 +124,9 @@ export function QuranMushafPage({
     setPlaybackSpeed,
     repeatCount,
     setRepeatCount,
+    pauseSeconds,
+    setPauseSeconds,
+    pauseRemainingSec,
     autoFocus,
     setAutoFocus,
     sleepMinutes,
@@ -128,7 +137,15 @@ export function QuranMushafPage({
   } = useGlobalAudio();
 
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const { isSaved: isAyahSaved, toggleAyahBookmark } = useSavedAyahs();
+  const {
+    isSaved: isAyahSaved,
+    toggleAyahBookmark,
+    getAyahNote,
+    upsertAyahBookmarkAndNote,
+    cloudStatus,
+    signInForCloudSync,
+    signOutCloudSync,
+  } = useSavedAyahs();
   const { textScale, setTextScale } = useReaderTextScale();
   const { displayMode, setDisplayMode } = useReaderDisplayMode();
   const { layoutMode, setLayoutMode } = useReaderLayoutMode();
@@ -515,7 +532,7 @@ export function QuranMushafPage({
       />
 
       <div className={`mx-auto px-6 ${layoutMode === 'book' ? 'max-w-6xl' : 'max-w-5xl'}`}>
-        <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+        <nav aria-label="Breadcrumb" className="print:hidden mb-4 flex flex-wrap items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
           <a
             href="/"
             onClick={(e) => {
@@ -541,7 +558,7 @@ export function QuranMushafPage({
           <span className="font-medium text-stone-900 dark:text-stone-200">{pageOrdinal} səhifə</span>
         </nav>
 
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="print:hidden flex flex-wrap items-center justify-between gap-4">
           <a
             href="/quran"
             onClick={(e) => {
@@ -586,6 +603,16 @@ export function QuranMushafPage({
                 Keç
               </button>
             </form>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              data-testid="mushaf-print-btn"
+              title="Bu səhifəni səliqəli PDF və ya kağız kimi çap et"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 whitespace-nowrap transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
+            >
+              <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Çap / PDF</span>
+            </button>
             <button
               type="button"
               onClick={onToggleTheme}
@@ -652,7 +679,7 @@ export function QuranMushafPage({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="print:hidden flex flex-wrap items-center gap-2.5">
             <div className="flex items-center gap-1.5">
               <Volume2 className="h-3.5 w-3.5 text-[#0F4C3A] dark:text-[#86C7AE]" aria-hidden="true" />
               <label htmlFor="mushaf-reciter-select" className="sr-only">
@@ -839,6 +866,8 @@ export function QuranMushafPage({
                 [
                   { val: 1 as AyahRepeatCount, label: '1×' },
                   { val: 3 as AyahRepeatCount, label: '3×' },
+                  { val: 5 as AyahRepeatCount, label: '5×' },
+                  { val: 10 as AyahRepeatCount, label: '10×' },
                   { val: 0 as AyahRepeatCount, label: '∞' },
                 ]
               ).map((opt) => (
@@ -858,6 +887,49 @@ export function QuranMushafPage({
                 </button>
               ))}
             </div>
+
+            <div
+              role="group"
+              aria-label="Ayələr arası fasilə"
+              data-testid="mushaf-audio-pause"
+              className="inline-flex items-center gap-0.5 rounded-lg border border-stone-200 bg-white p-0.5 dark:border-stone-700 dark:bg-[#141916]"
+            >
+              {(
+                [
+                  { val: 0 as AyahPauseSeconds, label: '0s' },
+                  { val: 3 as AyahPauseSeconds, label: '3s' },
+                  { val: 5 as AyahPauseSeconds, label: '5s' },
+                ]
+              ).map((opt) => (
+                <button
+                  key={opt.val}
+                  type="button"
+                  onClick={() => setPauseSeconds(opt.val)}
+                  aria-pressed={pauseSeconds === opt.val}
+                  title={
+                    opt.val === 0
+                      ? 'Ayələr arası fasilə yoxdur'
+                      : `Hər ayə sonrası təkrarlamaq üçün ${opt.val} saniyə fasilə`
+                  }
+                  className={`rounded-md px-2 py-1 font-mono-tabular text-[11px] font-medium transition-colors ${
+                    pauseSeconds === opt.val
+                      ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                      : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {pauseRemainingSec > 0 && isThisPagePlaying && (
+              <span
+                data-testid="mushaf-pause-countdown"
+                className="rounded-lg bg-amber-500/15 px-2.5 py-1 font-mono-tabular text-[11px] font-semibold text-amber-800 dark:text-amber-300"
+              >
+                Fasilə: {pauseRemainingSec}s…
+              </span>
+            )}
 
             <div className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white p-0.5 dark:border-stone-700 dark:bg-[#141916]">
               <button
@@ -946,14 +1018,29 @@ export function QuranMushafPage({
           </div>
         </header>
 
-        {showTajweed && <TajweedLegendBar onClose={() => setShowTajweed(false)} />}
+        <div className="print:hidden mt-4">
+          <AyahCloudSyncBar
+            cloudStatus={cloudStatus}
+            onSignIn={signInForCloudSync}
+            onSignOut={signOutCloudSync}
+            compact
+          />
+        </div>
+
+        {showTajweed && (
+          <div className="print:hidden">
+            <TajweedLegendBar onClose={() => setShowTajweed(false)} />
+          </div>
+        )}
 
         {!isLoading && !error && onPlayVideo && matchingShorts.length > 0 && (
-          <MatchingShortsStrip
-            matches={matchingShorts}
-            onPlayVideo={onPlayVideo}
-            className="mt-6"
-          />
+          <div className="print:hidden">
+            <MatchingShortsStrip
+              matches={matchingShorts}
+              onPlayVideo={onPlayVideo}
+              className="mt-6"
+            />
+          </div>
         )}
 
         {audioError && (
@@ -1021,6 +1108,8 @@ export function QuranMushafPage({
                 const markerColor = getHighlightColor(ayah.surahNumber, ayah.ayahNumber);
                 const markerClass = getAyahHighlightMarkClass(markerColor);
                 const useBookGrid = layoutMode === 'book' && displayMode === 'both';
+                const ayahNote = getAyahNote(ayah.surahNumber, ayah.ayahNumber);
+                const isEditingNote = editingNoteKey === key;
 
                 return (
                   <div
@@ -1037,7 +1126,7 @@ export function QuranMushafPage({
                       if (targetEl?.closest('a, button, input, select')) return;
                       setManualFocusedKey(key);
                     }}
-                    className={`p-6 sm:p-7 transition-all duration-200 ${
+                    className={`print-avoid-break p-6 sm:p-7 transition-all duration-200 ${
                       isLineFocused
                         ? 'relative z-10 bg-white opacity-100 ring-2 ring-inset ring-[#0F4C3A]/65 shadow-sm dark:bg-[#141916] dark:ring-[#86C7AE]/65'
                         : isLineDimmed
@@ -1089,7 +1178,7 @@ export function QuranMushafPage({
                       {key}
                     </a>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="print:hidden flex flex-wrap items-center gap-2">
                       {/* 3-Color Arabic Highlighter Swatches (#9) */}
                       <div
                         role="group"
@@ -1225,6 +1314,29 @@ export function QuranMushafPage({
                         <ImageDown className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>Şəkil</span>
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isEditingNote) {
+                            setEditingNoteKey(null);
+                          } else {
+                            setEditingNoteKey(key);
+                            setNoteDraft(ayahNote);
+                          }
+                        }}
+                        aria-pressed={isEditingNote}
+                        aria-label={ayahNote ? `${key} ayəsinin qeydini düzəlt` : `${key} ayəsinə şəxsi qeyd yaz`}
+                        data-testid={`mushaf-note-ayah-${ayah.surahNumber}-${ayah.ayahNumber}`}
+                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors ${
+                          ayahNote || isEditingNote
+                            ? 'border-[#0F4C3A] bg-[#0F4C3A]/10 font-medium text-[#0F4C3A] dark:border-[#86C7AE] dark:bg-[#86C7AE]/15 dark:text-[#86C7AE]'
+                            : 'border-stone-200 text-stone-600 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:text-stone-400'
+                        }`}
+                      >
+                        <Pencil className="h-3 w-3" aria-hidden="true" />
+                        <span>{ayahNote ? 'Qeyd ✓' : 'Qeyd'}</span>
+                      </button>
                     </div>
                   </div>
 
@@ -1285,11 +1397,70 @@ export function QuranMushafPage({
                       </div>
                     )}
                   </div>
+
+                  {ayahNote && !isEditingNote && (
+                    <p
+                      data-testid={`mushaf-note-text-${ayah.surahNumber}-${ayah.ayahNumber}`}
+                      className="mt-3 rounded-lg border border-stone-200 bg-[#FAF9F6] px-3.5 py-2 text-xs leading-relaxed text-stone-700 dark:border-stone-800 dark:bg-[#181E1B] dark:text-stone-300"
+                    >
+                      <strong className="font-medium text-[#0F4C3A] dark:text-[#86C7AE]">
+                        Şəxsi qeyd:
+                      </strong>{' '}
+                      {ayahNote}
+                    </p>
+                  )}
+
+                  {isEditingNote && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        upsertAyahBookmarkAndNote(
+                          {
+                            surahNumber: ayah.surahNumber,
+                            ayahNumber: ayah.ayahNumber,
+                            surahName: ayah.surahName,
+                            pageNumber,
+                            arabicText: ayah.arabicText,
+                            translation: ayah.translation,
+                          },
+                          noteDraft
+                        );
+                        setEditingNoteKey(null);
+                      }}
+                      className="print:hidden mt-3 flex flex-col gap-2 sm:flex-row sm:items-center"
+                    >
+                      <input
+                        type="text"
+                        value={noteDraft}
+                        onChange={(e) => setNoteDraft(e.target.value)}
+                        maxLength={500}
+                        placeholder="Bu ayə haqqında şəxsi qeyd və ya təfəkkür yazın..."
+                        data-testid={`mushaf-note-input-${ayah.surahNumber}-${ayah.ayahNumber}`}
+                        className="flex-1 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="submit"
+                          data-testid={`mushaf-note-save-${ayah.surahNumber}-${ayah.ayahNumber}`}
+                          className="rounded-lg bg-[#0F4C3A] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0B3A2C] dark:bg-[#196B52]"
+                        >
+                          Saxla
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingNoteKey(null)}
+                          className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 dark:border-stone-700 dark:bg-[#141916] dark:text-stone-300"
+                        >
+                          Ləğv et
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               );
             })}
           </div>
-          <p className="mt-2.5 text-center text-[11px] text-stone-400 sm:hidden dark:text-stone-500">
+          <p className="print:hidden mt-2.5 text-center text-[11px] text-stone-400 sm:hidden dark:text-stone-500">
             Səhifə çevirmək üçün ekranı sağa və ya sola sürüşdürün
           </p>
           </>
@@ -1298,7 +1469,7 @@ export function QuranMushafPage({
         {/* Prev / Next Mushaf Page Navigation */}
         <nav
           aria-label="Quran səhifələri arası keçid"
-          className="mt-10 flex items-center justify-between gap-4 border-t border-stone-200 pt-8 dark:border-stone-800"
+          className="print:hidden mt-10 flex items-center justify-between gap-4 border-t border-stone-200 pt-8 dark:border-stone-800"
         >
           {pageNumber > 1 ? (
             <a

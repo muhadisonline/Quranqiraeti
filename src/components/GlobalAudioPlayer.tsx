@@ -40,12 +40,15 @@ export function GlobalAudioPlayer({ currentPath, onNavigate }: GlobalAudioPlayer
     hasNext,
     playbackSpeed,
     repeatCount,
+    pauseSeconds,
+    pauseRemainingSec,
     sleepMinutes,
     sleepRemainingSec,
     autoFocus,
     setAutoFocus,
     cycleSpeed,
     cycleRepeat,
+    cyclePauseSeconds,
     cycleSleepMinutes,
     togglePlayPause,
     prevTrack,
@@ -70,7 +73,7 @@ export function GlobalAudioPlayer({ currentPath, onNavigate }: GlobalAudioPlayer
       role="region"
       aria-label="Qlobal tilavət pleyeri"
       data-testid="reader-audio-bar"
-      className="fixed right-3 bottom-3 left-3 z-40 mx-auto max-w-4xl overflow-hidden rounded-xl border border-stone-300/90 bg-[#FAF9F6]/96 shadow-lg backdrop-blur-md dark:border-stone-700 dark:bg-[#141916]/96"
+      className="print:hidden fixed right-3 bottom-3 left-3 z-40 mx-auto max-w-4xl overflow-hidden rounded-xl border border-stone-300/90 bg-[#FAF9F6]/96 shadow-lg backdrop-blur-md dark:border-stone-700 dark:bg-[#141916]/96"
     >
       {currentTrack && durationSec > 0 && (
         <div
@@ -155,7 +158,15 @@ export function GlobalAudioPlayer({ currentPath, onNavigate }: GlobalAudioPlayer
                     </option>
                   ))}
                 </select>
-                {isBuffering && (
+                {pauseRemainingSec > 0 && (
+                  <span
+                    data-testid="global-audio-pause-countdown"
+                    className="rounded-md bg-emerald-100 px-1.5 py-0.5 font-mono-tabular text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300"
+                  >
+                    Fasilə: {pauseRemainingSec}s…
+                  </span>
+                )}
+                {isBuffering && pauseRemainingSec === 0 && (
                   <span className="text-[10px] text-stone-400 dark:text-stone-500">Yüklənir…</span>
                 )}
               </div>
@@ -214,15 +225,32 @@ export function GlobalAudioPlayer({ currentPath, onNavigate }: GlobalAudioPlayer
             </button>
 
             {currentTrack.mode === 'ayah' && (
-              <button
-                type="button"
-                onClick={cycleRepeat}
-                title="Ayə təkrarını dəyiş"
-                aria-label={`Ayə təkrarı ${repeatCount === 0 ? 'sonsuz' : `${repeatCount} dəfə`}`}
-                className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-2 font-mono-tabular text-[11px] font-medium whitespace-nowrap text-stone-700 hover:border-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
-              >
-                {repeatCount === 0 ? '∞' : `${repeatCount}×`}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={cycleRepeat}
+                  data-testid="global-audio-repeat-btn"
+                  title="Ayə təkrarını dəyiş (1× / 3× / 5× / 10× / ∞)"
+                  aria-label={`Ayə təkrarı ${repeatCount === 0 ? 'sonsuz' : `${repeatCount} dəfə`}`}
+                  className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-2 font-mono-tabular text-[11px] font-medium whitespace-nowrap text-stone-700 hover:border-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
+                >
+                  {repeatCount === 0 ? '∞' : `${repeatCount}×`}
+                </button>
+                <button
+                  type="button"
+                  onClick={cyclePauseSeconds}
+                  data-testid="global-audio-pause-btn"
+                  title="Ayələr arası təkrar fasiləsi (0s / 3s / 5s)"
+                  aria-label={`Ayələr arası fasilə ${pauseSeconds} saniyə`}
+                  className={`inline-flex h-9 items-center rounded-lg border px-2 font-mono-tabular text-[11px] font-medium whitespace-nowrap transition-colors ${
+                    pauseSeconds > 0
+                      ? 'border-[#0F4C3A] bg-[#0F4C3A]/10 text-[#0F4C3A] dark:border-[#86C7AE] dark:bg-[#86C7AE]/15 dark:text-[#86C7AE]'
+                      : 'border-stone-200 bg-white text-stone-700 hover:border-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200'
+                  }`}
+                >
+                  {pauseSeconds > 0 ? `Fasilə ${pauseSeconds}s` : 'Fasilə 0s'}
+                </button>
+              </>
             )}
 
             {isReaderRoute && currentTrack.mode === 'ayah' && (

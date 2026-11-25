@@ -16,6 +16,11 @@ interface MuhaffizPracticeModalProps {
   ayahs: MushafPageAyah[];
   paperTheme: MuhaffizPaperTheme;
   reciter: MuhaffizReciterId;
+  onRecordWeakAyah?: (
+    ayahKey: string,
+    surahName: string,
+    reason: 'quiz_error' | 'hint_heavy'
+  ) => void;
   onClose: () => void;
 }
 
@@ -25,6 +30,7 @@ export function MuhaffizPracticeModal({
   ayahs,
   paperTheme,
   reciter,
+  onRecordWeakAyah,
   onClose,
 }: MuhaffizPracticeModalProps) {
   const palette = MUHAFFIZ_THEME_PALETTES[paperTheme];
@@ -110,16 +116,25 @@ export function MuhaffizPracticeModal({
     return evaluateClozeSelection(clozeQuestion, filledOptions);
   }, [clozeQuestion, filledOptions]);
 
+  const reportedClozeWrongRef = useRef<string | null>(null);
   useEffect(() => {
-    if (clozeQuestion && clozeEval.allCorrect) {
+    if (!clozeQuestion) return;
+    if (clozeEval.allCorrect) {
       setClozeSolvedKeys((prev) => {
         if (prev.has(clozeQuestion.ayahKey)) return prev;
         const next = new Set(prev);
         next.add(clozeQuestion.ayahKey);
         return next;
       });
+    } else if (
+      clozeEval.allFilled &&
+      !clozeEval.allCorrect &&
+      reportedClozeWrongRef.current !== clozeQuestion.ayahKey
+    ) {
+      reportedClozeWrongRef.current = clozeQuestion.ayahKey;
+      onRecordWeakAyah?.(clozeQuestion.ayahKey, clozeQuestion.surahName, 'quiz_error');
     }
-  }, [clozeQuestion, clozeEval.allCorrect]);
+  }, [clozeQuestion, clozeEval.allCorrect, clozeEval.allFilled, onRecordWeakAyah]);
 
   const nextQuestions = useMemo(() => buildNextAyahQuestions(ayahs, nextSeed), [ayahs, nextSeed]);
   const safeNextIndex =
@@ -165,6 +180,12 @@ export function MuhaffizPracticeModal({
     setNextAnsweredCount((n) => n + 1);
     if (isCorrect) {
       setNextCorrectCount((n) => n + 1);
+    } else if (currentNextQuestion) {
+      onRecordWeakAyah?.(
+        currentNextQuestion.promptAyahKey,
+        currentNextQuestion.promptSurahName,
+        'quiz_error'
+      );
     }
   }
 

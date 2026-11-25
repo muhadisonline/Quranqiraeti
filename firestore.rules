@@ -12,6 +12,10 @@ service cloud.firestore {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isValidAyahNoteId(id) {
+      return id is string && id.size() >= 3 && id.size() <= 12 && id.matches('^[0-9]{1,3}_[0-9]{1,3}$');
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -155,6 +159,49 @@ service cloud.firestore {
         data.createdAt == request.time;
     }
 
+    function isValidUserAyahNote(data) {
+      return data.keys().hasAll([
+          'ownerUid',
+          'noteId',
+          'surahNumber',
+          'ayahNumber',
+          'surahName',
+          'pageNumber',
+          'arabicText',
+          'translation',
+          'note',
+          'savedAt',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'ownerUid',
+          'noteId',
+          'surahNumber',
+          'ayahNumber',
+          'surahName',
+          'pageNumber',
+          'arabicText',
+          'translation',
+          'note',
+          'savedAt',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.ownerUid) &&
+        isValidAyahNoteId(data.noteId) &&
+        data.surahNumber is int && data.surahNumber >= 1 && data.surahNumber <= 114 &&
+        data.ayahNumber is int && data.ayahNumber >= 1 && data.ayahNumber <= 286 &&
+        data.surahName is string && data.surahName.size() >= 1 && data.surahName.size() <= 80 &&
+        data.pageNumber is int && data.pageNumber >= 0 && data.pageNumber <= 604 &&
+        data.arabicText is string && data.arabicText.size() <= 4000 &&
+        data.translation is string && data.translation.size() <= 4000 &&
+        data.note is string && data.note.size() <= 500 &&
+        data.savedAt is string && data.savedAt.size() >= 1 && data.savedAt.size() <= 64 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
     // Admins Registry: Only verified admins can read/manage
     match /admins/{adminUid} {
       allow get: if isValidId(adminUid) && (isAdmin() || (isSignedIn() && request.auth.uid == adminUid));
@@ -218,6 +265,52 @@ service cloud.firestore {
         incoming().eventId == eventId;
       allow update: if false;
       allow delete: if isValidId(eventId) && isAdmin();
+    }
+
+    // User-owned Quran Bookmarks & Personal Reflection Notes
+    match /users/{userId}/ayah_notes/{noteId} {
+      allow get: if isValidId(userId) &&
+        isValidAyahNoteId(noteId) &&
+        isVerifiedUser() &&
+        request.auth.uid == userId;
+      allow list: if isValidId(userId) &&
+        isVerifiedUser() &&
+        request.auth.uid == userId &&
+        resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(userId) &&
+        isValidAyahNoteId(noteId) &&
+        isVerifiedUser() &&
+        request.auth.uid == userId &&
+        isValidUserAyahNote(incoming()) &&
+        incoming().ownerUid == userId &&
+        incoming().noteId == noteId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) &&
+        isValidAyahNoteId(noteId) &&
+        isVerifiedUser() &&
+        request.auth.uid == userId &&
+        isValidUserAyahNote(incoming()) &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().noteId == existing().noteId &&
+        incoming().surahNumber == existing().surahNumber &&
+        incoming().ayahNumber == existing().ayahNumber &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'surahName',
+          'pageNumber',
+          'arabicText',
+          'translation',
+          'note',
+          'savedAt',
+          'updatedAt'
+        ]);
+      allow delete: if isValidId(userId) &&
+        isValidAyahNoteId(noteId) &&
+        isVerifiedUser() &&
+        request.auth.uid == userId &&
+        existing().ownerUid == userId;
     }
   }
 }

@@ -74,6 +74,18 @@ import {
 import { fetchMuhaffizPageWithFallback } from '../lib/quranClient';
 import { TOTAL_QURAN_PAGES } from '../lib/quran';
 import { buildBreadcrumbJsonLd } from '../lib/seo';
+import {
+  WEAK_AYAHS_EVENT,
+  WEAK_AYAH_REASON_LABELS,
+  WeakAyahReason,
+  WeakAyahRecord,
+  loadWeakAyahsFromStorage,
+  markWeakAyahMastered,
+  recordWeakAyahSignal,
+  saveWeakAyahsToStorage,
+  sortWeakAyahReviewQueue,
+  toggleManualWeakAyah,
+} from '../lib/muhaffizReview';
 
 interface MuhaffizPageProps {
   initialPageNumber?: number;
@@ -199,6 +211,7 @@ export function MuhaffizPage({
   const [prefs, setPrefs] = useState<MuhaffizPreferences>(() => loadPrefs(isDark));
   const [hifzProgress, setHifzProgress] = useState<HifzProgressState>(() => loadHifzProgress());
   const [missedWords, setMissedWords] = useState<MissedWordRecord[]>(() => loadMissedWords());
+  const [weakAyahs, setWeakAyahs] = useState<WeakAyahRecord[]>(() => loadWeakAyahsFromStorage());
   const [revealedTokenIds, setRevealedTokenIds] = useState<Set<string>>(() => new Set());
   const [lastRevealedTokenId, setLastRevealedTokenId] = useState<string | null>(null);
 
@@ -338,6 +351,22 @@ export function MuhaffizPage({
       // ignore
     }
   }, [missedWords]);
+
+  useEffect(() => {
+    function handleWeakSync() {
+      setWeakAyahs(loadWeakAyahsFromStorage());
+    }
+    window.addEventListener(WEAK_AYAHS_EVENT, handleWeakSync);
+    return () => window.removeEventListener(WEAK_AYAHS_EVENT, handleWeakSync);
+  }, []);
+
+  const updateWeakAyahs = useCallback((updater: (prev: WeakAyahRecord[]) => WeakAyahRecord[]) => {
+    setWeakAyahs((prev) => {
+      const next = updater(prev);
+      saveWeakAyahsToStorage(next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     try {
@@ -718,6 +747,25 @@ export function MuhaffizPage({
             }
             return [...additions, ...prev].slice(0, 80);
           });
+          updateWeakAyahs((prev) => {
+            let next = prev;
+            const seenAyahs = new Set<string>();
+            for (const tok of result.skippedTokens) {
+              if (seenAyahs.has(tok.ayahKey)) continue;
+              seenAyahs.add(tok.ayahKey);
+              next = recordWeakAyahSignal(
+                next,
+                {
+                  ayahKey: tok.ayahKey,
+                  surahName: primarySurahName,
+                  pageNumber,
+                  reason: 'token_error',
+                },
+                nowIso
+              );
+            }
+            return next;
+          });
         }
       };
 
@@ -769,6 +817,7 @@ export function MuhaffizPage({
     (tokenId: string) => {
       const token = wordTokens.find((t) => t.id === tokenId);
       if (!token) return;
+      const wasAlreadyMissed = missedWords.some((m) => m.tokenId === token.id);
       setMissedWords((prev) =>
         toggleMissedWordRecord(prev, {
           tokenId: token.id,
@@ -779,9 +828,43 @@ export function MuhaffizPage({
           createdAt: new Date().toISOString(),
         })
       );
+      if (!wasAlreadyMissed) {
+        updateWeakAyahs((prev) =>
+          recordWeakAyahSignal(prev, {
+            ayahKey: token.ayahKey,
+            surahName: primarySurahName,
+            pageNumber,
+            reason: 'token_error',
+          })
+        );
+      }
     },
-    [wordTokens, pageNumber, primarySurahName]
+    [wordTokens, missedWords, pageNumber, primarySurahName, updateWeakAyahs]
   );
+
+  const handleRecordWeakAyah = useCallback(
+    (key: string, surahName: string, reason: WeakAyahReason) => {
+      updateWeakAyahs((prev) =>
+        recordWeakAyahSignal(prev, {
+          ayahKey: key,
+          surahName,
+          pageNumber,
+          reason,
+        })
+      );
+    },
+    [pageNumber, updateWeakAyahs]
+  );
+
+  const dueWeakAyahs = useMemo(() => sortWeakAyahReviewQueue(weakAyahs), [weakAyahs]);
+  const dueWeakAyahKeysSet = useMemo(
+    () => new Set(dueWeakAyahs.map((w) => w.ayahKey)),
+    [dueWeakAyahs]
+  );
+  const lastRevealedAyahKey = useMemo(() => {
+    if (!lastRevealedTokenId) return null;
+    return wordTokens.find((t) => t.id === lastRevealedTokenId)?.ayahKey ?? null;
+  }, [lastRevealedTokenId, wordTokens]);
 
   // Keyboard shortcuts (+, -, Arrows, Space, R, X, Escape)
   useEffect(() => {
@@ -1028,8 +1111,8 @@ export function MuhaffizPage({
               type="button"
               onClick={() => setMistakesOpen((v) => !v)}
               aria-expanded={mistakesOpen}
-              aria-label={`Xəta ${missedWords.length}`}
-              title="Qeyd olunan xətalar"
+              aria-label={`Xəta və Təkrar ${missedWords.length + dueWeakAyahs.length}`}
+              title="Qeyd olunan xətalar və təkrar gözləyənlər"
               data-testid="muhaffiz-mistakes-btn"
               style={{
                 backgroundColor: palette.isDark ? '#a85a4c' : '#7a3b2e',
@@ -1038,7 +1121,7 @@ export function MuhaffizPage({
               }}
               className="absolute -top-1 -right-1 z-10 min-w-[18px] rounded-full px-1 text-center font-mono-tabular text-[10px] leading-[18px] font-bold"
             >
-              {missedWords.length}
+              {missedWords.length + dueWeakAyahs.length}
             </button>
           </div>
         </div>
@@ -1380,6 +1463,41 @@ export function MuhaffizPage({
                   <Flag className="h-3 w-3" aria-hidden="true" />
                   <span>{missedSet.has(lastRevealedTokenId) ? 'Xəta sil' : 'Xəta qeyd et'}</span>
                 </button>
+                {lastRevealedAyahKey && (
+                  <button
+                    type="button"
+                    data-testid="muhaffiz-toggle-weak-ayah"
+                    onClick={() =>
+                      updateWeakAyahs((prev) =>
+                        toggleManualWeakAyah(prev, {
+                          ayahKey: lastRevealedAyahKey,
+                          surahName: primarySurahName,
+                          pageNumber,
+                        }).next
+                      )
+                    }
+                    style={
+                      dueWeakAyahKeysSet.has(lastRevealedAyahKey)
+                        ? {
+                            backgroundColor: palette.green,
+                            color: palette.paper,
+                            borderColor: palette.green,
+                          }
+                        : {
+                            backgroundColor: palette.chip,
+                            color: palette.green,
+                            borderColor: palette.line,
+                          }
+                    }
+                    className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold"
+                  >
+                    <span>
+                      {dueWeakAyahKeysSet.has(lastRevealedAyahKey)
+                        ? `Təkrarda (${lastRevealedAyahKey})`
+                        : `Təkrar siyahısına at`}
+                    </span>
+                  </button>
+                )}
                 <button
                   type="button"
                   data-testid="muhaffiz-reset-reveal-btn"
@@ -1683,21 +1801,24 @@ export function MuhaffizPage({
         </div>
       </footer>
 
-      {/* Mistakes Drawer (.t-miss) */}
+      {/* Mistakes & Weak Ayahs Drawer (.t-miss) */}
       {mistakesOpen && (
         <div
           role="dialog"
-          aria-label="Xətalar"
+          aria-label="Xətalar və Təkrar gözləyənlər"
+          data-testid="muhaffiz-mistakes-drawer"
           dir="ltr"
           style={{
             backgroundColor: palette.paper,
             borderColor: palette.line,
             color: palette.ink,
           }}
-          className="fixed inset-x-3 bottom-18 z-40 mx-auto max-h-[46vh] max-w-[520px] overflow-y-auto rounded-2xl border p-3 shadow-2xl"
+          className="fixed inset-x-3 bottom-18 z-40 mx-auto max-h-[52vh] max-w-[540px] overflow-y-auto rounded-2xl border p-3.5 shadow-2xl"
         >
           <div className="flex items-center justify-between pb-2">
-            <span className="text-sm font-bold">Xətalar ({missedWords.length})</span>
+            <span className="text-sm font-bold">
+              Təkrar gözləyənlər ({dueWeakAyahs.length}) · Xətalar ({missedWords.length})
+            </span>
             <div className="flex items-center gap-3">
               {missedWords.length > 0 && (
                 <button
@@ -1706,7 +1827,7 @@ export function MuhaffizPage({
                   className="inline-flex items-center gap-1 text-xs font-bold text-[#9c2f24] hover:underline"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  <span>Təmizlə</span>
+                  <span>Xətaları təmizlə</span>
                 </button>
               )}
               <button
@@ -1721,12 +1842,52 @@ export function MuhaffizPage({
             </div>
           </div>
 
-          {missedWords.length === 0 ? (
+          {dueWeakAyahs.length > 0 && (
+            <div className="mb-3 space-y-1.5 border-b pb-3" style={{ borderColor: palette.line }}>
+              <p className="text-[11px] font-bold tracking-wider uppercase" style={{ color: palette.green }}>
+                Təkrar gözləyənlər (Ayələr)
+              </p>
+              {dueWeakAyahs.map((item) => (
+                <div
+                  key={`drawer-weak-${item.ayahKey}`}
+                  data-testid={`drawer-weak-ayah-${item.ayahKey}`}
+                  style={{ backgroundColor: palette.chip, borderColor: palette.line }}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2"
+                >
+                  <button
+                    type="button"
+                    onClick={() => goToPage(item.pageNumber)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <p className="text-xs font-semibold">
+                      {cleanSurahTitle(item.surahName)} · {item.ayahKey} (Səh. {item.pageNumber})
+                    </p>
+                    <p className="text-[11px]" style={{ color: palette.muted }}>
+                      {item.mistakeCount}× çətinlik ·{' '}
+                      {item.reasons.map((r) => WEAK_AYAH_REASON_LABELS[r]).join(', ')}
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateWeakAyahs((prev) => markWeakAyahMastered(prev, item.ayahKey))}
+                    data-testid={`drawer-weak-master-${item.ayahKey}`}
+                    style={{ borderColor: palette.line, color: palette.green, backgroundColor: palette.paper }}
+                    className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold hover:opacity-80"
+                  >
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                    <span>Mənimsədim</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {missedWords.length === 0 && dueWeakAyahs.length === 0 ? (
             <p className="py-4 text-center text-xs" style={{ color: palette.muted }}>
-              Hələ qeydə alınmış xəta yoxdur. Canlı oxunuşda buraxılan sözlər və ya oxu rejimində
-              işarələdiyiniz sözlər burada görünür.
+              Hələ qeydə alınmış xəta və ya təkrar gözləyən ayə yoxdur. Canlı oxunuşda buraxılan
+              sözlər, testdəki səhvlər və ya işarələdiyiniz ayələr burada toplanır.
             </p>
-          ) : (
+          ) : missedWords.length > 0 ? (
             <div className="divide-y" style={{ borderColor: palette.line }}>
               {missedWords.map((item) => (
                 <button
@@ -1749,7 +1910,7 @@ export function MuhaffizPage({
                 </button>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -1827,6 +1988,10 @@ export function MuhaffizPage({
         hifzProgress={hifzProgress}
         juzSummary={juzHifzSummary}
         missedWords={missedWords}
+        weakAyahs={weakAyahs}
+        onMarkWeakAyahMastered={(key) =>
+          updateWeakAyahs((prev) => markWeakAyahMastered(prev, key))
+        }
         onClose={() => setIndexOpen(false)}
         onSelectPage={goToPage}
         onOpenSettings={() => {
@@ -1842,6 +2007,7 @@ export function MuhaffizPage({
         ayahs={ayahs}
         paperTheme={prefs.paperTheme}
         reciter={prefs.reciter}
+        onRecordWeakAyah={handleRecordWeakAyah}
         onClose={() => setPracticeOpen(false)}
       />
     </section>

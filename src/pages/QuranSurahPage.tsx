@@ -10,7 +10,9 @@ import {
   Eye,
   ImageDown,
   Moon,
+  Pencil,
   Play,
+  Printer,
   Search,
   Square,
   Sun,
@@ -19,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AyahCloudSyncBar } from '../components/AyahCloudSyncBar';
 import { LineFocusBar } from '../components/LineFocusBar';
 import { MatchingShortsStrip } from '../components/MatchingShortsStrip';
 import { SeoHead } from '../components/SeoHead';
@@ -67,6 +70,7 @@ import {
 } from '../lib/muhaffiz';
 import {
   AudioPlaybackSpeed,
+  AyahPauseSeconds,
   AyahRepeatCount,
   READER_SCALE_CLASSES,
   READER_SCALE_LABELS,
@@ -120,6 +124,8 @@ export function QuranSurahPage({
   const [selectedMushafPage, setSelectedMushafPage] = useState<number | null>(null);
   const [showAllPages, setShowAllPages] = useState<boolean>(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState<string>('');
 
   const {
     reciter,
@@ -130,6 +136,9 @@ export function QuranSurahPage({
     setPlaybackSpeed,
     repeatCount,
     setRepeatCount,
+    pauseSeconds,
+    setPauseSeconds,
+    pauseRemainingSec,
     autoFocus,
     setAutoFocus,
     sleepMinutes,
@@ -140,7 +149,15 @@ export function QuranSurahPage({
     stop: stopGlobalAudio,
   } = useGlobalAudio();
 
-  const { isSaved, toggleAyahBookmark } = useSavedAyahs();
+  const {
+    isSaved,
+    toggleAyahBookmark,
+    getAyahNote,
+    upsertAyahBookmarkAndNote,
+    cloudStatus,
+    signInForCloudSync,
+    signOutCloudSync,
+  } = useSavedAyahs();
   const { textScale, setTextScale } = useReaderTextScale();
   const { displayMode, setDisplayMode } = useReaderDisplayMode();
   const { layoutMode, setLayoutMode } = useReaderLayoutMode();
@@ -560,7 +577,7 @@ export function QuranSurahPage({
       />
 
       <div className={`mx-auto px-6 ${layoutMode === 'book' ? 'max-w-6xl' : 'max-w-5xl'}`}>
-        <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+        <nav aria-label="Breadcrumb" className="print:hidden mb-4 flex flex-wrap items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
           <a
             href="/"
             onClick={(e) => {
@@ -586,7 +603,7 @@ export function QuranSurahPage({
           <span className="font-medium text-stone-900 dark:text-stone-200">{surah.name} surəsi</span>
         </nav>
 
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="print:hidden flex flex-wrap items-center justify-between gap-4">
           <a
             href="/quran"
             onClick={(e) => {
@@ -622,6 +639,17 @@ export function QuranSurahPage({
               <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Mədinə səhifəsi {targetMushafPage}</span>
             </a>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              data-testid="surah-print-btn"
+              title="Bu surəni səliqəli PDF və ya kağız kimi çap et"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 whitespace-nowrap transition-colors hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#141916] dark:text-stone-200"
+            >
+              <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Çap / PDF</span>
+            </button>
 
             <button
               type="button"
@@ -692,7 +720,7 @@ export function QuranSurahPage({
 
         {/* Search & Madinah Page Controls */}
         {!isLoading && !error && payload && (
-          <div className="mt-6 space-y-4">
+          <div className="print:hidden mt-6 space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               {surah.ayahCount > 7 ? (
                 <div className="relative w-full sm:max-w-sm">
@@ -936,6 +964,8 @@ export function QuranSurahPage({
                     [
                       { val: 1 as AyahRepeatCount, label: '1×' },
                       { val: 3 as AyahRepeatCount, label: '3×' },
+                      { val: 5 as AyahRepeatCount, label: '5×' },
+                      { val: 10 as AyahRepeatCount, label: '10×' },
                       { val: 0 as AyahRepeatCount, label: '∞' },
                     ]
                   ).map((opt) => (
@@ -955,6 +985,49 @@ export function QuranSurahPage({
                     </button>
                   ))}
                 </div>
+
+                <div
+                  role="group"
+                  aria-label="Ayələr arası fasilə"
+                  data-testid="surah-audio-pause"
+                  className="inline-flex items-center gap-0.5 rounded-lg border border-stone-200 bg-white p-0.5 dark:border-stone-700 dark:bg-[#141916]"
+                >
+                  {(
+                    [
+                      { val: 0 as AyahPauseSeconds, label: '0s' },
+                      { val: 3 as AyahPauseSeconds, label: '3s' },
+                      { val: 5 as AyahPauseSeconds, label: '5s' },
+                    ]
+                  ).map((opt) => (
+                    <button
+                      key={opt.val}
+                      type="button"
+                      onClick={() => setPauseSeconds(opt.val)}
+                      aria-pressed={pauseSeconds === opt.val}
+                      title={
+                        opt.val === 0
+                          ? 'Ayələr arası fasilə yoxdur'
+                          : `Hər ayə sonrası təkrarlamaq üçün ${opt.val} saniyə fasilə`
+                      }
+                      className={`rounded-md px-2 py-1 font-mono-tabular text-[11px] font-medium transition-colors ${
+                        pauseSeconds === opt.val
+                          ? 'bg-[#0F4C3A] text-white dark:bg-[#196B52]'
+                          : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                {pauseRemainingSec > 0 && isThisSurahPlayingAyah && (
+                  <span
+                    data-testid="surah-pause-countdown"
+                    className="rounded-lg bg-amber-500/15 px-2.5 py-1 font-mono-tabular text-[11px] font-semibold text-amber-800 dark:text-amber-300"
+                  >
+                    Fasilə: {pauseRemainingSec}s…
+                  </span>
+                )}
 
                 <div className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white p-0.5 dark:border-stone-700 dark:bg-[#141916]">
                   <button
@@ -1095,17 +1168,29 @@ export function QuranSurahPage({
                 </div>
               </div>
             )}
+            <AyahCloudSyncBar
+              cloudStatus={cloudStatus}
+              onSignIn={signInForCloudSync}
+              onSignOut={signOutCloudSync}
+              compact
+            />
           </div>
         )}
 
-        {showTajweed && <TajweedLegendBar onClose={() => setShowTajweed(false)} />}
+        {showTajweed && (
+          <div className="print:hidden">
+            <TajweedLegendBar onClose={() => setShowTajweed(false)} />
+          </div>
+        )}
 
         {!isLoading && !error && matchingShorts.length > 0 && (
-          <MatchingShortsStrip
-            matches={matchingShorts}
-            onPlayVideo={onPlayVideo}
-            className="mt-6"
-          />
+          <div className="print:hidden">
+            <MatchingShortsStrip
+              matches={matchingShorts}
+              onPlayVideo={onPlayVideo}
+              className="mt-6"
+            />
+          </div>
         )}
 
         {/* Ayahs */}
@@ -1163,6 +1248,8 @@ export function QuranSurahPage({
                 const markerColor = getHighlightColor(ayah.surahNumber, ayah.ayahNumber);
                 const markerClass = getAyahHighlightMarkClass(markerColor);
                 const useBookGrid = layoutMode === 'book' && displayMode === 'both';
+                const ayahNote = getAyahNote(ayah.surahNumber, ayah.ayahNumber);
+                const isEditingNote = editingNoteKey === key;
 
                 return (
                   <div
@@ -1179,7 +1266,7 @@ export function QuranSurahPage({
                       if (targetEl?.closest('a, button, input, select')) return;
                       setManualFocusedKey(key);
                     }}
-                    className={`p-6 sm:p-7 transition-all duration-200 ${
+                    className={`print-avoid-break p-6 sm:p-7 transition-all duration-200 ${
                       isLineFocused
                         ? 'relative z-10 bg-white opacity-100 ring-2 ring-inset ring-[#0F4C3A]/65 shadow-sm dark:bg-[#141916] dark:ring-[#86C7AE]/65'
                         : isLineDimmed
@@ -1217,7 +1304,7 @@ export function QuranSurahPage({
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="print:hidden flex flex-wrap items-center gap-2">
                         {/* 3-Color Arabic Highlighter Swatches (#9) */}
                         <div
                           role="group"
@@ -1352,6 +1439,29 @@ export function QuranSurahPage({
                           <ImageDown className="h-3.5 w-3.5" aria-hidden="true" />
                           <span>Şəkil</span>
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isEditingNote) {
+                              setEditingNoteKey(null);
+                            } else {
+                              setEditingNoteKey(key);
+                              setNoteDraft(ayahNote);
+                            }
+                          }}
+                          aria-pressed={isEditingNote}
+                          aria-label={ayahNote ? `${key} ayəsinin qeydini düzəlt` : `${key} ayəsinə şəxsi qeyd yaz`}
+                          data-testid={`surah-note-ayah-${ayah.ayahNumber}`}
+                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors ${
+                            ayahNote || isEditingNote
+                              ? 'border-[#0F4C3A] bg-[#0F4C3A]/10 font-medium text-[#0F4C3A] dark:border-[#86C7AE] dark:bg-[#86C7AE]/15 dark:text-[#86C7AE]'
+                              : 'border-stone-200 text-stone-600 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:text-stone-400'
+                          }`}
+                        >
+                          <Pencil className="h-3 w-3" aria-hidden="true" />
+                          <span>{ayahNote ? 'Qeyd ✓' : 'Qeyd'}</span>
+                        </button>
                       </div>
                     </div>
 
@@ -1412,6 +1522,65 @@ export function QuranSurahPage({
                         </div>
                       )}
                     </div>
+
+                    {ayahNote && !isEditingNote && (
+                      <p
+                        data-testid={`surah-note-text-${ayah.ayahNumber}`}
+                        className="mt-3 rounded-lg border border-stone-200 bg-[#FAF9F6] px-3.5 py-2 text-xs leading-relaxed text-stone-700 dark:border-stone-800 dark:bg-[#181E1B] dark:text-stone-300"
+                      >
+                        <strong className="font-medium text-[#0F4C3A] dark:text-[#86C7AE]">
+                          Şəxsi qeyd:
+                        </strong>{' '}
+                        {ayahNote}
+                      </p>
+                    )}
+
+                    {isEditingNote && (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          upsertAyahBookmarkAndNote(
+                            {
+                              surahNumber: ayah.surahNumber,
+                              ayahNumber: ayah.ayahNumber,
+                              surahName: surah.name,
+                              pageNumber: ayah.pageNumber,
+                              arabicText: ayah.arabicText,
+                              translation: ayah.translation,
+                            },
+                            noteDraft
+                          );
+                          setEditingNoteKey(null);
+                        }}
+                        className="print:hidden mt-3 flex flex-col gap-2 sm:flex-row sm:items-center"
+                      >
+                        <input
+                          type="text"
+                          value={noteDraft}
+                          onChange={(e) => setNoteDraft(e.target.value)}
+                          maxLength={500}
+                          placeholder="Bu ayə haqqında şəxsi qeyd və ya təfəkkür yazın..."
+                          data-testid={`surah-note-input-${ayah.ayahNumber}`}
+                          className="flex-1 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-900 focus:border-[#0F4C3A] focus:outline-none dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-100"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="submit"
+                            data-testid={`surah-note-save-${ayah.ayahNumber}`}
+                            className="rounded-lg bg-[#0F4C3A] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0B3A2C] dark:bg-[#196B52]"
+                          >
+                            Saxla
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingNoteKey(null)}
+                            className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 dark:border-stone-700 dark:bg-[#141916] dark:text-stone-300"
+                          >
+                            Ləğv et
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
                 );
               })}
@@ -1419,7 +1588,7 @@ export function QuranSurahPage({
 
             {/* Prev / Next Madinah Page Controls inside Surah */}
             {!query.trim() && !showAllPages && pageGroups.length > 1 && activeGroup && (
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+              <div className="print:hidden mt-6 flex flex-wrap items-center justify-between gap-3">
                 {activeGroupIndex > 0 ? (
                   <button
                     type="button"
@@ -1459,7 +1628,7 @@ export function QuranSurahPage({
 
         {/* Channel recitations for this surah */}
         {matchingVideos.length > 0 && (
-          <div className="mt-12 border-t border-stone-200 pt-10 dark:border-stone-800">
+          <div className="print:hidden mt-12 border-t border-stone-200 pt-10 dark:border-stone-800">
             <h2 className="font-display text-2xl font-semibold text-stone-900 dark:text-stone-100">
               Kanaldakı {surah.name} tilavətləri
             </h2>
@@ -1512,7 +1681,7 @@ export function QuranSurahPage({
         <section
           aria-labelledby="surah-faq-heading"
           data-testid="surah-faq-section"
-          className="mt-12 border-t border-stone-200 pt-10 dark:border-stone-800"
+          className="print:hidden mt-12 border-t border-stone-200 pt-10 dark:border-stone-800"
         >
           <h2
             id="surah-faq-heading"
@@ -1541,7 +1710,7 @@ export function QuranSurahPage({
         {/* Previous / Next Surah Navigation */}
         <nav
           aria-label="Surələr arası keçid"
-          className="mt-12 flex items-center justify-between gap-4 border-t border-stone-200 pt-8 dark:border-stone-800"
+          className="print:hidden mt-12 flex items-center justify-between gap-4 border-t border-stone-200 pt-8 dark:border-stone-800"
         >
           {prevSurah ? (
             <a

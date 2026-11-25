@@ -12,6 +12,11 @@ import {
   MuhaffizPaperTheme,
   clampMuhaffizPage,
 } from '../../lib/muhaffiz';
+import {
+  WEAK_AYAH_REASON_LABELS,
+  WeakAyahRecord,
+  sortWeakAyahReviewQueue,
+} from '../../lib/muhaffizReview';
 import { JUZ_PAGE_RANGES, SURAH_CATALOG, TOTAL_QURAN_PAGES } from '../../lib/quran';
 
 interface MuhaffizIndexOverlayProps {
@@ -22,6 +27,8 @@ interface MuhaffizIndexOverlayProps {
   hifzProgress: HifzProgressState;
   juzSummary: JuzHifzSummary[];
   missedWords?: MissedWordRecord[];
+  weakAyahs?: WeakAyahRecord[];
+  onMarkWeakAyahMastered?: (ayahKey: string) => void;
   onClose: () => void;
   onSelectPage: (page: number) => void;
   onOpenSettings: () => void;
@@ -49,6 +56,8 @@ export function MuhaffizIndexOverlay({
   hifzProgress,
   juzSummary,
   missedWords = [],
+  weakAyahs = [],
+  onMarkWeakAyahMastered,
   onClose,
   onSelectPage,
   onOpenSettings,
@@ -64,6 +73,11 @@ export function MuhaffizIndexOverlay({
     () => buildHifzReviewQueue(hifzProgress, missedWords),
     [hifzProgress, missedWords]
   );
+  const weakAyahQueue = useMemo(
+    () => sortWeakAyahReviewQueue(weakAyahs),
+    [weakAyahs]
+  );
+  const totalReviewBadgeCount = reviewQueue.length + weakAyahQueue.length;
   const hifzTotals = useMemo(() => summarizeHifzProgress(hifzProgress), [hifzProgress]);
 
   const filteredSurahs = useMemo(() => {
@@ -240,7 +254,7 @@ export function MuhaffizIndexOverlay({
           }}
           className="py-2.5 text-center"
         >
-          TƏKRAR{reviewQueue.length > 0 ? ` (${reviewQueue.length})` : ''}
+          TƏKRAR{totalReviewBadgeCount > 0 ? ` (${totalReviewBadgeCount})` : ''}
         </button>
       </div>
 
@@ -376,15 +390,82 @@ export function MuhaffizIndexOverlay({
               </div>
             </div>
 
-            {reviewQueue.length === 0 ? (
+            {/* Weak / Struggled Ayahs Queue ("Təkrar gözləyənlər") */}
+            {weakAyahQueue.length > 0 && (
+              <div
+                data-testid="muhaffiz-weak-ayahs-queue"
+                style={{ borderBottom: `1px solid ${palette.line}` }}
+                className="px-4 py-3 sm:px-6"
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-bold tracking-wider uppercase" style={{ color: palette.green }}>
+                    Təkrar gözləyənlər ({weakAyahQueue.length} ayə)
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {weakAyahQueue.map((item) => (
+                    <div
+                      key={`weak-${item.ayahKey}`}
+                      data-testid={`weak-ayah-item-${item.ayahKey}`}
+                      style={{ backgroundColor: palette.chip, borderColor: palette.line }}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onSelectPage(item.pageNumber)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <p className="text-xs font-semibold">
+                          {item.surahName.replace(/\s+surəsi$/i, '')} · {item.ayahKey}{' '}
+                          <span className="font-mono-tabular font-normal" style={{ color: palette.muted }}>
+                            (Səh. {item.pageNumber})
+                          </span>
+                        </p>
+                        <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]" style={{ color: palette.muted }}>
+                          <span>{item.mistakeCount}× çətinlik</span>
+                          <span>·</span>
+                          <span>
+                            {item.reasons.map((r) => WEAK_AYAH_REASON_LABELS[r]).join(', ')}
+                          </span>
+                        </p>
+                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {onMarkWeakAyahMastered && (
+                          <button
+                            type="button"
+                            onClick={() => onMarkWeakAyahMastered(item.ayahKey)}
+                            data-testid={`weak-ayah-master-${item.ayahKey}`}
+                            style={{ borderColor: palette.line, color: palette.green, backgroundColor: palette.paper }}
+                            className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold hover:opacity-80"
+                          >
+                            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                            <span>Mənimsədim</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onSelectPage(item.pageNumber)}
+                          style={{ backgroundColor: palette.green, color: palette.paper }}
+                          className="rounded-lg px-2.5 py-1 text-[11px] font-semibold"
+                        >
+                          Aç →
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {reviewQueue.length === 0 && weakAyahQueue.length === 0 ? (
               <div className="px-6 py-12 text-center">
                 <p className="text-sm font-semibold">Hələ təkrar siyahısı boşdur</p>
                 <p className="mt-1 text-xs" style={{ color: palette.muted }}>
-                  Oxuyarkən xəta qeyd etdiyiniz, "Əzbərlədim / Təkrarda" seçdiyiniz və ya əlfəcinlədiyiniz
-                  səhifələr prioritet sırası ilə burada toplanır.
+                  Oxuyarkən xəta qeyd etdiyiniz, çətinlik çəkdiyiniz ayələr və ya "Əzbərlədim / Təkrarda"
+                  seçdiyiniz səhifələr prioritet sırası ilə burada toplanır.
                 </p>
               </div>
-            ) : (
+            ) : reviewQueue.length === 0 ? null : (
               <div>
                 {reviewQueue.map((entry) => {
                   const surahName = getSurahForPage(entry.pageNumber);

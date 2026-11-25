@@ -12,6 +12,7 @@ import {
   Moon,
   Pencil,
   Play,
+  Printer,
   RotateCcw,
   Search,
   Square,
@@ -22,6 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AyahCloudSyncBar } from '../components/AyahCloudSyncBar';
 import { CalendarReminderCard } from '../components/CalendarReminderCard';
 import { KhatmPlannerCard } from '../components/KhatmPlannerCard';
 import { SeoHead } from '../components/SeoHead';
@@ -128,7 +130,16 @@ export function QuranDirectoryPage({
 
   const lastRead = useLastRead();
   const { showTranslit, setShowTranslit } = useReaderTransliteration();
-  const { savedAyahs, toggleAyahBookmark, removeAyahBookmark, updateAyahNote, isSaved } = useSavedAyahs();
+  const {
+    savedAyahs,
+    toggleAyahBookmark,
+    removeAyahBookmark,
+    updateAyahNote,
+    isSaved,
+    cloudStatus,
+    signInForCloudSync,
+    signOutCloudSync,
+  } = useSavedAyahs();
   const {
     goalState,
     summary: readingGoalSummary,
@@ -1990,7 +2001,15 @@ export function QuranDirectoryPage({
           </div>
         ) : browseMode === 'saved' ? (
           /* Saved Favorite Ayahs Tab */
-          <div className="mt-6" data-testid="saved-ayahs-panel">
+          <div className="mt-6 space-y-4" data-testid="saved-ayahs-panel">
+            <div className="print:hidden">
+              <AyahCloudSyncBar
+                cloudStatus={cloudStatus}
+                onSignIn={signInForCloudSync}
+                onSignOut={signOutCloudSync}
+              />
+            </div>
+
             {savedAyahs.length === 0 ? (
               <div className="rounded-xl border border-stone-200 bg-[#F3F1EC] p-8 text-center dark:border-stone-800 dark:bg-[#141916]">
                 <Bookmark className="mx-auto h-6 w-6 text-stone-400" aria-hidden="true" />
@@ -2025,7 +2044,7 @@ export function QuranDirectoryPage({
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-[#F7F5F0] px-5 py-3 dark:border-stone-800 dark:bg-[#141916]">
+                <div className="print:hidden flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-[#F7F5F0] px-5 py-3 dark:border-stone-800 dark:bg-[#141916]">
                   <p className="text-xs text-stone-600 dark:text-stone-300">
                     <span className="font-mono-tabular font-semibold text-stone-900 dark:text-stone-100">
                       {savedAyahs.length}
@@ -2033,6 +2052,15 @@ export function QuranDirectoryPage({
                     saxlanılan ayə və şəxsi qeydlər
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      data-testid="saved-print-btn"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:border-[#0F4C3A] hover:text-[#0F4C3A] dark:border-stone-700 dark:bg-[#181E1B] dark:text-stone-200"
+                    >
+                      <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>Çap / PDF</span>
+                    </button>
                     <button
                       type="button"
                       onClick={handleCopyAllSavedAyahs}
@@ -2068,7 +2096,7 @@ export function QuranDirectoryPage({
                     const isCopied = copiedSavedKey === key;
                     const isEditingNote = editingNoteKey === key;
                     return (
-                      <div key={key} className="p-6">
+                      <div key={key} className="print-avoid-break p-6">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div className="flex flex-wrap items-center gap-2 text-xs">
                             <span className="font-mono-tabular font-semibold text-[#0F4C3A] dark:text-[#86C7AE]">

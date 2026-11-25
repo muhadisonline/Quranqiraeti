@@ -39,6 +39,7 @@ import {
 import {
   ReaderLayoutMode,
   AudioPlaybackSpeed,
+  AyahPauseSeconds,
   AyahRepeatCount,
   LAST_READ_EVENT,
   LastReadRecord,
@@ -47,6 +48,7 @@ import {
   SAVED_AYAHS_EVENT,
   SavedAyahRecord,
   isAyahBookmarked,
+  loadAudioPauseFromStorage,
   loadAudioRepeatFromStorage,
   loadAudioSpeedFromStorage,
   loadContinuousMushafAudioFromStorage,
@@ -59,6 +61,7 @@ import {
   loadSavedAyahsFromStorage,
   persistSavedAyahsToStorage,
   removeSavedAyahItem,
+  saveAudioPauseToStorage,
   saveAudioRepeatToStorage,
   saveAudioSpeedToStorage,
   saveContinuousMushafAudioToStorage,
@@ -69,7 +72,17 @@ import {
   saveReaderTranslitToStorage,
   toggleSavedAyahItem,
   updateSavedAyahNoteItem,
+  upsertSavedAyahNoteItem,
 } from '../lib/readerState';
+import {
+  CloudSyncStatusSnapshot,
+  getCloudSyncStatusSnapshot,
+  pushCloudAyahDelete,
+  pushCloudAyahUpsert,
+  signInForAyahCloudSync,
+  signOutAyahCloudSync,
+  subscribeCloudSyncStatus,
+} from '../lib/ayahNotesSync';
 import { getLocalDateKey } from '../lib/readingGoal';
 import {
   KHATM_PLAN_EVENT,
@@ -111,6 +124,9 @@ export function useSavedAyahs() {
   const [savedAyahs, setSavedAyahs] = useState<SavedAyahRecord[]>(() =>
     loadSavedAyahsFromStorage()
   );
+  const [cloudStatus, setCloudStatus] = useState<CloudSyncStatusSnapshot>(() =>
+    getCloudSyncStatusSnapshot()
+  );
 
   useEffect(() => {
     function sync() {
@@ -118,16 +134,28 @@ export function useSavedAyahs() {
     }
     window.addEventListener(SAVED_AYAHS_EVENT, sync);
     window.addEventListener('storage', sync);
+    const unsubCloud = subscribeCloudSyncStatus(() => {
+      setCloudStatus(getCloudSyncStatusSnapshot());
+    });
     return () => {
       window.removeEventListener(SAVED_AYAHS_EVENT, sync);
       window.removeEventListener('storage', sync);
+      unsubCloud();
     };
   }, []);
 
   const toggleAyahBookmark = useCallback((entry: Omit<SavedAyahRecord, 'savedAt'>) => {
     setSavedAyahs((prev) => {
-      const { next } = toggleSavedAyahItem(prev, entry);
+      const { next, added } = toggleSavedAyahItem(prev, entry);
       persistSavedAyahsToStorage(next);
+      if (added) {
+        const created = next.find(
+          (item) => item.surahNumber === entry.surahNumber && item.ayahNumber === entry.ayahNumber
+        );
+        if (created) pushCloudAyahUpsert(created);
+      } else {
+        pushCloudAyahDelete(entry.surahNumber, entry.ayahNumber);
+      }
       return next;
     });
   }, []);
@@ -136,6 +164,7 @@ export function useSavedAyahs() {
     setSavedAyahs((prev) => {
       const next = removeSavedAyahItem(prev, surahNumber, ayahNumber);
       persistSavedAyahsToStorage(next);
+      pushCloudAyahDelete(surahNumber, ayahNumber);
       return next;
     });
   }, []);
@@ -144,13 +173,38 @@ export function useSavedAyahs() {
     setSavedAyahs((prev) => {
       const next = updateSavedAyahNoteItem(prev, surahNumber, ayahNumber, note);
       persistSavedAyahsToStorage(next);
+      const updated = next.find(
+        (item) => item.surahNumber === surahNumber && item.ayahNumber === ayahNumber
+      );
+      if (updated) pushCloudAyahUpsert(updated);
       return next;
     });
   }, []);
 
+  const upsertAyahBookmarkAndNote = useCallback(
+    (entry: Omit<SavedAyahRecord, 'savedAt' | 'note'>, note: string) => {
+      setSavedAyahs((prev) => {
+        const next = upsertSavedAyahNoteItem(prev, entry, note);
+        persistSavedAyahsToStorage(next);
+        const updated = next.find(
+          (item) => item.surahNumber === entry.surahNumber && item.ayahNumber === entry.ayahNumber
+        );
+        if (updated) pushCloudAyahUpsert(updated);
+        return next;
+      });
+    },
+    []
+  );
+
   const isSaved = useCallback(
     (surahNumber: number, ayahNumber: number) =>
       isAyahBookmarked(savedAyahs, surahNumber, ayahNumber),
+    [savedAyahs]
+  );
+
+  const getAyahNote = useCallback(
+    (surahNumber: number, ayahNumber: number) =>
+      savedAyahs.find((a) => a.surahNumber === surahNumber && a.ayahNumber === ayahNumber)?.note ?? '',
     [savedAyahs]
   );
 
@@ -159,7 +213,12 @@ export function useSavedAyahs() {
     toggleAyahBookmark,
     removeAyahBookmark,
     updateAyahNote,
+    upsertAyahBookmarkAndNote,
     isSaved,
+    getAyahNote,
+    cloudStatus,
+    signInForCloudSync: signInForAyahCloudSync,
+    signOutCloudSync: signOutAyahCloudSync,
   };
 }
 
@@ -242,6 +301,9 @@ export function useAudioPlaybackPrefs() {
   const [repeatCount, setRepeatCountState] = useState<AyahRepeatCount>(() =>
     loadAudioRepeatFromStorage()
   );
+  const [pauseSeconds, setPauseSecondsState] = useState<AyahPauseSeconds>(() =>
+    loadAudioPauseFromStorage()
+  );
 
   const setPlaybackSpeed = useCallback((next: AudioPlaybackSpeed) => {
     setPlaybackSpeedState(next);
@@ -253,11 +315,18 @@ export function useAudioPlaybackPrefs() {
     saveAudioRepeatToStorage(next);
   }, []);
 
+  const setPauseSeconds = useCallback((next: AyahPauseSeconds) => {
+    setPauseSecondsState(next);
+    saveAudioPauseToStorage(next);
+  }, []);
+
   return {
     playbackSpeed,
     setPlaybackSpeed,
     repeatCount,
     setRepeatCount,
+    pauseSeconds,
+    setPauseSeconds,
   };
 }
 

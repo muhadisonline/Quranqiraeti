@@ -90,7 +90,7 @@ export function TopBar({
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-stone-200/80 bg-[#FAF9F6]/92 backdrop-blur-md dark:border-stone-800/80 dark:bg-[#0E1210]/92">
+    <header className="print:hidden sticky top-0 z-30 border-b border-stone-200/80 bg-[#FAF9F6]/92 backdrop-blur-md dark:border-stone-800/80 dark:bg-[#0E1210]/92">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
         {/* Zone 1: Single-line Brand Wordmark */}
         <a

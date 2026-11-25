@@ -512,12 +512,14 @@ export function MuhaffizSettingsSheet({
               <div
                 data-testid="muhaffiz-audio-repeat"
                 style={{ backgroundColor: subRowBorder }}
-                className="mt-1 grid grid-cols-3 gap-0.5 rounded-lg p-0.5"
+                className="mt-1 grid grid-cols-5 gap-0.5 rounded-lg p-0.5"
               >
                 {(
                   [
                     { val: 1 as AyahRepeatCount, label: '1×' },
                     { val: 3 as AyahRepeatCount, label: '3×' },
+                    { val: 5 as AyahRepeatCount, label: '5×' },
+                    { val: 10 as AyahRepeatCount, label: '10×' },
                     { val: 0 as AyahRepeatCount, label: '∞' },
                   ] as const
                 ).map((opt) => (

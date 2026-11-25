@@ -15,6 +15,7 @@ import {
   buildInlineAyahResults,
   buildInlineQueryResults,
   buildInlineSearchResults,
+  buildTelegramEzberQuestion,
   escapeTelegramHtml,
   findCityForTelegramQuery,
   findSurahForTelegramQuery,
@@ -25,6 +26,8 @@ import {
   formatPrayerTimesMessage,
   formatStartMessage,
   formatSurahMessage,
+  formatTelegramEzberAnswerMessage,
+  formatTelegramEzberQuizMessage,
   formatVerseMessage,
   formatVideosMessage,
   formatZikrMessage,
@@ -32,9 +35,11 @@ import {
   getTelegramAyahAudioUrl,
   getTelegramSurahAudioUrl,
   parseAudioQueryArgs,
+  parseEzberCallbackData,
   parseInlineAyahRef,
   parseKartQueryArgs,
   parseTelegramCommand,
+  pickEzberVerseBySeed,
 } from '../lib/telegramBot';
 import {
   buildDailyDigestMessage,
@@ -809,6 +814,43 @@ export async function processTelegramUpdate(
         const msg = await resolveMushafPageReply(origin, pageNum, deps);
         await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
       }
+    } else if (data.startsWith('ezber:')) {
+      const action = parseEzberCallbackData(data);
+      if (action?.type === 'next') {
+        const verse = pickEzberVerseBySeed(action.seed);
+        const question = buildTelegramEzberQuestion(verse, action.seed);
+        const msg = formatTelegramEzberQuizMessage(origin, question);
+        if (typeof messageId === 'number') {
+          const edited = await editTelegramHtmlMessage(
+            token,
+            chatId,
+            messageId,
+            msg.text,
+            msg.reply_markup
+          );
+          if (edited) return;
+        }
+        await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+      } else if (action?.type === 'answer') {
+        const verse = await resolveVersePayloadForBot(
+          action.surahNumber,
+          action.ayahNumber,
+          deps
+        );
+        const question = buildTelegramEzberQuestion(verse, action.seed);
+        const reply = formatTelegramEzberAnswerMessage(origin, question, action.chosenIndex);
+        if (typeof messageId === 'number') {
+          const edited = await editTelegramHtmlMessage(
+            token,
+            chatId,
+            messageId,
+            reply.text,
+            reply.reply_markup
+          );
+          if (edited) return;
+        }
+        await sendTelegramHtmlMessage(token, chatId, reply.text, reply.reply_markup);
+      }
     }
     return;
   }
@@ -899,6 +941,15 @@ export async function processTelegramUpdate(
           (await getSubscriptionForChat(chatId, token)) ?? createDefaultSubscription(chatId);
         const saved = await saveSubscription(existing, token);
         const msg = formatSubscriptionSettingsMessage(origin, saved);
+        await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+        return;
+      }
+
+      if (deepArg.toLowerCase() === 'ezber') {
+        const seed = Math.floor(Math.random() * 997);
+        const verse = pickEzberVerseBySeed(seed);
+        const question = buildTelegramEzberQuestion(verse, seed);
+        const msg = formatTelegramEzberQuizMessage(origin, question);
         await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
         return;
       }
@@ -1019,6 +1070,19 @@ export async function processTelegramUpdate(
       await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
     } else if (command === 'elifba' || command === 'tecvid') {
       const msg = formatAlphabetMessage(origin);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (command === 'ezber' || command === 'imtahan' || command === 'quiz') {
+      const refMatch = args.match(/^(\d{1,3}):(\d{1,3})$/);
+      const seed = Math.floor(Math.random() * 997);
+      const verse = refMatch
+        ? await resolveVersePayloadForBot(
+            Number.parseInt(refMatch[1], 10),
+            Number.parseInt(refMatch[2], 10),
+            deps
+          )
+        : pickEzberVerseBySeed(seed);
+      const question = buildTelegramEzberQuestion(verse, seed);
+      const msg = formatTelegramEzberQuizMessage(origin, question);
       await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
     } else if (command === 'axtar' || command === 'search') {
       const msg = await handleQuranTextSearch(origin, args);

@@ -25,7 +25,14 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  where,
 } from 'firebase/firestore';
+import {
+  buildAyahNoteId,
+  fromCloudAyahNoteDoc,
+  toCloudAyahNotePayload,
+} from './ayahNotes';
+import type { SavedAyahRecord } from './readerState';
 import firebaseConfig from '../../firebase-applet-config.json';
 import {
   CONNECTED_PAGES,
@@ -291,6 +298,14 @@ export async function refreshCurrentAdminUser(): Promise<User | null> {
 }
 
 export async function signOutAdmin(): Promise<void> {
+  await signOut(auth);
+}
+
+export async function signInReaderWithGoogle(): Promise<User> {
+  return signInAdminWithGoogle();
+}
+
+export async function signOutReader(): Promise<void> {
   await signOut(auth);
 }
 
@@ -584,3 +599,79 @@ export async function removeAdminUser(uid: string): Promise<void> {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
+
+export function subscribeUserAyahNotes(
+  uid: string,
+  onNotes: (notes: SavedAyahRecord[]) => void,
+  onError: (err: Error) => void
+): () => void {
+  const cleanUid = uid.trim();
+  const collectionPath = `users/${cleanUid}/ayah_notes`;
+  const q = query(collection(db, 'users', cleanUid, 'ayah_notes'), where('ownerUid', '==', cleanUid));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const parsed: SavedAyahRecord[] = [];
+      for (const d of snapshot.docs) {
+        const rec = fromCloudAyahNoteDoc(d.data() as Record<string, unknown>);
+        if (rec) parsed.push(rec);
+      }
+      parsed.sort((a, b) => (Date.parse(b.savedAt) || 0) - (Date.parse(a.savedAt) || 0));
+      onNotes(parsed);
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, collectionPath);
+      } catch (wrapped) {
+        onError(wrapped as Error);
+      }
+    }
+  );
+}
+
+export async function upsertUserAyahNote(
+  uid: string,
+  record: SavedAyahRecord
+): Promise<void> {
+  const cleanUid = uid.trim();
+  const payload = toCloudAyahNotePayload(cleanUid, record);
+  const path = `users/${cleanUid}/ayah_notes/${payload.noteId}`;
+  const docRef = doc(db, 'users', cleanUid, 'ayah_notes', payload.noteId);
+
+  try {
+    const snap = await getDoc(docRef);
+    await setDoc(docRef, {
+      ...payload,
+      createdAt: snap.exists() && snap.data()?.createdAt ? snap.data().createdAt : serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteUserAyahNote(
+  uid: string,
+  surahNumber: number,
+  ayahNumber: number
+): Promise<void> {
+  const cleanUid = uid.trim();
+  const noteId = buildAyahNoteId(surahNumber, ayahNumber);
+  const path = `users/${cleanUid}/ayah_notes/${noteId}`;
+  try {
+    await deleteDoc(doc(db, 'users', cleanUid, 'ayah_notes', noteId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function syncUserAyahNotesBatch(
+  uid: string,
+  records: SavedAyahRecord[]
+): Promise<void> {
+  for (const record of records.slice(0, 60)) {
+    await upsertUserAyahNote(uid, record);
+  }
+}
+

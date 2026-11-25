@@ -30,7 +30,11 @@ export type ReaderTextScale = 'compact' | 'normal' | 'large';
 export type ReaderDisplayMode = 'both' | 'arabic';
 export type ReaderLayoutMode = 'stacked' | 'book';
 export type AudioPlaybackSpeed = 0.75 | 1 | 1.25;
-export type AyahRepeatCount = 1 | 3 | 0; // 0 = continuous single-ayah loop
+export type AyahRepeatCount = 1 | 3 | 5 | 10 | 0; // 0 = continuous single-ayah loop
+export type AyahPauseSeconds = 0 | 3 | 5;
+
+export const AYAH_REPEAT_OPTIONS: AyahRepeatCount[] = [1, 3, 5, 10, 0];
+export const AYAH_PAUSE_OPTIONS: AyahPauseSeconds[] = [0, 3, 5];
 
 export interface QuranSearchMatch {
   surahNumber: number;
@@ -68,6 +72,7 @@ export const READER_SCALE_STORAGE_KEY = 'quranqiraeti_reader_scale_v1';
 export const READER_DISPLAY_STORAGE_KEY = 'quranqiraeti_reader_display_v1';
 export const AUDIO_SPEED_STORAGE_KEY = 'quranqiraeti_audio_speed_v1';
 export const AUDIO_REPEAT_STORAGE_KEY = 'quranqiraeti_audio_repeat_v1';
+export const AUDIO_PAUSE_STORAGE_KEY = 'quranqiraeti_audio_pause_v1';
 export const READER_TRANSLIT_STORAGE_KEY = 'quranqiraeti_reader_translit_v1';
 export const READER_TAJWEED_STORAGE_KEY = 'quranqiraeti_reader_tajweed_v1';
 export const READER_LAYOUT_STORAGE_KEY = 'quranqiraeti_reader_layout_v1';
@@ -197,6 +202,42 @@ export function updateSavedAyahNoteItem(
       return rest;
     }
     return { ...item, note: cleanNote };
+  });
+}
+
+export function upsertSavedAyahNoteItem(
+  list: SavedAyahRecord[],
+  entry: Omit<SavedAyahRecord, 'savedAt' | 'note'>,
+  note: string,
+  nowIso = new Date().toISOString()
+): SavedAyahRecord[] {
+  const cleanNote = note.trim().slice(0, 500);
+  const exists = isAyahBookmarked(list, entry.surahNumber, entry.ayahNumber);
+  if (!exists) {
+    const cleanEntry: SavedAyahRecord = {
+      ...entry,
+      surahName:
+        entry.surahName || getSurahByNumber(entry.surahNumber)?.name || `Surə ${entry.surahNumber}`,
+      ...(cleanNote ? { note: cleanNote } : {}),
+      savedAt: nowIso,
+    };
+    return [cleanEntry, ...list].slice(0, 120);
+  }
+  return list.map((item) => {
+    if (item.surahNumber !== entry.surahNumber || item.ayahNumber !== entry.ayahNumber) return item;
+    const base: SavedAyahRecord = {
+      ...item,
+      surahName: item.surahName || entry.surahName,
+      pageNumber: item.pageNumber ?? entry.pageNumber,
+      arabicText: item.arabicText || entry.arabicText,
+      translation: item.translation || entry.translation,
+      savedAt: nowIso,
+    };
+    if (!cleanNote) {
+      const { note: _removed, ...rest } = base;
+      return rest;
+    }
+    return { ...base, note: cleanNote };
   });
 }
 
@@ -361,11 +402,21 @@ export function saveAudioSpeedToStorage(speed: AudioPlaybackSpeed): void {
   }
 }
 
+export function getNextAyahRepeatCount(current: AyahRepeatCount): AyahRepeatCount {
+  const idx = AYAH_REPEAT_OPTIONS.indexOf(current);
+  return AYAH_REPEAT_OPTIONS[(idx + 1) % AYAH_REPEAT_OPTIONS.length] ?? 1;
+}
+
+export function getNextAyahPauseSeconds(current: AyahPauseSeconds): AyahPauseSeconds {
+  const idx = AYAH_PAUSE_OPTIONS.indexOf(current);
+  return AYAH_PAUSE_OPTIONS[(idx + 1) % AYAH_PAUSE_OPTIONS.length] ?? 0;
+}
+
 export function loadAudioRepeatFromStorage(): AyahRepeatCount {
   if (typeof window === 'undefined') return 1;
   try {
     const raw = Number(window.localStorage.getItem(AUDIO_REPEAT_STORAGE_KEY));
-    if (raw === 1 || raw === 3 || raw === 0) return raw;
+    if (raw === 1 || raw === 3 || raw === 5 || raw === 10 || raw === 0) return raw;
   } catch {
     // ignore storage error
   }
@@ -376,6 +427,26 @@ export function saveAudioRepeatToStorage(repeat: AyahRepeatCount): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(AUDIO_REPEAT_STORAGE_KEY, String(repeat));
+  } catch {
+    // ignore storage error
+  }
+}
+
+export function loadAudioPauseFromStorage(): AyahPauseSeconds {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const raw = Number(window.localStorage.getItem(AUDIO_PAUSE_STORAGE_KEY));
+    if (raw === 0 || raw === 3 || raw === 5) return raw;
+  } catch {
+    // ignore storage error
+  }
+  return 0;
+}
+
+export function saveAudioPauseToStorage(seconds: AyahPauseSeconds): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(AUDIO_PAUSE_STORAGE_KEY, String(seconds));
   } catch {
     // ignore storage error
   }

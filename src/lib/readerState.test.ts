@@ -4,6 +4,8 @@ import {
   buildLastReadRecord,
   evaluateHorizontalSwipe,
   formatSavedAyahsForExport,
+  getNextAyahPauseSeconds,
+  getNextAyahRepeatCount,
   isAyahBookmarked,
   parseAlQuranSearchPayload,
   parseQuickQuranTarget,
@@ -14,6 +16,7 @@ import {
   sanitizeSavedAyahs,
   toggleSavedAyahItem,
   updateSavedAyahNoteItem,
+  upsertSavedAyahNoteItem,
 } from './readerState';
 
 test('toggleSavedAyahItem adds and removes ayahs cleanly and deduplicates sanitizeSavedAyahs', () => {
@@ -169,4 +172,52 @@ test('evaluateHorizontalSwipe distinguishes page-turn swipes from vertical scrol
   assert.equal(evaluateHorizontalSwipe(200, 200, 180, 205), null);
   assert.equal(evaluateHorizontalSwipe(200, 100, 110, 240), null);
 });
+
+test('getNextAyahRepeatCount and getNextAyahPauseSeconds cycle expected options', () => {
+  assert.equal(getNextAyahRepeatCount(1), 3);
+  assert.equal(getNextAyahRepeatCount(3), 5);
+  assert.equal(getNextAyahRepeatCount(5), 10);
+  assert.equal(getNextAyahRepeatCount(10), 0);
+  assert.equal(getNextAyahRepeatCount(0), 1);
+
+  assert.equal(getNextAyahPauseSeconds(0), 3);
+  assert.equal(getNextAyahPauseSeconds(3), 5);
+  assert.equal(getNextAyahPauseSeconds(5), 0);
+});
+
+test('upsertSavedAyahNoteItem creates bookmark if absent and updates note if present', () => {
+  const created = upsertSavedAyahNoteItem(
+    [],
+    {
+      surahNumber: 1,
+      ayahNumber: 1,
+      surahName: 'Fatihə',
+      pageNumber: 1,
+      arabicText: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
+      translation: 'Mərhəmətli Allahın adı ilə',
+    },
+    'Başlanğıc niyyəti',
+    '2026-11-24T09:00:00Z'
+  );
+  assert.equal(created.length, 1);
+  assert.equal(created[0].note, 'Başlanğıc niyyəti');
+
+  const updated = upsertSavedAyahNoteItem(
+    created,
+    {
+      surahNumber: 1,
+      ayahNumber: 1,
+      surahName: 'Fatihə',
+      pageNumber: 1,
+      arabicText: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
+      translation: 'Mərhəmətli Allahın adı ilə',
+    },
+    'Yenilənmiş təfəkkür',
+    '2026-11-24T10:00:00Z'
+  );
+  assert.equal(updated.length, 1);
+  assert.equal(updated[0].note, 'Yenilənmiş təfəkkür');
+  assert.equal(updated[0].savedAt, '2026-11-24T10:00:00Z');
+});
+
 

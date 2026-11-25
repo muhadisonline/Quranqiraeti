@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { SEED_LONG_VIDEOS, SEED_SHORTS } from '../data/recitations';
 import {
+  CURATED_TELEGRAM_VERSES,
   TELEGRAM_BOT_COMMANDS,
   buildInlineQueryResults,
+  buildTelegramEzberQuestion,
   escapeTelegramHtml,
   findCityForTelegramQuery,
   findSurahForTelegramQuery,
@@ -14,12 +16,15 @@ import {
   formatPrayerTimesMessage,
   formatStartMessage,
   formatSurahMessage,
+  formatTelegramEzberAnswerMessage,
+  formatTelegramEzberQuizMessage,
   formatVerseMessage,
   formatZikrMessage,
   getTelegramAyahAudioUrl,
   getTelegramSurahAudioUrl,
   normalizeAzSearchText,
   parseAudioQueryArgs,
+  parseEzberCallbackData,
   parseTelegramCommand,
   resolveTelegramStartParamPath,
 } from './telegramBot';
@@ -192,3 +197,42 @@ test('audio selector offers Ayah, Full Surah, and all 6 Qarilər plus /ses parse
   assert.equal(parsedRef.ayahNumber, 255);
   assert.equal(parsedRef.reciterId, 'Abdul_Basit_Murattal_192kbps');
 });
+
+test('/ezber builds deterministic 1-ayah hidden-word quiz within Telegram 64-byte callback limits', () => {
+  assert.ok(TELEGRAM_BOT_COMMANDS.some((c) => c.command === 'ezber'));
+
+  const question = buildTelegramEzberQuestion(CURATED_TELEGRAM_VERSES[0], 17);
+  assert.equal(question.options.length, 3);
+  assert.equal(question.options[question.correctIndex], question.targetWord);
+  assert.ok(question.maskedArabic.includes('______'));
+
+  const quizMsg = formatTelegramEzberQuizMessage('https://quranqiraeti.vercel.app', question);
+  assert.ok(quizMsg.text.includes('2:255'));
+  const optionRow = quizMsg.reply_markup?.inline_keyboard[0] ?? [];
+  assert.equal(optionRow.length, 3);
+  for (const btn of optionRow) {
+    assert.ok(btn.callback_data);
+    assert.ok(Buffer.byteLength(btn.callback_data, 'utf8') < 64);
+    const parsed = parseEzberCallbackData(btn.callback_data);
+    assert.equal(parsed?.type, 'answer');
+  }
+
+  const rebuilt = buildTelegramEzberQuestion(CURATED_TELEGRAM_VERSES[0], 17);
+  assert.equal(rebuilt.correctIndex, question.correctIndex);
+
+  const rightReply = formatTelegramEzberAnswerMessage(
+    'https://quranqiraeti.vercel.app',
+    rebuilt,
+    rebuilt.correctIndex
+  );
+  assert.ok(rightReply.text.includes('✅'));
+
+  const wrongIdx = (rebuilt.correctIndex + 1) % 3;
+  const wrongReply = formatTelegramEzberAnswerMessage(
+    'https://quranqiraeti.vercel.app',
+    rebuilt,
+    wrongIdx
+  );
+  assert.ok(wrongReply.text.includes('❌'));
+});
+

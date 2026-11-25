@@ -23,7 +23,13 @@ import {
   resolveMuhaffizReciter,
 } from '../lib/muhaffiz';
 import { TOTAL_QURAN_SURAHS, getSurahByNumber } from '../lib/quran';
-import { AudioPlaybackSpeed, AyahRepeatCount } from '../lib/readerState';
+import {
+  AudioPlaybackSpeed,
+  AyahPauseSeconds,
+  AyahRepeatCount,
+  getNextAyahPauseSeconds,
+  getNextAyahRepeatCount,
+} from '../lib/readerState';
 import { SleepTimerMinutes } from '../lib/sleepTimer';
 
 const READER_RECITER_KEY = 'quranqiraeti_reader_reciter_v1';
@@ -60,14 +66,18 @@ interface GlobalAudioContextValue {
   hasNext: boolean;
   playbackSpeed: AudioPlaybackSpeed;
   repeatCount: AyahRepeatCount;
+  pauseSeconds: AyahPauseSeconds;
+  pauseRemainingSec: number;
   sleepMinutes: SleepTimerMinutes;
   sleepRemainingSec: number;
   autoFocus: boolean;
   setAutoFocus: (val: boolean) => void;
   setPlaybackSpeed: (speed: AudioPlaybackSpeed) => void;
   setRepeatCount: (count: AyahRepeatCount) => void;
+  setPauseSeconds: (seconds: AyahPauseSeconds) => void;
   cycleSpeed: () => void;
   cycleRepeat: () => void;
+  cyclePauseSeconds: () => void;
   cycleSleepMinutes: () => void;
   playAyahQueue: (
     items: GlobalAudioQueueItem[],
@@ -105,15 +115,25 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
     return 'Alafasy_128kbps';
   });
 
-  const { playbackSpeed, setPlaybackSpeed, repeatCount, setRepeatCount } = useAudioPlaybackPrefs();
+  const {
+    playbackSpeed,
+    setPlaybackSpeed,
+    repeatCount,
+    setRepeatCount,
+    pauseSeconds,
+    setPauseSeconds,
+  } = useAudioPlaybackPrefs();
   const { autoFocus, setAutoFocus } = useAutoFocusAyah();
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pauseTimerRef = useRef<number | null>(null);
+  const pendingResumeFnRef = useRef<(() => void) | null>(null);
   const queueRef = useRef<GlobalAudioQueueItem[]>([]);
   const queueIndexRef = useRef<number>(-1);
   const onQueueEndRef = useRef<(() => void) | undefined>(undefined);
   const playbackSpeedRef = useRef<AudioPlaybackSpeed>(playbackSpeed);
   const repeatCountRef = useRef<AyahRepeatCount>(repeatCount);
+  const pauseSecondsRef = useRef<AyahPauseSeconds>(pauseSeconds);
   const reciterRef = useRef<MuhaffizReciterId>(reciter);
 
   const [currentTrack, setCurrentTrack] = useState<GlobalAudioTrack | null>(null);
@@ -122,9 +142,11 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   const [audioError, setAudioError] = useState<string | null>(null);
   const [currentTimeSec, setCurrentTimeSec] = useState<number>(0);
   const [durationSec, setDurationSec] = useState<number>(0);
+  const [pauseRemainingSec, setPauseRemainingSec] = useState<number>(0);
 
   playbackSpeedRef.current = playbackSpeed;
   repeatCountRef.current = repeatCount;
+  pauseSecondsRef.current = pauseSeconds;
   reciterRef.current = reciter;
 
   useEffect(() => {
@@ -141,7 +163,17 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
     }
   }, [playbackSpeed]);
 
+  const clearPauseCountdown = useCallback(() => {
+    if (pauseTimerRef.current !== null) {
+      window.clearInterval(pauseTimerRef.current);
+      pauseTimerRef.current = null;
+    }
+    pendingResumeFnRef.current = null;
+    setPauseRemainingSec(0);
+  }, []);
+
   const stop = useCallback(() => {
+    clearPauseCountdown();
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.onended = null;
@@ -160,12 +192,16 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
     setIsBuffering(false);
     setCurrentTimeSec(0);
     setDurationSec(0);
-  }, []);
+  }, [clearPauseCountdown]);
 
   const { sleepMinutes, remainingSec: sleepRemainingSec, cycleSleepMinutes } = useAudioSleepTimer(stop);
 
   useEffect(() => {
     return () => {
+      if (pauseTimerRef.current !== null) {
+        window.clearInterval(pauseTimerRef.current);
+        pauseTimerRef.current = null;
+      }
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
@@ -174,6 +210,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const cleanupAudioElementOnly = useCallback(() => {
+    clearPauseCountdown();
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.onended = null;
@@ -184,7 +221,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       audioRef.current.onwaiting = null;
       audioRef.current = null;
     }
-  }, []);
+  }, [clearPauseCountdown]);
 
   const startAyahAtIndex = useCallback(
     (
@@ -249,12 +286,36 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       };
       audio.onended = () => {
         if (audioRef.current !== audio) return;
+        const scheduleTransition = (nextStep: () => void) => {
+          const waitSec = pauseSecondsRef.current;
+          if (waitSec <= 0) {
+            nextStep();
+            return;
+          }
+          clearPauseCountdown();
+          setIsBuffering(false);
+          setIsPaused(false);
+          let left: number = waitSec;
+          setPauseRemainingSec(left);
+          pendingResumeFnRef.current = nextStep;
+          pauseTimerRef.current = window.setInterval(() => {
+            left -= 1;
+            if (left <= 0) {
+              const fn = pendingResumeFnRef.current;
+              clearPauseCountdown();
+              fn?.();
+            } else {
+              setPauseRemainingSec(left);
+            }
+          }, 1000);
+        };
+
         if (repeatsLeft === 0) {
-          startAyahAtIndex(index, 0, undefined, srcPath);
+          scheduleTransition(() => startAyahAtIndex(index, 0, undefined, srcPath));
         } else if (repeatsLeft > 1) {
-          startAyahAtIndex(index, repeatsLeft - 1, undefined, srcPath);
+          scheduleTransition(() => startAyahAtIndex(index, repeatsLeft - 1, undefined, srcPath));
         } else if (index + 1 < queueRef.current.length) {
-          startAyahAtIndex(index + 1, repeatCountRef.current, undefined, srcPath);
+          scheduleTransition(() => startAyahAtIndex(index + 1, repeatCountRef.current, undefined, srcPath));
         } else {
           const endHook = onQueueEndRef.current;
           stop();
@@ -274,7 +335,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
         setAudioError('Səs oxutma brauzer tərəfindən dayandırıldı. Yenidən toxunun.');
       });
     },
-    [cleanupAudioElementOnly, stop]
+    [cleanupAudioElementOnly, clearPauseCountdown, stop]
   );
 
   const playAyahQueue = useCallback(
@@ -416,6 +477,12 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   );
 
   const togglePlayPause = useCallback(() => {
+    if (pauseRemainingSec > 0 && pendingResumeFnRef.current) {
+      const resumeFn = pendingResumeFnRef.current;
+      clearPauseCountdown();
+      resumeFn();
+      return;
+    }
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {
@@ -428,7 +495,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       audio.pause();
       setIsPaused(true);
     }
-  }, []);
+  }, [clearPauseCountdown, pauseRemainingSec]);
 
   const hasPrev = useMemo(() => {
     if (!currentTrack) return false;
@@ -485,10 +552,12 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   }, [playbackSpeed, setPlaybackSpeed]);
 
   const cycleRepeat = useCallback(() => {
-    const order: AyahRepeatCount[] = [1, 3, 0];
-    const nextIdx = (order.indexOf(repeatCount) + 1) % order.length;
-    setRepeatCount(order[nextIdx] ?? 1);
+    setRepeatCount(getNextAyahRepeatCount(repeatCount));
   }, [repeatCount, setRepeatCount]);
+
+  const cyclePauseSeconds = useCallback(() => {
+    setPauseSeconds(getNextAyahPauseSeconds(pauseSeconds));
+  }, [pauseSeconds, setPauseSeconds]);
 
   const reciterLabel = useMemo(
     () => MUHAFFIZ_RECITERS.find((r) => r.id === reciter)?.label ?? reciter,
@@ -554,14 +623,18 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
     hasNext,
     playbackSpeed,
     repeatCount,
+    pauseSeconds,
+    pauseRemainingSec,
     sleepMinutes,
     sleepRemainingSec,
     autoFocus,
     setAutoFocus,
     setPlaybackSpeed,
     setRepeatCount,
+    setPauseSeconds,
     cycleSpeed,
     cycleRepeat,
+    cyclePauseSeconds,
     cycleSleepMinutes,
     playAyahQueue,
     playSingleAyah,

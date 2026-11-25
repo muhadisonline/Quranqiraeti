@@ -34,3 +34,21 @@
     scroll-behavior: auto;
   }
 }
+
+@media print {
+  @page {
+    size: auto;
+    margin: 14mm 12mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

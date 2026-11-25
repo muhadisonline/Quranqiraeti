@@ -242,6 +242,90 @@
         "hourBaku",
         "createdAt"
       ]
+    },
+    "UserAyahNote": {
+      "title": "UserAyahNote",
+      "description": "User-owned Quran bookmark and personal reflection note synced across devices.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the owner."
+        },
+        "noteId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 12,
+          "pattern": "^[0-9]{1,3}_[0-9]{1,3}$",
+          "description": "Canonical surah_ayah key matching document ID."
+        },
+        "surahNumber": {
+          "type": "integer",
+          "description": "Surah index from 1 to 114."
+        },
+        "ayahNumber": {
+          "type": "integer",
+          "description": "Ayah number from 1 to 286."
+        },
+        "surahName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Surah title in Azerbaijani."
+        },
+        "pageNumber": {
+          "type": "integer",
+          "description": "Mushaf page number (0 when unknown, 1..604 when known)."
+        },
+        "arabicText": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Cached Arabic ayah text."
+        },
+        "translation": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Cached Azerbaijani translation text."
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Personal reflection note written by the reader."
+        },
+        "savedAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "ISO timestamp when bookmark or note was updated by user."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "ownerUid",
+        "noteId",
+        "surahNumber",
+        "ayahNumber",
+        "surahName",
+        "pageNumber",
+        "arabicText",
+        "translation",
+        "note",
+        "savedAt",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -260,6 +344,10 @@
     "/telegram_sub_events/{eventId}": {
       "schema": { "$ref": "#/entities/TelegramSubscriptionEvent" },
       "description": "Encrypted append-only Telegram /abune subscription state events."
+    },
+    "/users/{userId}/ayah_notes/{noteId}": {
+      "schema": { "$ref": "#/entities/UserAyahNote" },
+      "description": "User-owned Quran ayah bookmarks and reflection notes."
     }
   }
 }

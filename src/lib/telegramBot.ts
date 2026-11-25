@@ -35,6 +35,7 @@ export interface TelegramBotCommandSpec {
 export const TELEGRAM_BOT_COMMANDS: TelegramBotCommandSpec[] = [
   { command: 'start', description: 'Əsas menyu və Telegram Mini App' },
   { command: 'ses', description: 'Səsli dinlə: Ayə, Tam Surə və Qari seçimi' },
+  { command: 'ezber', description: 'Əzbər yoxlama: 1 ayəlik gizli-söz testi' },
   { command: 'aye', description: 'Günün ayəsi və ya /aye 2:255' },
   { command: 'kart', description: 'Ayə şəkil kartı al (/kart 2:255)' },
   { command: 'abune', description: 'Gündəlik Cümə, ayə və namaz bildirişləri' },
@@ -592,6 +593,9 @@ function mapCallbackToBotDeepLink(callbackData: string, botUsername: string): st
   if (callbackData.startsWith('sub:')) {
     return `https://t.me/${cleanBot}?start=abune`;
   }
+  if (callbackData.startsWith('ezber:')) {
+    return `https://t.me/${cleanBot}?start=muhaffiz`;
+  }
   return null;
 }
 
@@ -637,6 +641,7 @@ export function formatStartMessage(origin: string): TelegramFormattedReply {
     '',
     '<b>Söhbətdə istifadə edə biləcəyiniz əmrlər:</b>',
     '• /ses — Səsli dinlə: Ayə, Tam Surə və Qari seçimi <i>(məs. /ses Yasin)</i>',
+    '• /ezber — 1 ayəlik gizli-söz əzbər yoxlama viktorinası',
     '• /aye — Günün ayəsi və səsli tilavət <i>(və ya /aye 2:255)</i>',
     '• /kart — WhatsApp / Story üçün hazır ayə şəkil kartı <i>(məs. /kart 2:255)</i>',
     '• /abune — Gündəlik Cümə Kəhf, ayə və namaz bildirişləri',
@@ -1323,3 +1328,230 @@ export function buildInlineQueryResults(
 
   return results.slice(0, 12);
 }
+
+export interface TelegramEzberQuestion {
+  verse: CuratedTelegramVerse;
+  seed: number;
+  maskedArabic: string;
+  targetWord: string;
+  options: string[];
+  correctIndex: number;
+}
+
+export type EzberCallbackAction =
+  | {
+      type: 'answer';
+      surahNumber: number;
+      ayahNumber: number;
+      seed: number;
+      chosenIndex: number;
+    }
+  | {
+      type: 'next';
+      seed: number;
+    };
+
+const CURATED_ARABIC_DISTRACTORS = [
+  'الرَّحِيمِ',
+  'الْعَظِيمِ',
+  'الْحَكِيمِ',
+  'الْقَيُّومُ',
+  'السَّمَاوَاتِ',
+  'الْأَرْضِ',
+  'الْمُؤْمِنِينَ',
+  'الصَّابِرِينَ',
+  'تَطْمَئِنُّ',
+  'يُكَلِّفُ',
+  'الْقُلُوبُ',
+  'الْعُسْرِ',
+];
+
+function stripArabicMarks(text: string): string {
+  return text.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED۝۞ۚۗۖۙۛۘ،؟.]/g, '').trim();
+}
+
+function cleanArabicTokenWord(raw: string): string {
+  return raw.replace(/[۝۞ۚۗۖۙۛۘ،؟.]/g, '').trim();
+}
+
+export function pickEzberVerseBySeed(seed: number): CuratedTelegramVerse {
+  const safeSeed = Math.abs(Math.trunc(seed));
+  return CURATED_TELEGRAM_VERSES[safeSeed % CURATED_TELEGRAM_VERSES.length];
+}
+
+export function buildTelegramEzberQuestion(
+  verse: CuratedTelegramVerse,
+  seed = 1
+): TelegramEzberQuestion {
+  const cleanSeed = Math.abs(Math.trunc(seed)) % 997;
+  const rawTokens = verse.arabicText.split(/\s+/).filter(Boolean);
+  const candidateIndices: number[] = [];
+
+  for (let i = 0; i < rawTokens.length; i++) {
+    const cleaned = cleanArabicTokenWord(rawTokens[i]);
+    const bare = stripArabicMarks(cleaned);
+    if (bare.length >= 3) {
+      candidateIndices.push(i);
+    }
+  }
+
+  const chosenTokenIdx =
+    candidateIndices.length > 0
+      ? candidateIndices[(verse.surahNumber * 7 + verse.ayahNumber * 11 + cleanSeed) % candidateIndices.length]
+      : Math.max(0, Math.min(rawTokens.length - 1, Math.floor(rawTokens.length / 2)));
+
+  const targetWord = cleanArabicTokenWord(rawTokens[chosenTokenIdx] || 'اللَّهِ') || 'اللَّهِ';
+  const targetBare = stripArabicMarks(targetWord);
+
+  const maskedArabic = rawTokens
+    .map((tok, idx) => (idx === chosenTokenIdx ? '______' : tok))
+    .join(' ');
+
+  const distractorPool: string[] = [];
+  for (const item of CURATED_TELEGRAM_VERSES) {
+    for (const rawTok of item.arabicText.split(/\s+/)) {
+      const cleaned = cleanArabicTokenWord(rawTok);
+      const bare = stripArabicMarks(cleaned);
+      if (bare.length >= 3 && bare !== targetBare) {
+        distractorPool.push(cleaned);
+      }
+    }
+  }
+  for (const fallbackWord of CURATED_ARABIC_DISTRACTORS) {
+    if (stripArabicMarks(fallbackWord) !== targetBare) {
+      distractorPool.push(fallbackWord);
+    }
+  }
+
+  const distractors: string[] = [];
+  const usedBare = new Set<string>([targetBare]);
+  const startOffset = (verse.surahNumber * 13 + verse.ayahNumber * 5 + cleanSeed) % Math.max(1, distractorPool.length);
+
+  for (let step = 0; step < distractorPool.length && distractors.length < 2; step++) {
+    const candidate = distractorPool[(startOffset + step) % distractorPool.length];
+    const bare = stripArabicMarks(candidate);
+    if (!usedBare.has(bare)) {
+      usedBare.add(bare);
+      distractors.push(candidate);
+    }
+  }
+
+  while (distractors.length < 2) {
+    distractors.push(distractors.length === 0 ? 'الْكَرِيمُ' : 'الْعَلِيمُ');
+  }
+
+  const correctIndex = (verse.surahNumber * 3 + verse.ayahNumber * 7 + cleanSeed) % 3;
+  const options = ['', '', ''];
+  options[correctIndex] = targetWord;
+  let dPtr = 0;
+  for (let i = 0; i < 3; i++) {
+    if (!options[i]) {
+      options[i] = distractors[dPtr++];
+    }
+  }
+
+  return {
+    verse,
+    seed: cleanSeed,
+    maskedArabic,
+    targetWord,
+    options,
+    correctIndex,
+  };
+}
+
+export function parseEzberCallbackData(callbackData: string): EzberCallbackAction | null {
+  const answerMatch = callbackData.match(/^ezber:a:(\d{1,3}):(\d{1,3}):(\d{1,4}):([0-2])$/);
+  if (answerMatch) {
+    return {
+      type: 'answer',
+      surahNumber: Number.parseInt(answerMatch[1], 10),
+      ayahNumber: Number.parseInt(answerMatch[2], 10),
+      seed: Number.parseInt(answerMatch[3], 10),
+      chosenIndex: Number.parseInt(answerMatch[4], 10),
+    };
+  }
+  const nextMatch = callbackData.match(/^ezber:next:(\d{1,5})$/);
+  if (nextMatch) {
+    return {
+      type: 'next',
+      seed: Number.parseInt(nextMatch[1], 10),
+    };
+  }
+  return null;
+}
+
+export function formatTelegramEzberQuizMessage(
+  origin: string,
+  question: TelegramEzberQuestion
+): TelegramFormattedReply {
+  const baseUrl = normalizeBaseUrl(origin);
+  const { verse, seed, maskedArabic, options } = question;
+  const labels = ['A', 'B', 'C'];
+
+  const text = [
+    '<b>🧠 Mühafiz Əzbər Viktorinası</b>',
+    `📖 <b>${escapeTelegramHtml(verse.surahName)} surəsi · ${verse.surahNumber}:${verse.ayahNumber}</b>`,
+    '',
+    '<i>Boş buraxılmış sözü seçin:</i>',
+    `<code>${escapeTelegramHtml(maskedArabic)}</code>`,
+    '',
+    `Azərbaycanca mənası: «${escapeTelegramHtml(verse.translation)}»`,
+  ].join('\n');
+
+  const optionButtons: TelegramInlineKeyboardButton[] = options.map((opt, idx) => ({
+    text: `${labels[idx]}) ${opt}`,
+    callback_data: `ezber:a:${verse.surahNumber}:${verse.ayahNumber}:${seed}:${idx}`,
+  }));
+
+  return {
+    text,
+    reply_markup: {
+      inline_keyboard: [
+        optionButtons,
+        [
+          { text: '🔄 Başqa sual', callback_data: `ezber:next:${(seed + 1) % 997}` },
+          buildMiniAppButton('🧠 Mühafizə keç', `${baseUrl}/muhaffiz`),
+        ],
+      ],
+    },
+  };
+}
+
+export function formatTelegramEzberAnswerMessage(
+  origin: string,
+  question: TelegramEzberQuestion,
+  chosenIndex: number
+): TelegramFormattedReply {
+  const baseUrl = normalizeBaseUrl(origin);
+  const { verse, seed, targetWord, correctIndex, options } = question;
+  const isCorrect = chosenIndex === correctIndex;
+  const chosenWord = options[chosenIndex] ?? '';
+
+  const text = [
+    isCorrect
+      ? '<b>✅ Düzdür! Maşallah!</b>'
+      : `<b>❌ Yanlış seçim (${escapeTelegramHtml(chosenWord)})</b>`,
+    '',
+    `📖 <b>${escapeTelegramHtml(verse.surahName)} surəsi · ${verse.surahNumber}:${verse.ayahNumber}</b>`,
+    `🔑 <b>Gizli söz:</b> <code>${escapeTelegramHtml(targetWord)}</code>`,
+    '',
+    escapeTelegramHtml(verse.arabicText),
+    '',
+    `«${escapeTelegramHtml(verse.translation)}»`,
+  ].join('\n');
+
+  return {
+    text,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '➡️ Növbəti sual', callback_data: `ezber:next:${(seed + 1) % 997}` },
+          { text: '🎧 Ayəni dinlə', callback_data: `amenu:${verse.surahNumber}:${verse.ayahNumber}:afasy` },
+        ],
+        [buildMiniAppButton('🧠 Mühafizdə məşq et', `${baseUrl}/muhaffiz`)],
+      ],
+    },
+  };
+}
+

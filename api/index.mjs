@@ -5286,6 +5286,7 @@ function getUpcomingBlessedDays(now = /* @__PURE__ */ new Date(), maxCount = 7) 
 var TELEGRAM_BOT_COMMANDS = [
   { command: "start", description: "\u018Fsas menyu v\u0259 Telegram Mini App" },
   { command: "ses", description: "S\u0259sli dinl\u0259: Ay\u0259, Tam Sur\u0259 v\u0259 Qari se\xE7imi" },
+  { command: "ezber", description: "\u018Fzb\u0259r yoxlama: 1 ay\u0259lik gizli-s\xF6z testi" },
   { command: "aye", description: "G\xFCn\xFCn ay\u0259si v\u0259 ya /aye 2:255" },
   { command: "kart", description: "Ay\u0259 \u015F\u0259kil kart\u0131 al (/kart 2:255)" },
   { command: "abune", description: "G\xFCnd\u0259lik C\xFCm\u0259, ay\u0259 v\u0259 namaz bildiri\u015Fl\u0259ri" },
@@ -5640,6 +5641,9 @@ function mapCallbackToBotDeepLink(callbackData, botUsername) {
   if (callbackData.startsWith("sub:")) {
     return `https://t.me/${cleanBot}?start=abune`;
   }
+  if (callbackData.startsWith("ezber:")) {
+    return `https://t.me/${cleanBot}?start=muhaffiz`;
+  }
   return null;
 }
 function toShareableInlineMarkup(markup, botUsername = "Quranqiraetibot") {
@@ -5678,6 +5682,7 @@ function formatStartMessage(origin) {
     "",
     "<b>S\xF6hb\u0259td\u0259 istifad\u0259 ed\u0259 bil\u0259c\u0259yiniz \u0259mrl\u0259r:</b>",
     "\u2022 /ses \u2014 S\u0259sli dinl\u0259: Ay\u0259, Tam Sur\u0259 v\u0259 Qari se\xE7imi <i>(m\u0259s. /ses Yasin)</i>",
+    "\u2022 /ezber \u2014 1 ay\u0259lik gizli-s\xF6z \u0259zb\u0259r yoxlama viktorinas\u0131",
     "\u2022 /aye \u2014 G\xFCn\xFCn ay\u0259si v\u0259 s\u0259sli tilav\u0259t <i>(v\u0259 ya /aye 2:255)</i>",
     "\u2022 /kart \u2014 WhatsApp / Story \xFC\xE7\xFCn haz\u0131r ay\u0259 \u015F\u0259kil kart\u0131 <i>(m\u0259s. /kart 2:255)</i>",
     "\u2022 /abune \u2014 G\xFCnd\u0259lik C\xFCm\u0259 K\u0259hf, ay\u0259 v\u0259 namaz bildiri\u015Fl\u0259ri",
@@ -6249,6 +6254,170 @@ function buildInlineQueryResults(origin, query, videos, now = /* @__PURE__ */ ne
     });
   }
   return results.slice(0, 12);
+}
+var CURATED_ARABIC_DISTRACTORS = [
+  "\u0627\u0644\u0631\u064E\u0651\u062D\u0650\u064A\u0645\u0650",
+  "\u0627\u0644\u0652\u0639\u064E\u0638\u0650\u064A\u0645\u0650",
+  "\u0627\u0644\u0652\u062D\u064E\u0643\u0650\u064A\u0645\u0650",
+  "\u0627\u0644\u0652\u0642\u064E\u064A\u064F\u0651\u0648\u0645\u064F",
+  "\u0627\u0644\u0633\u064E\u0651\u0645\u064E\u0627\u0648\u064E\u0627\u062A\u0650",
+  "\u0627\u0644\u0652\u0623\u064E\u0631\u0652\u0636\u0650",
+  "\u0627\u0644\u0652\u0645\u064F\u0624\u0652\u0645\u0650\u0646\u0650\u064A\u0646\u064E",
+  "\u0627\u0644\u0635\u064E\u0651\u0627\u0628\u0650\u0631\u0650\u064A\u0646\u064E",
+  "\u062A\u064E\u0637\u0652\u0645\u064E\u0626\u0650\u0646\u064F\u0651",
+  "\u064A\u064F\u0643\u064E\u0644\u0650\u0651\u0641\u064F",
+  "\u0627\u0644\u0652\u0642\u064F\u0644\u064F\u0648\u0628\u064F",
+  "\u0627\u0644\u0652\u0639\u064F\u0633\u0652\u0631\u0650"
+];
+function stripArabicMarks(text) {
+  return text.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED۝۞ۚۗۖۙۛۘ،؟.]/g, "").trim();
+}
+function cleanArabicTokenWord(raw) {
+  return raw.replace(/[۝۞ۚۗۖۙۛۘ،؟.]/g, "").trim();
+}
+function pickEzberVerseBySeed(seed) {
+  const safeSeed = Math.abs(Math.trunc(seed));
+  return CURATED_TELEGRAM_VERSES[safeSeed % CURATED_TELEGRAM_VERSES.length];
+}
+function buildTelegramEzberQuestion(verse, seed = 1) {
+  const cleanSeed = Math.abs(Math.trunc(seed)) % 997;
+  const rawTokens = verse.arabicText.split(/\s+/).filter(Boolean);
+  const candidateIndices = [];
+  for (let i = 0; i < rawTokens.length; i++) {
+    const cleaned = cleanArabicTokenWord(rawTokens[i]);
+    const bare = stripArabicMarks(cleaned);
+    if (bare.length >= 3) {
+      candidateIndices.push(i);
+    }
+  }
+  const chosenTokenIdx = candidateIndices.length > 0 ? candidateIndices[(verse.surahNumber * 7 + verse.ayahNumber * 11 + cleanSeed) % candidateIndices.length] : Math.max(0, Math.min(rawTokens.length - 1, Math.floor(rawTokens.length / 2)));
+  const targetWord = cleanArabicTokenWord(rawTokens[chosenTokenIdx] || "\u0627\u0644\u0644\u064E\u0651\u0647\u0650") || "\u0627\u0644\u0644\u064E\u0651\u0647\u0650";
+  const targetBare = stripArabicMarks(targetWord);
+  const maskedArabic = rawTokens.map((tok, idx) => idx === chosenTokenIdx ? "______" : tok).join(" ");
+  const distractorPool = [];
+  for (const item of CURATED_TELEGRAM_VERSES) {
+    for (const rawTok of item.arabicText.split(/\s+/)) {
+      const cleaned = cleanArabicTokenWord(rawTok);
+      const bare = stripArabicMarks(cleaned);
+      if (bare.length >= 3 && bare !== targetBare) {
+        distractorPool.push(cleaned);
+      }
+    }
+  }
+  for (const fallbackWord of CURATED_ARABIC_DISTRACTORS) {
+    if (stripArabicMarks(fallbackWord) !== targetBare) {
+      distractorPool.push(fallbackWord);
+    }
+  }
+  const distractors = [];
+  const usedBare = /* @__PURE__ */ new Set([targetBare]);
+  const startOffset = (verse.surahNumber * 13 + verse.ayahNumber * 5 + cleanSeed) % Math.max(1, distractorPool.length);
+  for (let step = 0; step < distractorPool.length && distractors.length < 2; step++) {
+    const candidate = distractorPool[(startOffset + step) % distractorPool.length];
+    const bare = stripArabicMarks(candidate);
+    if (!usedBare.has(bare)) {
+      usedBare.add(bare);
+      distractors.push(candidate);
+    }
+  }
+  while (distractors.length < 2) {
+    distractors.push(distractors.length === 0 ? "\u0627\u0644\u0652\u0643\u064E\u0631\u0650\u064A\u0645\u064F" : "\u0627\u0644\u0652\u0639\u064E\u0644\u0650\u064A\u0645\u064F");
+  }
+  const correctIndex = (verse.surahNumber * 3 + verse.ayahNumber * 7 + cleanSeed) % 3;
+  const options = ["", "", ""];
+  options[correctIndex] = targetWord;
+  let dPtr = 0;
+  for (let i = 0; i < 3; i++) {
+    if (!options[i]) {
+      options[i] = distractors[dPtr++];
+    }
+  }
+  return {
+    verse,
+    seed: cleanSeed,
+    maskedArabic,
+    targetWord,
+    options,
+    correctIndex
+  };
+}
+function parseEzberCallbackData(callbackData) {
+  const answerMatch = callbackData.match(/^ezber:a:(\d{1,3}):(\d{1,3}):(\d{1,4}):([0-2])$/);
+  if (answerMatch) {
+    return {
+      type: "answer",
+      surahNumber: Number.parseInt(answerMatch[1], 10),
+      ayahNumber: Number.parseInt(answerMatch[2], 10),
+      seed: Number.parseInt(answerMatch[3], 10),
+      chosenIndex: Number.parseInt(answerMatch[4], 10)
+    };
+  }
+  const nextMatch = callbackData.match(/^ezber:next:(\d{1,5})$/);
+  if (nextMatch) {
+    return {
+      type: "next",
+      seed: Number.parseInt(nextMatch[1], 10)
+    };
+  }
+  return null;
+}
+function formatTelegramEzberQuizMessage(origin, question) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const { verse, seed, maskedArabic, options } = question;
+  const labels = ["A", "B", "C"];
+  const text = [
+    "<b>\u{1F9E0} M\xFChafiz \u018Fzb\u0259r Viktorinas\u0131</b>",
+    `\u{1F4D6} <b>${escapeTelegramHtml(verse.surahName)} sur\u0259si \xB7 ${verse.surahNumber}:${verse.ayahNumber}</b>`,
+    "",
+    "<i>Bo\u015F burax\u0131lm\u0131\u015F s\xF6z\xFC se\xE7in:</i>",
+    `<code>${escapeTelegramHtml(maskedArabic)}</code>`,
+    "",
+    `Az\u0259rbaycanca m\u0259nas\u0131: \xAB${escapeTelegramHtml(verse.translation)}\xBB`
+  ].join("\n");
+  const optionButtons = options.map((opt, idx) => ({
+    text: `${labels[idx]}) ${opt}`,
+    callback_data: `ezber:a:${verse.surahNumber}:${verse.ayahNumber}:${seed}:${idx}`
+  }));
+  return {
+    text,
+    reply_markup: {
+      inline_keyboard: [
+        optionButtons,
+        [
+          { text: "\u{1F504} Ba\u015Fqa sual", callback_data: `ezber:next:${(seed + 1) % 997}` },
+          buildMiniAppButton("\u{1F9E0} M\xFChafiz\u0259 ke\xE7", `${baseUrl}/muhaffiz`)
+        ]
+      ]
+    }
+  };
+}
+function formatTelegramEzberAnswerMessage(origin, question, chosenIndex) {
+  const baseUrl = normalizeBaseUrl(origin);
+  const { verse, seed, targetWord, correctIndex, options } = question;
+  const isCorrect = chosenIndex === correctIndex;
+  const chosenWord = options[chosenIndex] ?? "";
+  const text = [
+    isCorrect ? "<b>\u2705 D\xFCzd\xFCr! Ma\u015Fallah!</b>" : `<b>\u274C Yanl\u0131\u015F se\xE7im (${escapeTelegramHtml(chosenWord)})</b>`,
+    "",
+    `\u{1F4D6} <b>${escapeTelegramHtml(verse.surahName)} sur\u0259si \xB7 ${verse.surahNumber}:${verse.ayahNumber}</b>`,
+    `\u{1F511} <b>Gizli s\xF6z:</b> <code>${escapeTelegramHtml(targetWord)}</code>`,
+    "",
+    escapeTelegramHtml(verse.arabicText),
+    "",
+    `\xAB${escapeTelegramHtml(verse.translation)}\xBB`
+  ].join("\n");
+  return {
+    text,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "\u27A1\uFE0F N\xF6vb\u0259ti sual", callback_data: `ezber:next:${(seed + 1) % 997}` },
+          { text: "\u{1F3A7} Ay\u0259ni dinl\u0259", callback_data: `amenu:${verse.surahNumber}:${verse.ayahNumber}:afasy` }
+        ],
+        [buildMiniAppButton("\u{1F9E0} M\xFChafizd\u0259 m\u0259\u015Fq et", `${baseUrl}/muhaffiz`)]
+      ]
+    }
+  };
 }
 
 // src/lib/telegramSubscriptions.ts
@@ -7702,6 +7871,43 @@ async function processTelegramUpdate(update, origin, token, deps) {
         const msg = await resolveMushafPageReply(origin, pageNum, deps);
         await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
       }
+    } else if (data.startsWith("ezber:")) {
+      const action = parseEzberCallbackData(data);
+      if (action?.type === "next") {
+        const verse = pickEzberVerseBySeed(action.seed);
+        const question = buildTelegramEzberQuestion(verse, action.seed);
+        const msg = formatTelegramEzberQuizMessage(origin, question);
+        if (typeof messageId === "number") {
+          const edited = await editTelegramHtmlMessage(
+            token,
+            chatId,
+            messageId,
+            msg.text,
+            msg.reply_markup
+          );
+          if (edited) return;
+        }
+        await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+      } else if (action?.type === "answer") {
+        const verse = await resolveVersePayloadForBot(
+          action.surahNumber,
+          action.ayahNumber,
+          deps
+        );
+        const question = buildTelegramEzberQuestion(verse, action.seed);
+        const reply = formatTelegramEzberAnswerMessage(origin, question, action.chosenIndex);
+        if (typeof messageId === "number") {
+          const edited = await editTelegramHtmlMessage(
+            token,
+            chatId,
+            messageId,
+            reply.text,
+            reply.reply_markup
+          );
+          if (edited) return;
+        }
+        await sendTelegramHtmlMessage(token, chatId, reply.text, reply.reply_markup);
+      }
     }
     return;
   }
@@ -7782,6 +7988,14 @@ async function processTelegramUpdate(update, origin, token, deps) {
         const existing = await getSubscriptionForChat(chatId, token) ?? createDefaultSubscription(chatId);
         const saved = await saveSubscription(existing, token);
         const msg2 = formatSubscriptionSettingsMessage(origin, saved);
+        await sendTelegramHtmlMessage(token, chatId, msg2.text, msg2.reply_markup);
+        return;
+      }
+      if (deepArg.toLowerCase() === "ezber") {
+        const seed = Math.floor(Math.random() * 997);
+        const verse = pickEzberVerseBySeed(seed);
+        const question = buildTelegramEzberQuestion(verse, seed);
+        const msg2 = formatTelegramEzberQuizMessage(origin, question);
         await sendTelegramHtmlMessage(token, chatId, msg2.text, msg2.reply_markup);
         return;
       }
@@ -7895,6 +8109,17 @@ async function processTelegramUpdate(update, origin, token, deps) {
       await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
     } else if (command === "elifba" || command === "tecvid") {
       const msg = formatAlphabetMessage(origin);
+      await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
+    } else if (command === "ezber" || command === "imtahan" || command === "quiz") {
+      const refMatch = args.match(/^(\d{1,3}):(\d{1,3})$/);
+      const seed = Math.floor(Math.random() * 997);
+      const verse = refMatch ? await resolveVersePayloadForBot(
+        Number.parseInt(refMatch[1], 10),
+        Number.parseInt(refMatch[2], 10),
+        deps
+      ) : pickEzberVerseBySeed(seed);
+      const question = buildTelegramEzberQuestion(verse, seed);
+      const msg = formatTelegramEzberQuizMessage(origin, question);
       await sendTelegramHtmlMessage(token, chatId, msg.text, msg.reply_markup);
     } else if (command === "axtar" || command === "search") {
       const msg = await handleQuranTextSearch(origin, args);

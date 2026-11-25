@@ -16,7 +16,7 @@ export function Footer({ stats, longVideoCount, onNavigate }: FooterProps) {
   }
 
   return (
-    <footer className="bg-[#F3F1EC] py-12 dark:bg-[#0B0E0C]">
+    <footer className="print:hidden bg-[#F3F1EC] py-12 dark:bg-[#0B0E0C]">
       <div className="mx-auto max-w-6xl px-6">
         {/* Lower Channel Overview Metrics Strip (Moved from top hero) */}
         <dl

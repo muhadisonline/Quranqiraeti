@@ -48,6 +48,13 @@ import {
   sanitizeWorshipReminderPrefs,
 } from './reminders';
 
+import {
+  WEAK_AYAHS_EVENT,
+  WEAK_AYAHS_STORAGE_KEY,
+  WeakAyahRecord,
+  sanitizeWeakAyahList,
+} from './muhaffizReview';
+
 export const HIFZ_PROGRESS_KEY = 'quranqiraeti_hifz_progress_v1';
 export const MISSED_WORDS_KEY = 'quranqiraeti_missed_words_v1';
 export const SAVED_VIDEOS_KEY = 'quranqiraeti_saved_ids_v1';
@@ -67,6 +74,7 @@ export interface UserProgressBackup {
   prayerCustomCoords?: CustomPrayerCoords;
   khatmPlan?: KhatmPlanConfig;
   worshipReminders?: WorshipReminderPrefs;
+  weakAyahs?: WeakAyahRecord[];
 }
 
 export function sanitizeMissedWordList(input: unknown, maxItems = 80): MissedWordRecord[] {
@@ -137,6 +145,7 @@ export function buildUserProgressBackup(
     prayerCustomCoords?: unknown;
     khatmPlan?: unknown;
     worshipReminders?: unknown;
+    weakAyahs?: unknown;
   },
   nowIso = new Date().toISOString()
 ): UserProgressBackup {
@@ -174,6 +183,9 @@ export function buildUserProgressBackup(
     ...(input.worshipReminders
       ? { worshipReminders: sanitizeWorshipReminderPrefs(input.worshipReminders) }
       : {}),
+    ...(Array.isArray(input.weakAyahs)
+      ? { weakAyahs: sanitizeWeakAyahList(input.weakAyahs) }
+      : {}),
   };
 }
 
@@ -207,7 +219,8 @@ export function parseAndValidateBackupJson(jsonText: string):
     'zikrState' in obj ||
     'prayerCityId' in obj ||
     'khatmPlan' in obj ||
-    'worshipReminders' in obj;
+    'worshipReminders' in obj ||
+    'weakAyahs' in obj;
 
   if (!hasAnyRecognizedKey) {
     return {
@@ -231,6 +244,7 @@ export function parseAndValidateBackupJson(jsonText: string):
         prayerCustomCoords: obj.prayerCustomCoords ?? undefined,
         khatmPlan: obj.khatmPlan ?? undefined,
         worshipReminders: obj.worshipReminders ?? undefined,
+        weakAyahs: obj.weakAyahs ?? undefined,
       },
       typeof obj.exportedAt === 'string' && obj.exportedAt
         ? obj.exportedAt
@@ -280,6 +294,7 @@ export function collectUserBackupFromStorage(): UserProgressBackup {
     prayerCustomCoords,
     khatmPlan: readJsonKey(KHATM_PLAN_STORAGE_KEY) ?? undefined,
     worshipReminders: readJsonKey(WORSHIP_REMINDERS_STORAGE_KEY) ?? undefined,
+    weakAyahs: readJsonKey(WEAK_AYAHS_STORAGE_KEY) ?? undefined,
   });
 }
 
@@ -316,6 +331,10 @@ export function applyUserBackupToStorage(backup: UserProgressBackup): void {
         WORSHIP_REMINDERS_STORAGE_KEY,
         JSON.stringify(backup.worshipReminders)
       );
+    }
+    if (backup.weakAyahs) {
+      window.localStorage.setItem(WEAK_AYAHS_STORAGE_KEY, JSON.stringify(backup.weakAyahs));
+      window.dispatchEvent(new CustomEvent(WEAK_AYAHS_EVENT));
     }
     window.dispatchEvent(new CustomEvent(SAVED_AYAHS_EVENT));
     window.dispatchEvent(new Event(READING_GOAL_EVENT));

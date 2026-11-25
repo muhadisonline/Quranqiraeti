@@ -133,7 +133,8 @@ test('subscription reducer, /abune parser, and Friday Kehf schedule behave accur
 });
 
 test('Features 2-4 commands, parsers, start deep links, and inline results pass strict button validation', () => {
-  assert.equal(TELEGRAM_BOT_COMMANDS.length, 13);
+  assert.equal(TELEGRAM_BOT_COMMANDS.length, 14);
+  assert.ok(TELEGRAM_BOT_COMMANDS.some((c) => c.command === 'ezber'));
   assert.ok(TELEGRAM_BOT_COMMANDS.some((c) => c.command === 'kart'));
   assert.ok(TELEGRAM_BOT_COMMANDS.some((c) => c.command === 'abune'));
 

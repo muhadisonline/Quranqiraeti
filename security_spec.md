@@ -7,6 +7,7 @@
 4. **Telemetry Schema Integrity**: Public/visitor `create` on `/page_events/{eventId}` is strictly append-only (no `update`, `delete`, or `read`/`list` by non-admins) and validates every field type, regex (`eventId`, `path`, `sessionId`), enum allowlist (`pageKey`, `status`, `referrerType`), numeric bounds (`loadTimeMs`, `httpStatus`), exact allowed keys (`hasAll` + `hasOnly`), and server timestamp (`createdAt == request.time`).
 5. **Health Snapshot Ownership**: `/page_health/{pageKey}` can only be read, created, updated, or deleted by verified admins, with `checkedByUid == request.auth.uid` and `lastCheckedAt == request.time`.
 6. **Telegram Subscription Event Privacy**: `/telegram_sub_events/{eventId}` is append-only (`create` strictly validated with regex, `encryptedPayload` ciphertext <= 1024 chars, `active is bool`, `hourBaku` int 0..23, and `createdAt == request.time`). Only verified admins can `get`, `list`, or `delete`, and `update` is strictly forbidden. Raw Telegram `chatId` is never stored in plaintext.
+7. **User Ayah Notes Ownership & Schema Integrity**: `/users/{userId}/ayah_notes/{noteId}` is strictly isolated to the authenticated Google account (`isVerifiedUser() && request.auth.uid == userId`), with `noteId` matching `^[0-9]{1,3}_[0-9]{1,3}$`, `ownerUid == userId`, bounded lengths (`note <= 500`, `arabicText <= 4000`, `translation <= 4000`, `surahName 1..80`), bounded numbers (`surahNumber 1..114`, `ayahNumber 1..286`, `pageNumber 0..604`), immutable `createdAt == request.time`, and `updatedAt == request.time`.
 
 ## 2. The "Dirty Dozen" Payloads (Expected: PERMISSION_DENIED)
 1. Unauthenticated read (`get`/`list`) on `/page_events` or `/page_events/ev-1`.
@@ -21,3 +22,4 @@
 10. Forged client timestamp (`createdAt != request.time`) on `/page_events` or `/telegram_sub_events` create.
 11. Unauthenticated or non-admin `read`/`list`/`update`/`delete` on `/telegram_sub_events/{eventId}` or shadow field injection (`role: "admin"`).
 12. Non-admin `create` or `update` on `/page_health/home`, or admin writing `checkedByUid != request.auth.uid`.
+13. Cross-user access or oversized note (`note.size() > 500`) on `/users/{otherUid}/ayah_notes/2_255`.
